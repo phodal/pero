@@ -1,8 +1,10 @@
 package harness
 
 import (
+	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"sync"
 
 	point "github.com/phodal/pero/harness/go/runtime"
@@ -73,4 +75,80 @@ func (r *SubagentRegistry) reserveDSHAgentName(parent *Agent, requested *string)
 		})
 	}
 	return name, release, nil
+}
+
+// DSHIdentityGuidance tells managed agents their own address and their durable
+// creator. A root that hosts a cold child is not the child's creator.
+func (r *SubagentRegistry) DSHIdentityGuidance(ctx context.Context, caller *Agent, capabilities PromptCapabilities) (string, error) {
+	if caller == nil || !capabilities.HasTool("send_message") && !capabilities.HasTool("list_agents") {
+		return "", nil
+	}
+	r.mu.RLock()
+	root, err := r.liveTreeRootLocked(caller)
+	path := []SessionID{caller.ID()}
+	if err == nil {
+		for current := caller; current != root; {
+			record := r.records[current.ID()]
+			if len(record.creationAncestors) > 0 {
+				path = append(path, record.creationAncestors...)
+				break
+			}
+			current = record.parent
+			path = append(path, current.ID())
+		}
+	}
+	r.mu.RUnlock()
+	if err != nil {
+		return "Your DSH agent ID is " + strconv.Quote(string(caller.ID())) + ". Your collaboration root is unavailable; continue independent work.", nil
+	}
+	var guidance string
+	if caller == root {
+		guidance = `You are the root agent of this DSH tree. Your address is "lead".`
+	} else {
+		self, creator := string(path[0]), string(path[1])
+		if path[1] == root.ID() {
+			creator = "lead"
+		}
+		if read, query, release, err := r.beginCatalogRead(ctx, caller); err == nil {
+			defer release()
+			var segments []string
+			for i := len(path) - 1; i > 0; i-- {
+				rows, err := query.ReadSubagentCatalog(read, path[i])
+				if err != nil {
+					break
+				}
+				var name string
+				for _, row := range rows {
+					if row.ID == path[i-1] {
+						name = row.Name
+						break
+					}
+				}
+				if name == "" {
+					break
+				}
+				segments = append(segments, name)
+				if i == 2 {
+					creator = strings.Join(segments, "/")
+				}
+				if i == 1 {
+					self = strings.Join(segments, "/")
+				}
+			}
+		}
+		if current, err := r.LiveTreeRoot(caller); err != nil || current != root {
+			return "Your DSH agent ID is " + strconv.Quote(string(caller.ID())) + ". Your collaboration root is unavailable; continue independent work.", nil
+		}
+		guidance = "Your DSH agent address is " + strconv.Quote(self) + ". Your original creator's address is " + strconv.Quote(creator) + `. The root is "lead".`
+		if capabilities.HasTool("send_message") && !capabilities.HasTool("team_task_update") {
+			guidance += " When you finish, send your creator a self-contained result."
+		}
+	}
+	if capabilities.HasTool("send_message") {
+		guidance += " Use send_message to communicate without ending your turn."
+	}
+	if capabilities.HasTool("list_agents") {
+		guidance += " Use list_agents to find collaborator addresses."
+	}
+	return guidance, nil
 }

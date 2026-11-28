@@ -60,3 +60,8 @@ its capacity. The child journal, original creator, depth, saved model route,
 and tool/approval ceiling are preserved. When the original creator rejoins
 the same tree it can still interrupt; a relay never acquires that authority.
 The Host protocol keeps its original direct-parent rule.
+
+The model sees its address and the original creator when messaging or discovery
+is available. The name follows the saved creation path, including cold resume
+under the root; temporary activation ownership does not change the creator.
+The guidance only advertises tools actually available for that model request.

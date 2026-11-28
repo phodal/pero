@@ -79,13 +79,18 @@ func mountSubagents(ctx context.Context, h *harness.Harness, persistence harness
 		}
 	}
 	const controlID = "pero/subagents/control"
-	def := point.Define(point.Descriptor{ID: controlID, Provides: []point.AnyKey{harness.SubagentCatalogQueryKey.Any()}, Requires: []point.Requirement{point.Require(harness.SubagentRegistryKey), point.Require(harness.ToolRegistryKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
+	def := point.Define(point.Descriptor{ID: controlID, Provides: []point.AnyKey{harness.SubagentCatalogQueryKey.Any()}, Requires: []point.Requirement{point.Require(harness.SubagentRegistryKey), point.Require(harness.ToolRegistryKey), point.Require(harness.PromptRegistryKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
 		if err := h.ProvideSubagentCatalogQuery(run, persistence); err != nil {
 			return nil, err
 		}
 		tools := []harness.Tool{h.Subagents().WaitAgentTool(run.Context), h.Subagents().ListAgentsTool()}
 		if o.Continuations {
 			tools = append(tools, h.Subagents().DSHControlTools()...)
+			if _, err := h.Prompts().Register(run, harness.PromptSection{
+				ID: "dsh:agent-identity", Order: 650, Guidance: h.Subagents().DSHIdentityGuidance,
+			}); err != nil {
+				return nil, err
+			}
 		}
 		for _, tool := range tools {
 			if _, err := h.Tools().Register(run, tool); err != nil {

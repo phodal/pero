@@ -21,6 +21,8 @@ const {server, url} = await listenJson(async (request, response, body) => {
   for (const tool of ['subagent', 'subagent_fork', 'send_message', 'interrupt_agent'])
     assert.equal(tools.includes(tool), enabled);
   assert.ok(tools.includes('spawn_agent'));
+  const system = body.messages.filter(m=>m.role==='system').map(m=>String(m.content)).join('\n');
+  assert.equal(/this DSH tree|Your DSH agent address is/.test(system),enabled);
   const last = body.messages.at(-1);
   const answer = content => streamCompletion(response, {id:`reply-${++serial}`, model:body.model, delta:{content}, finish:'stop'});
   const call = (id, name, args) => streamCompletion(response, {id:`tool-${++serial}`,
@@ -113,6 +115,8 @@ const {server, url} = await listenJson(async (request, response, body) => {
     }
     if (content.includes('cross-level cold relay')) {
       assert.ok(body.messages.some(m=>m.content==='leaf saved baseline'),'resumed leaf kept its original model history');
+      assert.match(system,/Your DSH agent address is "branch\/checker"\. Your original creator's address is "branch"\./);
+      assert.doesNotMatch(system,/creator's address is "lead"/,'temporary root ownership must not become creator identity');
       cold.leafResumes++;
       response.once('close',()=>{cold.leafInterrupted = true;});
       cold.leafJoined();
