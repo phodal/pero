@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { createServer, request } from 'node:http';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { expect } from '@playwright/test';
@@ -26,6 +27,7 @@ control.stderr.on('data', chunk => { log += chunk; });
 let origin;
 let app;
 let page;
+let connectionFixture;
 const snapshot = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 
 async function api(path, token, payload, key = '') {
@@ -83,11 +85,32 @@ try {
   const delivery = await api(endpoint, account.token, {
     title: 'Archive and restore tasks', base_sha: '7f4425c9'.repeat(5), ...stages,
   }, 'archive-and-restore');
+  // Change the active identity at the loopback HTTP seam. The test covers
+  // delivery cache isolation independently of the runner's OS keychain.
+  let activeToken = account.token;
+  connectionFixture = createServer((incoming, outgoing) => {
+    if (incoming.headers.authorization !== `Bearer ${account.token}`) {
+      outgoing.writeHead(401).end();
+      return;
+    }
+    const upstream = request(origin + incoming.url, {
+      method: incoming.method,
+      headers: { ...incoming.headers, authorization: `Bearer ${activeToken}` },
+    }, response => {
+      outgoing.writeHead(response.statusCode, response.headers);
+      response.pipe(outgoing);
+    });
+    upstream.on('error', () => outgoing.destroy());
+    incoming.pipe(upstream);
+  });
+  connectionFixture.listen(0, '127.0.0.1');
+  await once(connectionFixture, 'listening');
+  const fixtureOrigin = `http://127.0.0.1:${connectionFixture.address().port}`;
   app = await electron.launch({
     args: [...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []), resolve(root, 'desktop')],
     cwd: root,
     env: { ...process.env, PERO_DESKTOP_DATA_DIR: profile, PERO_SETTINGS_PATH: join(profile, 'settings.json'),
-      PERO_HISTORY_PATH: join(profile, 'history.jsonl'), PERO_CLOUD_URL: origin, PERO_CLIENT_TOKEN: account.token, PERO_LOCALE: 'en' },
+      PERO_HISTORY_PATH: join(profile, 'history.jsonl'), PERO_CLOUD_URL: fixtureOrigin, PERO_CLIENT_TOKEN: account.token, PERO_LOCALE: 'en' },
   });
   page = await app.firstWindow();
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1400, 900));
@@ -131,10 +154,11 @@ try {
   await click('delivery:record:' + delivery.id);
   await bounds(`delivery:status:${runId}:cancelled`);
   await page.screenshot({ path: join(output, 'coding-delivery.png'), scale: 'css' });
-  await page.evaluate(command => window.pero.remoteCommand(command), {
-    action: 'remote_configure', mode: 'client', url: origin, token: outsider.token,
-  });
-  await expect.poll(async () => (await snapshot()).remote.state.identity?.id).toBe(outsider.client.id);
+  activeToken = outsider.token;
+  await page.evaluate(() => window.pero.remoteCommand({ action: 'remote_refresh' }));
+  await expect.poll(async () => (await snapshot()).remote.state.identity?.id, {
+    timeout: 15000, message: 'The Desktop observed the second Project client',
+  }).toBe(outsider.client.id);
   await expect.poll(async () => {
     const controls = (await snapshot()).projectControls;
     return Boolean(controls['delivery:record:' + delivery.id] || controls['delivery:run:' + runId]);
@@ -147,6 +171,12 @@ try {
   try {
     await app?.close();
   } finally {
+    if (connectionFixture) {
+      const closed = once(connectionFixture, 'close');
+      connectionFixture.close();
+      connectionFixture.closeAllConnections();
+      await closed;
+    }
     if (control.exitCode === null) control.kill();
     await controlExit;
     await rm(profile, { recursive: true, force: true, maxRetries: 3 });
