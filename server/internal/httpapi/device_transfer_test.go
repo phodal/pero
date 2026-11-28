@@ -229,6 +229,7 @@ type gateImport struct {
 	entered  chan struct{}
 	release  chan struct{}
 	once     sync.Once
+	fail     bool
 }
 
 func (g *gateImport) ImportPDF(context.Context, string, []byte, string) (string, string, bool) {
@@ -237,6 +238,9 @@ func (g *gateImport) ImportPDF(context.Context, string, []byte, string) (string,
 	g.mu.Unlock()
 	g.once.Do(func() { close(g.entered) })
 	<-g.release
+	if g.fail {
+		return "", "", false
+	}
 	return g.id, g.revision, true
 }
 
@@ -312,6 +316,76 @@ func TestConcurrentFinalizeImportsOnceAndCancelDoesNotWin(t *testing.T) {
 	kept, _, _, ok := desk.Get("lab", "upload-1")
 	if !ok || len(kept) != 0 {
 		t.Fatalf("bytes %d", len(kept))
+	}
+}
+
+func TestFailedFinalizeRacingPutDoesNotLeakBytes(t *testing.T) {
+	body := bytes.Repeat([]byte("p"), 4096)
+	sum := sha256.Sum256(body)
+	digest := hex.EncodeToString(sum[:])
+	gate := &gateImport{fail: true, entered: make(chan struct{}), release: make(chan struct{})}
+	desk := newImportingDesk(gate)
+	desk.Register("lab", devicetransfer.Handle{ID: "handle-1", Provider: "browser", MediaType: "application/pdf", Size: uint64(len(body)), Name: "note.pdf"})
+	api := &API{files: desk}
+	if code, _ := postBytes(t, api, "lab", []string{"lab"}, "upload-1", "handle-1", body); code != 202 {
+		t.Fatal(code)
+	}
+	done := make(chan int, 3)
+	go func() {
+		code, _ := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", digest, uint64(len(body)))
+		done <- code
+	}()
+	select {
+	case <-gate.entered:
+	case code := <-done:
+		t.Fatalf("finalize finished before the importer %d", code)
+	case <-time.After(2 * time.Second):
+		t.Fatal("importer was not entered")
+	}
+	go func() {
+		code, _ := postBytes(t, api, "lab", []string{"lab"}, "upload-1", "handle-1", body)
+		done <- code
+	}()
+	go func() {
+		code, _ := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", digest, uint64(len(body)))
+		done <- code
+	}()
+	deadline := time.After(2 * time.Second)
+	for desk.waitingCount() < 2 {
+		select {
+		case code := <-done:
+			t.Fatalf("finished before both followers were waiting %d", code)
+		case <-deadline:
+			t.Fatalf("waiters %d", desk.waitingCount())
+		default:
+			runtime.Gosched()
+		}
+	}
+	close(gate.release)
+	for range 3 {
+		<-done
+	}
+	desk.mu.Lock()
+	slot := desk.uploads["lab"]["upload-1"]
+	projectBytes, globalBytes := desk.projectBytes["lab"], desk.globalBytes
+	var accounted uint64
+	if slot != nil {
+		accounted = slot.accounted
+	}
+	desk.mu.Unlock()
+	if slot == nil && (projectBytes != 0 || globalBytes != 0) {
+		t.Fatalf("orphan bytes project %d global %d", projectBytes, globalBytes)
+	}
+	if slot != nil && (projectBytes != accounted || globalBytes != accounted) {
+		t.Fatalf("accounted %d project %d global %d", accounted, projectBytes, globalBytes)
+	}
+	if slot != nil {
+		postCancel(t, api, "lab", "upload-1")
+	}
+	desk.mu.Lock()
+	defer desk.mu.Unlock()
+	if desk.projectBytes["lab"] != 0 || desk.globalBytes != 0 {
+		t.Fatalf("left project %d global %d", desk.projectBytes["lab"], desk.globalBytes)
 	}
 }
 

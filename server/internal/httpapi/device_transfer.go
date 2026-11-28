@@ -160,9 +160,15 @@ func (d *importingDesk) Put(project, upload string, body []byte, transfer device
 	if d.uploads[project] == nil {
 		d.uploads[project] = map[string]*uploadSlot{}
 	}
-	slot := d.uploads[project][upload]
-	for slot != nil && slot.busy {
+	var slot *uploadSlot
+	for {
+		slot = d.uploads[project][upload]
+		if slot == nil || !slot.busy {
+			break
+		}
+		d.waiting++
 		d.cond.Wait()
+		d.waiting--
 	}
 	fresh := slot == nil
 	if fresh {
@@ -229,7 +235,14 @@ func (d *importingDesk) Reserve(project, upload string, fn func(body []byte, tra
 		d.mu.Unlock()
 		return devicetransfer.Commit{}, "", false
 	}
-	for slot.busy {
+	for {
+		if d.uploads[project][upload] != slot {
+			d.mu.Unlock()
+			return devicetransfer.Commit{}, "", false
+		}
+		if !slot.busy {
+			break
+		}
 		d.waiting++
 		d.cond.Wait()
 		d.waiting--
@@ -250,7 +263,9 @@ func (d *importingDesk) Reserve(project, upload string, fn func(body []byte, tra
 	commit, code := fn(body, transfer, prior)
 	d.mu.Lock()
 	slot.busy = false
-	if code != "" && slot.commit == nil {
+	if d.uploads[project][upload] != slot {
+		d.subtractLocked(project, slot)
+	} else if code != "" && slot.commit == nil {
 		d.subtractLocked(project, slot)
 		delete(d.uploads[project], upload)
 	} else if code == "" && slot.commit == nil {
@@ -284,7 +299,13 @@ func (d *importingDesk) Cancel(project, upload string) string {
 	if slot == nil {
 		return devicetransfer.Foreign
 	}
-	for slot.busy {
+	for {
+		if d.uploads[project][upload] != slot {
+			return devicetransfer.Foreign
+		}
+		if !slot.busy {
+			break
+		}
 		d.waiting++
 		d.cond.Wait()
 		d.waiting--
