@@ -32,7 +32,7 @@ Campaign Workflow closes.
 
 ## Acceptance
 
-- [ ] A researcher can open the exact Run evidence in the shared Project,
+- [x] A researcher can open the exact Run evidence in the shared Project,
   review the checker result, and accept or reject the predeclared follow-up.
 - [x] Restart while waiting for the decision, reopen the Project API, and confirm
   it shows the same gate, plan revision and evidence. A duplicate approval
@@ -58,7 +58,14 @@ process restart. Concurrent identical submissions returned one durable receipt
 and started one follow-up. The pre-approval stale gate, another-project Client,
 runner Client and a changed retry could not advance the Workflow. Domain and
 checker tests cover deadline, rejection, altered output and missing evidence.
-The dedicated Desktop Project review controls are still pending.
+
+Desktop's shared Project Campaign tab shows both exact Runs, their separate
+verification statuses and evidence digests, and the persisted approval receipt.
+Electron acceptance approved the follow-up with a reviewer Client after the
+orchestrator restarted, ran both trials using the locked PyBaMM environment, and
+reopened the same receipt and evidence after restarting Desktop. The same
+acceptance sends duplicate approvals and checks the solver start count. CI
+retains both screenshots, the receipt, and replayable Temporal history.
 
 Requires the [finite Campaign runtime](2026-11-27-temporal-campaign-runtime.md)
 and [exact Run operations](2026-11-27-campaign-run-control.md). See
