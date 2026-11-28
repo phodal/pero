@@ -147,6 +147,12 @@ func TestArtifactCollectorAndAuthorizedDownload(t *testing.T) {
 	}
 	deliveries := "/api/client/v1/projects/project/coding-deliveries"
 	ref := store.RunRef{TaskID: e.Source.TaskID, RunID: e.Source.RunID, Generation: e.Source.Generation}
+	available := parse[struct {
+		Runs []store.DeliveryRunChoice `json:"runs"`
+	}](t, request(t, server, "GET", deliveries, member, nil, "", 200))
+	if len(available.Runs) != 1 || available.Runs[0].RunRef != ref || available.Runs[0].WorkerName != "worker" {
+		t.Fatalf("picker did not return the queued exact Run and its assigned worker: %+v", available.Runs)
+	}
 	manifest := store.DeliveryManifest{
 		Title: "Artifact handoff", BaseSHA: e.Source.WorkspaceRevision, Analysis: &ref,
 		Proposal: &store.DeliveryEvidence{ExportID: e.ID, FileID: file.ID, SHA256: strings.TrimPrefix(file.SHA256, "sha256:")},

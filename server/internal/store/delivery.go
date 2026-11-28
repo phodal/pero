@@ -62,6 +62,12 @@ type DeliveryRunView struct {
 	Reconciliation *RunReconciliation `json:"reconciliation,omitempty"`
 }
 
+type DeliveryRunChoice struct {
+	RunRef
+	Title      string `json:"title"`
+	WorkerName string `json:"worker_name,omitempty"`
+}
+
 var ErrDeliveryInput = errors.New("invalid delivery manifest or evidence binding")
 var deliveryKey = regexp.MustCompile("^[a-zA-Z0-9_-]{1,128}$")
 var deliveryBaseSHA = regexp.MustCompile("^([a-f0-9]{40}|[a-f0-9]{64})$")
@@ -176,6 +182,32 @@ func (s *Store) ClientDeliveries(ctx context.Context, client *Client, project st
 		result = append(result, entry)
 	}
 	return result, rows.Err()
+}
+
+// ClientDeliveryRunChoices lists bounded recent exact Runs. Earlier generations
+// remain available here even when the Task list points at a newer Run.
+func (s *Store) ClientDeliveryRunChoices(ctx context.Context, client *Client, project string) ([]DeliveryRunChoice, error) {
+	if !slices.Contains(client.Projects, project) {
+		return nil, ErrNotFound
+	}
+	rows, err := s.pool.Query(ctx, `SELECT r.task_id,r.id,r.generation,r.spec->>'title',COALESCE(w.name,'')
+		FROM runs r JOIN tasks t ON t.id=r.task_id
+		LEFT JOIN workers w ON w.id=COALESCE(r.worker_id,r.target_worker_id)
+		WHERE t.spec->>'project_id'=$1 AND r.spec->>'project_id'=$1
+		ORDER BY r.created_at DESC,r.id DESC LIMIT 50`, project)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	choices := []DeliveryRunChoice{}
+	for rows.Next() {
+		var choice DeliveryRunChoice
+		if err := rows.Scan(&choice.TaskID, &choice.RunID, &choice.Generation, &choice.Title, &choice.WorkerName); err != nil {
+			return nil, err
+		}
+		choices = append(choices, choice)
+	}
+	return choices, rows.Err()
 }
 
 func (s *Store) clientDelivery(ctx context.Context, client *Client, project, id string) (DeliveryRecord, error) {

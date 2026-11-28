@@ -31,6 +31,7 @@ const EVIDENCE: [(&str, &str); 4] = [
 pub(crate) struct DeliveryState {
     project: String,
     records: Vec<Value>,
+    choices: Vec<DeliveryRunChoice>,
     selected: String,
     detail: Value,
     evidence: Value,
@@ -46,6 +47,7 @@ pub(crate) struct DeliveryState {
 #[derive(Clone)]
 struct DeliveryRunChoice {
     label: String,
+    worker: String,
     reference: Value,
 }
 
@@ -60,6 +62,7 @@ impl DeliveryState {
         Self {
             project: String::new(),
             records: vec![],
+            choices: vec![],
             selected: String::new(),
             detail: Value::Null,
             evidence: Value::Null,
@@ -79,6 +82,7 @@ impl DeliveryState {
         }
         self.project = project;
         self.records.clear();
+        self.choices.clear();
         self.selected.clear();
         self.detail = Value::Null;
         self.evidence = Value::Null;
@@ -123,6 +127,20 @@ impl Workbench {
                 "remote_delivery_list" => {
                     self.deliveries.records =
                         value["deliveries"].as_array().cloned().unwrap_or_default();
+                    self.deliveries.choices = value["runs"].as_array().into_iter().flatten().map(|run| {
+                        let title = string(run, "title");
+                        let worker = string(run, "worker_name").to_owned();
+                        let generation = run["generation"].as_i64().unwrap_or_default();
+                        let label = if worker.is_empty() {
+                            format!("{title} · #{generation}")
+                        } else {
+                            format!("{title} · {worker} · #{generation}")
+                        };
+                        DeliveryRunChoice {
+                            label, worker,
+                            reference: json!({"task_id":run["task_id"],"run_id":run["run_id"],"generation":run["generation"]}),
+                        }
+                    }).collect();
                 }
                 "remote_delivery_create" => {
                     self.deliveries.request = None;
@@ -294,20 +312,7 @@ impl Workbench {
             || title.is_empty()
             || !valid_base
             || self.deliveries.runs[0].is_none();
-        let choices = self.remote.tasks().iter().filter_map(|task| {
-            let run = &task["run"];
-            if string(task, "project_id") != self.deliveries.project || !run.is_object() {
-                return None;
-            }
-            let worker_id = string(run, "worker_id");
-            let worker = self.remote.workers().iter()
-                .find(|worker| string(worker, "id") == worker_id)
-                .map(|worker| string(worker, "name")).unwrap_or(worker_id);
-            Some(DeliveryRunChoice {
-                label: format!("{} · {}", string(task, "title"), worker),
-                reference: json!({"task_id":task["id"],"run_id":run["id"],"generation":run["generation"]}),
-            })
-        }).collect::<Vec<_>>();
+        let choices = &self.deliveries.choices;
         let workbench = cx.entity().downgrade();
         div().id("project-delivery-form").flex().flex_col().gap(px(10.)).p(px(12.))
             .border_1().border_color(p.border).rounded(px(8.))
@@ -317,7 +322,7 @@ impl Workbench {
             .child(pero_theme::WorkbenchStyle::input(Input::new(&self.deliveries.baseline), cx).aria_label(self.t("delivery.baseline")))
             .when(choices.is_empty(), |el| el.child(div().text_color(p.text_muted).child(self.t("delivery.no_runs"))))
             .child(div().flex().flex_wrap().gap(px(8.)).children(STAGES.into_iter().enumerate().map(|(slot, (_, label, _))| {
-                let choices = choices.clone();
+                let choices = choices.to_vec();
                 let workbench = workbench.clone();
                 let current = self.deliveries.runs[slot].as_ref();
                 let selected = current.map(|choice| choice.label.clone()).unwrap_or_else(|| self.t(label).to_owned());
@@ -366,7 +371,7 @@ impl Workbench {
                         this.command(json!({"action":"remote_delivery_create","project":this.deliveries.project,"request_id":request,"manifest":manifest}), cx);
                         cx.notify();
                     })))
-                .child(Button::new("cancel-delivery-link").ghost().small().label(self.t("connector.cancel"))
+                .child(Button::new("cancel-delivery-link").ghost().small().label(self.t("delivery.cancel"))
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.deliveries.request = None;
                         cx.notify();
@@ -391,7 +396,9 @@ impl Workbench {
                 let value = |name| run.get(name).and_then(Value::as_str).unwrap_or("");
                 let worker = self.remote.workers().iter()
                     .find(|worker| string(worker, "id") == value("worker_id"))
-                    .map(|worker| string(worker,"name")).unwrap_or_else(|| value("worker_id"));
+                    .map(|worker| string(worker,"name"))
+                    .or_else(|| self.deliveries.choices.iter().find(|choice| string(&choice.reference, "run_id") == value("run_id")).map(|choice| choice.worker.as_str()))
+                    .unwrap_or_else(|| value("worker_id"));
                 let phase = Phase::of(value("status"), false);
                 let status = if run.get("reconciliation").is_some_and(Value::is_object) {
                     self.t("delivery.reconciled")

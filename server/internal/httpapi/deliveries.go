@@ -67,9 +67,15 @@ func (a *API) listDeliveries(w http.ResponseWriter, r *http.Request) {
 		failure(w, err)
 		return
 	}
+	choices, err := a.db.ClientDeliveryRunChoices(r.Context(), clientIdentity(r), r.PathValue("project"))
+	if err != nil {
+		failure(w, err)
+		return
+	}
 	respond(w, 200, struct {
-		Deliveries []store.DeliveryRecord `json:"deliveries"`
-	}{result})
+		Deliveries []store.DeliveryRecord    `json:"deliveries"`
+		Runs       []store.DeliveryRunChoice `json:"runs"`
+	}{result, choices})
 }
 
 func (a *API) readDelivery(w http.ResponseWriter, r *http.Request) {
