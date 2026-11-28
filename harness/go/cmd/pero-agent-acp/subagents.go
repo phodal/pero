@@ -6,6 +6,7 @@ import (
 	"flag"
 
 	"github.com/phodal/pero/harness/go/harness"
+	point "github.com/phodal/pero/harness/go/runtime"
 	"github.com/phodal/pero/harness/go/subagents"
 )
 
@@ -51,6 +52,22 @@ func mountSubagents(ctx context.Context, h *harness.Harness, persistence harness
 		if _, err := subagents.MountTool(ctx, h, subagents.ToolOptions{EntryID: "pero/subagents/" + p, Provider: p, ToolName: p + "_agent", MaxDepth: 1}); err != nil {
 			return err
 		}
+	}
+	const waitID = "pero/subagents/wait"
+	def := point.Define(point.Descriptor{ID: waitID, Requires: []point.Requirement{point.Require(harness.SubagentRegistryKey), point.Require(harness.ToolRegistryKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
+		_, err := h.Tools().Register(run, h.Subagents().WaitAgentTool(run.Context))
+		return nil, err
+	})
+	instance, err := h.Runtime().Mount(nil, waitID, def, nil)
+	if err != nil {
+		return err
+	}
+	if err := instance.WaitStable(ctx); err != nil {
+		return err
+	}
+	snapshot := instance.Snapshot()
+	if snapshot.State == point.Failed {
+		return errors.New(snapshot.LastError)
 	}
 	return nil
 }

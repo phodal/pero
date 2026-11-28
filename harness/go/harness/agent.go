@@ -292,6 +292,7 @@ type Agent struct {
 	injectMu            sync.Mutex
 	injected            []injectedMessage
 	acceptingInject     bool
+	nextStepWake        chan struct{} // guarded by injectMu
 	durableInbox        *DurableInbox
 	durableWake         bool
 	inboxEpoch          uint64

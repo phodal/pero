@@ -554,7 +554,18 @@ func (a *Agent) discardInjected() {
 }
 
 func (a *Agent) publishInboxInserted(message Message, target InboxTarget, userAuthored bool) {
-	if a == nil || a.hooks == nil || a.hooks.InboxInserted == nil {
+	if a == nil {
+		return
+	}
+	if target == InboxNextStep {
+		a.injectMu.Lock()
+		if a.nextStepWake != nil {
+			close(a.nextStepWake)
+			a.nextStepWake = nil
+		}
+		a.injectMu.Unlock()
+	}
+	if a.hooks == nil || a.hooks.InboxInserted == nil {
 		return
 	}
 	_ = a.hooks.InboxInserted.EmitAll(context.Background(), InboxInsertedInput{
