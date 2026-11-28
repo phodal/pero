@@ -72,6 +72,10 @@ history captured in each live run. The acceptance establishes numerical
 consistency on the test host. Physical battery validity and hosted rollout
 are separate checks.
 
+The initial GitHub run stopped during setup on Ubuntu 26.04 because its
+`setup-python` manifest does not carry the locked Python 3.12.11 build. The
+acceptance job uses Ubuntu 24.04, which publishes that interpreter.
+
 Requires [exact Run control](2026-11-27-campaign-run-control.md), the
 [Campaign runtime](2026-11-27-temporal-campaign-runtime.md), and
 [review and evidence](2026-11-27-campaign-review-evidence.md). See
