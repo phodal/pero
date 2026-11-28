@@ -180,6 +180,7 @@ mod spotlight;
 
 #[cfg(all(feature="native",not(target_family="wasm")))]
 mod native_apps;
+mod capability_dispatch;
 #[cfg(all(not(target_family = "wasm"), any(test, feature = "native")))]
 mod native_docling;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
