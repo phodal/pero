@@ -253,6 +253,15 @@ impl ChatPanel {
         }
     }
 
+    pub(crate) fn reconnect_chat(&mut self, cx: &mut Context<Self>) {
+        let Some(chat) = self.active_chat.and_then(|i| self.chats.get(i)) else { return; };
+        if self.connected && chat.can_reconnect() {
+            cx.emit(crate::ChatAction::Command(pero_contracts::HostCommand::ReconnectSession {
+                thread_id: chat.id.clone(),
+            }));
+        }
+    }
+
     pub fn replacement_thread(&self, id: &str) -> Option<&str> {
         self.retired_chats.get(id).map(String::as_str)
     }
@@ -682,6 +691,8 @@ impl ChatPanel {
         match event.kind.as_str() {
             "session_created" => {
                 chat.state = SessionState::Connecting;
+                chat.ordinary_origin = pero_contracts::session_history::OrdinarySessionOrigin::read(&event.data).is_some();
+                chat.acp_load_supported = false;
                 chat.project_agent = event.data.get("projectAgent").and_then(|value| serde_json::from_value(value.clone()).ok());
                 chat.workspace = event.data["workspace"].as_str().unwrap_or_default().into();
                 chat.scope = event
@@ -732,9 +743,13 @@ impl ChatPanel {
                 chat.state = SessionState::AwaitingApp;
                 chat.error = None;
             }
-            "session_connecting" => chat.state = SessionState::Connecting,
+            "session_connecting" => {
+                if chat.can_reconnect() { chat.mcp = None; }
+                chat.state = SessionState::Connecting;
+            },
             "session_ready" => {
                 chat.session_id = event.data["sessionId"].as_str().unwrap_or_default().into();
+                chat.acp_load_supported = pero_contracts::session_history::ordinary_reconnect_id(&chat.agent, &event.data).is_some();
                 if chat.mcp.is_none() { chat.mcp = serde_json::from_value(event.data["peroMcp"].clone()).ok(); }
                 chat.config(&event.data);
                 chat.state = SessionState::Idle;
@@ -828,7 +843,7 @@ impl ChatPanel {
                 chat.pending_model = None;
                 chat.flush(cx);
                 chat.error = Some(Self::localized_notice(&self.locale, event));
-                chat.state = if chat.session_id.is_empty() {
+                chat.state = if chat.session_id.is_empty() || chat.state == SessionState::Closed {
                     SessionState::Closed
                 } else {
                     SessionState::Idle

@@ -935,6 +935,8 @@ jobs:
           npm run build --workspace @pero/web
           npm ci --prefix packages/connectors --ignore-scripts
           node scripts/build/desktop.mjs
+      - name: Ordinary chat reconnect through Host and ACP
+        run: node tests/contracts/desktop-chat-reconnect.mjs
       - name: Project Agent Messages Files contract
         run: node tests/contracts/dsh-messages-files.mjs
       - name: Paper source provenance over Messages Files
@@ -957,9 +959,12 @@ jobs:
             exit 1
           fi
           PAPER_STUDY_PYTHON_ENV="$venv" node --experimental-transform-types tests/runtime/paper-study/run.mjs --fixture vision-files "$PWD/target/debug/pero-agent-acp"
+      - name: Prepare desktop acceptance dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Reconnect a saved conversation in Electron
+        run: xvfb-run -a env PERO_TEST_SOFTWARE_GL=1 node tests/contracts/desktop-chat-reconnect.mjs --electron
       - name: Official conversation, including same-process close and restart
         run: |
-          npx playwright install --with-deps chromium
           npm install --prefix target/mcp-official-example --save-exact --ignore-scripts --no-audit --no-fund @modelcontextprotocol/server-basic-vanillajs@2.0.4
           xvfb-run -a env PERO_TEST_SOFTWARE_GL=1 npm run test:mcp-official-conversation
           xvfb-run -a env PERO_TEST_SOFTWARE_GL=1 npm run test:mcp-notebook-conversation
@@ -969,6 +974,7 @@ jobs:
         with:
           name: mcp-conversation-${{ github.sha }}
           path: |
+            test-results/desktop-chat-reconnect/
             test-results/mcp-apps-conversation/
             test-results/mcp-notebook-conversation/
           if-no-files-found: warn

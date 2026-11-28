@@ -287,6 +287,10 @@ pub struct Conversation {
     pub state: SessionState,
     pub notice: crate::session_state::SessionNotice,
     pub session_id: String,
+    #[serde(skip)]
+    pub(crate) ordinary_origin: bool,
+    #[serde(skip)]
+    pub(crate) acp_load_supported: bool,
     pub messages: Vec<Message>,
     pub tools: Vec<Tool>,
     #[serde(skip)]
@@ -341,6 +345,8 @@ impl Conversation {
             state: SessionState::Draft,
             notice: Default::default(),
             session_id: String::new(),
+            ordinary_origin: false,
+            acp_load_supported: false,
             messages: vec![],
             tools: vec![],
             changes: Default::default(),
@@ -369,8 +375,13 @@ impl Conversation {
         self.history.complete() && self.project_agent.is_none() && self.state.can_retarget(!self.messages.is_empty(), self.queued.is_some())
     }
 
+    pub fn can_reconnect(&self) -> bool {
+        self.history.complete() && self.state == SessionState::Closed && self.ordinary_origin
+            && self.acp_load_supported && !self.session_id.is_empty() && self.queued.is_none()
+    }
+
     pub fn can_retry(&self) -> bool {
-        self.can_retarget() && (self.state == SessionState::Closed
+        !self.can_reconnect() && self.can_retarget() && (self.state == SessionState::Closed
             || self.mcp.as_ref().is_some_and(|mcp| !mcp.failed_servers().is_empty()))
     }
 

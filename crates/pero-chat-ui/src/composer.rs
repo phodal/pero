@@ -44,7 +44,8 @@ impl ChatPanel {
         let project_retry = chat.filter(|chat| chat.can_retry_project_start()).and_then(|chat| {
             chat.project_agent.as_ref().map(|binding| (binding.project_id.clone(), chat.agent.clone()))
         });
-        let can_retry = project_retry.is_some() || chat.is_some_and(|chat| chat.can_retry());
+        let can_reconnect = chat.is_some_and(|chat| chat.can_reconnect());
+        let can_retry = can_reconnect || project_retry.is_some() || chat.is_some_and(|chat| chat.can_retry());
         let can_send = self.connected
             && self
                 .agents
@@ -381,6 +382,8 @@ impl ChatPanel {
                                         cx.emit(crate::ChatAction::StartProjectAgent {
                                             project_id: project_id.clone(), agent_id: agent_id.clone(),
                                         });
+                                    } else if can_reconnect {
+                                        this.reconnect_chat(cx);
                                     } else {
                                         this.retry_chat(cx);
                                     }

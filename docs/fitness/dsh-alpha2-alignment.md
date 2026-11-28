@@ -95,7 +95,7 @@ use a real provider key, user profile, or private research data.
 
 | Surface | Covered by this branch or existing behavior | Still open / deliberate difference |
 | --- | --- | --- |
-| Native ACP lifecycle | New/list/close/resume, canonical workspace, cancellation without replay; Pero `session/load` also restores the saved model and effort through the Host runtime. | Ordinary Desktop history reconnect and packaged platform acceptance are open. DSH does not advertise Pero's ACP load capability. |
+| Native ACP lifecycle | New/list/close/resume, canonical workspace, cancellation without replay; Pero `session/load` also restores the saved model and effort through the Host runtime. The ordinary Desktop composer explicitly reconnects through the original Host thread. | App/Project/Automation retain their own lifecycles; signed-package and Native UI acceptance are separate. DSH does not advertise Pero's ACP load capability. |
 | Messages and Files | Text/tool SSE, signed replay at the same credential and route, explicit image upload/reuse, fallback and stale-ID handling; Rust Host restart and Paper source-provenance contracts. | Live DeepSeek round trip, broader DSH Files file lifecycle/quota/budget behavior, and real Desktop Paper link navigation remain open. Pero deliberately avoids widening uploads or retrying ambiguous stale IDs. |
 | Compaction, Skills and policy | Latest-request pressure, explicit summary override, frozen source identity; existing Skill catalog/permission tests and separately pinned AST comparison. | Pero intentionally does not choose a last-answered model implicitly or adopt DSH's dynamic filesystem Skill roots. Source/AST extraction is not whole-runtime execution. |
 | Goal | Explicit ACP start/status/edit/resume/complete, durable admission, cancellation, scoped descendant waits, and model stop with configurable blocker threshold. | DSH's model-mediated create/edit/resume under direct human authority and model wrap-up are not ported. Shipped Electron/Native controls and live-model acceptance remain open. |
@@ -105,6 +105,36 @@ use a real provider key, user profile, or private research data.
 Treat “implemented,” “verified locally,” and “verified on a shipped surface”
 separately. Keep actual package/environment/Run receipts for each acceptance
 lane. Do not mark the whole release aligned while any intended row remains open.
+
+## Ordinary Desktop history reconnect
+
+Open an acknowledged ordinary chat in Sessions and choose **Reconnect**. This
+does not create another conversation, resubmit the last prompt, or clear the
+current draft. Host reads the persisted thread origin, workspace and exact ACP
+session ID, independent of the currently selected workspace or Agent. The
+loaded model remains authoritative. A missing/moved workspace, unsupported
+Harness, lost ACP identity or removed model fails without creating a new
+session. Project, scoped App, Automation and sessions with frozen marketplace
+Skill selections are not reconstructed through the ordinary-chat route.
+
+The built-in Go Harness advertises revision 1 of `pero.quietLoad`. The opted-in
+Host uses it only on `session/load`, and will not downgrade to a load that
+could activate queued work. Existing ACP load/resume behavior without the
+option is unchanged. Durable inbox inputs stay parked on quiet load and are
+not discarded; the next explicit normal prompt can drain that existing work.
+Host already has the timeline, so ACP history notifications are not appended
+as new messages. This is not a promise to roll back prior tool effects.
+
+With the Host and Go harness built, run
+`node tests/contracts/desktop-chat-reconnect.mjs`. It uses two real Host
+processes and a real Go ACP child with a loopback provider, changes the Host
+working directory, checks exact thread/ACP identity, model B despite a registry
+default of A, zero model requests on reconnect, and one copy of each message.
+Removing model B is a negative control. After building Desktop/Wasm, run
+the same fixture with `--electron` to click the history row and Reconnect, retain
+a typed draft, and submit the next turn through the composer. The Linux
+conversation CI job runs both; Native window interaction and released
+installation are separate acceptance lanes.
 
 ## Goal restart boundary
 
@@ -217,7 +247,7 @@ registry's new-session model. Host history remains the displayed timeline:
 historical messages and tool records from ACP load are not appended again.
 The lifecycle fixture distinguishes a configured default (A) from the loaded
 model (B), then verifies that the first explicit follow-up still uses B.
-An ordinary Desktop history row does not yet start this reconnect.
+The Team panel remains separate from the ordinary Desktop reconnect below.
 
 
 
