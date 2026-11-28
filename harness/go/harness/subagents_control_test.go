@@ -1,10 +1,13 @@
 package harness
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/png"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -564,5 +567,112 @@ func TestSubagentSendMessageDSHUnavailableAggregationIsExact(t *testing.T) {
 		if known == opaque || (!opaque && kind != SubagentSendTargetUnavailable) || !errors.Is(err, ErrSubagentResumeUnavailable) {
 			t.Fatalf("aggregate changed wrapper/cause: %d/%t %v", kind, known, err)
 		}
+	}
+}
+
+// This test uses live managed siblings. Only the DSH entry point can cross
+// that edge, and acceptance is tied to the original sender incarnation.
+func TestSubagentSendMessageDSHLiveTreeCommit(t *testing.T) {
+	ctx := activationTestContext(t)
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	store, err := OpenLocalAttachmentStore(LocalAttachmentStoreConfig{Home: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := Boot(ctx, Options{EnableSubagents: true, Attachments: structuredBlockingAttachments{AttachmentStore: store, entered: entered, release: release},
+		Adapter: AdapterFunc(func(ctx context.Context, _ GenerateRequest, _ func(StreamChunk) error) (Completion, error) {
+			<-ctx.Done()
+			return Completion{}, ctx.Err()
+		})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = h.Dispose(context.Background()) })
+	r := h.Subagents()
+	root := capacityParent(t, h, "tree-message-root")
+	stranger := capacityParent(t, h, "tree-message-stranger")
+	provider := &capacityLocalProvider{h: h}
+	capacityRegister(t, h, provider)
+	source := capacityStart(t, h, root, provider.Name(), "caller")
+	destination := capacityStart(t, h, root, provider.Name(), "caller")
+	sender, _ := h.Agents().Get(source.ChildID)
+	target, _ := h.Agents().Get(destination.ChildID)
+	text := []ContentBlock{{Type: BlockText, Text: "verified sibling transfer"}}
+	grandchild := capacityStart(t, h, target, provider.Name(), "caller")
+	if _, err := r.SendMessageDSH(ctx, root, grandchild.ChildID, text); err != nil {
+		t.Fatalf("root could not send to a live grandchild: %v", err)
+	}
+	if _, err := r.SendMessageDSH(ctx, sender, root.ID(), text); err != nil {
+		t.Fatalf("managed sibling could not send to its live root: %v", err)
+	}
+	if _, err := r.SendMessage(ctx, sender, target.ID(), text); err == nil {
+		t.Fatal("legacy adjacent send crossed sibling edge")
+	}
+	if _, err := r.DeliverSubagentPrompt(ctx, sender, target.ID(), Message{Role: RoleUser, Content: text}, "steer"); err == nil {
+		t.Fatal("Host prompt crossed sibling edge")
+	}
+	if _, err := r.SendMessageDSH(ctx, sender, stranger.ID(), text); err == nil {
+		t.Fatal("DSH admitted a foreign root")
+	}
+	call, cancel := context.WithCancel(ctx)
+	defer cancel()
+	insertions := make(chan InboxInsertedInput, 2)
+	mountSubagentControlObserver(t, h, func(run *point.Run) error {
+		_, err := h.Hooks().InboxInserted.On(run, func(_ context.Context, input InboxInsertedInput) error {
+			if input.Agent == target && bytes.Contains(input.Message.Source, []byte(`"kind":"agent-message"`)) {
+				cancel() // Already committed. Only the sending call is canceled.
+				insertions <- input
+			}
+			return nil
+		})
+		return err
+	})
+	id, err := r.SendMessageDSH(call, sender, target.ID(), text)
+	if err != nil || id == "" || call.Err() == nil {
+		t.Fatalf("accepted reply lost at caller cancellation: %q %v", id, err)
+	}
+	notice := activationReceive(t, ctx, insertions)
+	if notice.Message.ID != id || notice.UserAuthored || !bytes.Contains(notice.Message.Source, []byte(sender.ID())) || notice.Message.Content[1].Text != text[0].Text {
+		t.Fatalf("unexpected sender attribution %+v", notice)
+	}
+	var raster bytes.Buffer
+	if err := png.Encode(&raster, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	rejected := make(chan error, 1)
+	go func() {
+		_, err := r.SendMessageDSH(ctx, sender, target.ID(), []ContentBlock{{Type: BlockImage, MIMEType: "image/png", Data: raster.Bytes()}})
+		rejected <- err
+	}()
+	activationReceive(t, ctx, entered)
+	if err := h.Agents().RemoveExact(ctx, sender); err != nil && !errors.Is(err, ErrAgentDisposalInProgress) {
+		t.Fatal(err)
+	}
+	if err := h.Agents().WaitRetired(ctx, sender); err != nil {
+		t.Fatal(err)
+	}
+	// A replacement without a managed receipt cannot complete that send or
+	// acquire the former member's rights to the still-live sibling.
+	replacement, err := h.Agents().Resume(ctx, sender.Session(), AgentOptions{ID: sender.ID(), Parent: root, Delegated: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	assertSubagentControlCode(t, activationReceive(t, ctx, rejected), "UNAUTHORIZED")
+	if _, err := r.SendMessageDSH(ctx, replacement, target.ID(), text); err == nil {
+		t.Fatal("same-ID replacement inherited the retired sender's membership")
+	}
+	count := 0
+	for _, event := range target.Session().Events() {
+		if event.Type != "agent/inbox/spliced" {
+			continue
+		}
+		if bytes.Contains(event.Data, []byte(`"kind":"agent-message"`)) {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("accepted durable agent messages = %d, want 1", count)
 	}
 }

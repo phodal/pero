@@ -16,8 +16,8 @@ func (r *SubagentRegistry) SendMessage(ctx context.Context, sender *Agent, targe
 	return r.sendMessage(ctx, sender, targetID, content, false)
 }
 
-// SendMessageDSH adds the source-owned diagnostic contract to the same adjacent
-// delivery path. Empty addresses fail only after the existing live admission.
+// SendMessageDSH permits live managed members of the same tree to exchange
+// messages. Cold delivery still uses the existing direct-parent resume path.
 func (r *SubagentRegistry) SendMessageDSH(ctx context.Context, sender *Agent, targetID SessionID, content []ContentBlock) (string, error) {
 	return r.sendMessage(ctx, sender, targetID, content, true)
 }
@@ -61,6 +61,14 @@ func (r *SubagentRegistry) sendMessage(ctx context.Context, sender *Agent, targe
 	}
 	source, _ := json.Marshal(map[string]any{"kind": "agent-message", "form": "relay", "senderSessionId": sender.ID()})
 	message := Message{ID: messageID, Role: RoleUser, Source: source, Content: append([]ContentBlock{{Type: BlockText, Text: fmt.Sprintf("Agent %s sent a message: ", sender.ID())}}, cloneContentBlocks(content)...)}
+	if dsh {
+		if target, live := r.agents.Get(targetID); live {
+			if err := r.sendToLiveTreeMember(ctx, sender, target, message); err != nil {
+				return "", err
+			}
+			return messageID, nil
+		}
+	}
 	r.mu.RLock()
 	senderRecord := r.records[sender.ID()]
 	r.mu.RUnlock()
@@ -117,9 +125,15 @@ func (r *SubagentRegistry) steerActivationMessage(ctx context.Context, record *s
 }
 
 func (r *SubagentRegistry) admitActivationMessage(ctx context.Context, record *subagentRecord, sender *Agent, sourceRecord *subagentRecord, message Message, delivery string) error {
+	return r.admitActivationMessageMode(ctx, record, sender, sourceRecord, message, delivery, nil)
+}
+
+func (r *SubagentRegistry) admitActivationMessageMode(ctx context.Context, record *subagentRecord, sender *Agent, sourceRecord *subagentRecord, message Message, delivery string, tree *subagentTreeDelivery) error {
 	r.mu.Lock()
 	allowed := !r.disposed && r.records[record.snapshot.ID] == record && record.child != nil && r.parentAdmitsLocked(sender) && r.activationAcceptsInput(record)
-	if sourceRecord == nil {
+	if tree != nil {
+		allowed = allowed && tree.currentLocked()
+	} else if sourceRecord == nil {
 		allowed = allowed && record.parent == sender
 	} else {
 		allowed = allowed && r.records[sender.ID()] == sourceRecord && sourceRecord.child == sender && sourceRecord.parent == record.child && sourceRecord.snapshot.Continuable && r.activationAcceptsInput(sourceRecord)
@@ -210,14 +224,19 @@ func (r *SubagentRegistry) admitActivationMessage(ctx context.Context, record *s
 		if delivery == "queue" {
 			target = InboxNextTurn
 		}
+		var store *SessionStore
+		var admit func() (func(), error)
+		if tree != nil {
+			store, admit = r.agents.sessions, tree.guard
+		}
 		if gate := record.structuredAdmission; gate != nil {
-			turn, err = gate.admitDSHMessage(ctx, message, target, func() { finishLocked(true) })
+			turn, err = gate.admitDSHMessageGuarded(ctx, message, target, func() { finishLocked(true) }, store, admit)
 		} else {
-			turn, err = record.child.admitDSHMessage(ctx, message, target, func() {
+			turn, err = record.child.admitDSHMessageGuarded(ctx, message, target, func() {
 				r.mu.Lock()
 				finishLocked(true)
 				r.mu.Unlock()
-			})
+			}, store, admit)
 		}
 		return err
 	})
@@ -277,4 +296,89 @@ func (r *SubagentRegistry) rollbackSubagentRecord(record *subagentRecord) error 
 	}
 	r.mu.Unlock()
 	return r.cleanupPreparedSubagent(record.disposal.callback())
+}
+
+// The receipt is local to this one delivery. Tree lookup alone does not
+// authorize a transfer or let a replacement Agent inherit it.
+type subagentTreeDelivery struct {
+	registry             *SubagentRegistry
+	sender, target, root *Agent
+	record, source       *subagentRecord
+	facade               *SubagentFacade
+}
+
+func (r *SubagentRegistry) sendToLiveTreeMember(ctx context.Context, sender, target *Agent, message Message) error {
+	if sender == target {
+		return &subagentActivationError{"cannot send an agent message to yourself", "UNAUTHORIZED"}
+	}
+	r.mu.RLock()
+	root, err := r.liveTreeRootLocked(sender)
+	if err != nil {
+		r.mu.RUnlock()
+		return r.ClassifyDSHSendFailure(ctx, sender, target.ID(), SubagentSendSenderNotLive, err)
+	}
+	facade, _ := ctx.Value(subagentFacadeContextKey{}).(*SubagentFacade)
+	delivery := &subagentTreeDelivery{registry: r, sender: sender, target: target, root: root, record: r.records[target.ID()], source: r.records[sender.ID()], facade: facade}
+	allowed := delivery.currentLocked()
+	r.mu.RUnlock()
+	if !allowed {
+		return r.ClassifyDSHSendFailure(ctx, sender, target.ID(), SubagentSendWrongParent, &subagentActivationError{"target is not a continuable member of the sender's live tree", "UNAUTHORIZED"})
+	}
+	if delivery.record != nil {
+		return r.admitActivationMessageMode(ctx, delivery.record, sender, nil, message, "steer", delivery)
+	}
+	return r.withSubagentCallback(func() error {
+		_, err := target.admitDSHMessageGuarded(ctx, message, InboxNextStep, nil, r.agents.sessions, delivery.guard)
+		return err
+	})
+}
+
+func (d *subagentTreeDelivery) currentLocked() bool {
+	r := d.registry
+	sourceRoot, sourceErr := r.liveTreeRootLocked(d.sender)
+	targetRoot, targetErr := r.liveTreeRootLocked(d.target)
+	if sourceErr != nil || targetErr != nil || sourceRoot != d.root || targetRoot != d.root {
+		return false
+	}
+	if r.records[d.target.ID()] != d.record || r.records[d.sender.ID()] != d.source {
+		return false
+	}
+	if d.sender != d.root && (d.source == nil || !d.source.snapshot.Continuable || d.source.activation == nil || !d.source.activation.bindingReady.Load()) {
+		return false
+	}
+	if d.facade != nil && (d.facade.closing || d.facade.registry != r ||
+		d.source != nil && subagentRecordFacade(d.source) != d.facade ||
+		d.record != nil && subagentRecordFacade(d.record) != d.facade) {
+		return false
+	}
+	if d.target == d.root {
+		return d.record == nil
+	}
+	return d.record != nil && d.record.child == d.target && d.record.snapshot.Continuable &&
+		d.record.activation != nil && d.record.activation.bindingReady.Load() && !d.record.activation.closing.Load()
+}
+
+func (d *subagentTreeDelivery) guard() (func(), error) {
+	r := d.registry
+	r.mu.RLock()
+	rejected := &subagentActivationError{"agent tree changed before message acceptance", "UNAUTHORIZED"}
+	if !d.currentLocked() {
+		r.mu.RUnlock()
+		return nil, rejected
+	}
+	// AgentManager retirement marks exact Agents and removes them under its
+	// own lock, before notifying the registry. Fence that transition too.
+	manager := r.agents
+	manager.mu.RLock()
+	for _, endpoint := range []*Agent{d.root, d.sender, d.target} {
+		if manager.closing || manager.agents[endpoint.ID()].agent != endpoint || endpoint.retired.Load() {
+			manager.mu.RUnlock()
+			r.mu.RUnlock()
+			return nil, rejected
+		}
+	}
+	return func() {
+		manager.mu.RUnlock()
+		r.mu.RUnlock()
+	}, nil
 }

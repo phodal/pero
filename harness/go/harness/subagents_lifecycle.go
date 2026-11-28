@@ -890,6 +890,10 @@ var ErrSubagentDisposalInProgress = errors.New("harness: subagent disposal is in
 func (r *SubagentRegistry) LiveTreeRoot(caller *Agent) (*Agent, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	return r.liveTreeRootLocked(caller)
+}
+
+func (r *SubagentRegistry) liveTreeRootLocked(caller *Agent) (*Agent, error) {
 	for current := caller; ; {
 		if r.disposed || !r.liveParentLocked(current) || !r.parentAdmitsLocked(current) {
 			return nil, &subagentActivationError{"harness: tree access requires an exact live Agent", "UNAUTHORIZED"}

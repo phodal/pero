@@ -52,6 +52,10 @@ func (a *Agent) AdmitDSHMessage(ctx context.Context, message Message, target Inb
 // committed is an internal memory-only reservation/generation transition. It
 // runs at durable acceptance under the established Agent -> registry lock order.
 func (a *Agent) admitDSHMessage(ctx context.Context, message Message, target InboxTarget, committed func()) (<-chan TurnOutcome, error) {
+	return a.admitDSHMessageGuarded(ctx, message, target, committed, nil, nil)
+}
+
+func (a *Agent) admitDSHMessageGuarded(ctx context.Context, message Message, target InboxTarget, committed func(), store *SessionStore, admit func() (func(), error)) (<-chan TurnOutcome, error) {
 	if a == nil {
 		return nil, errors.New("harness: cannot admit to a nil agent")
 	}
@@ -98,7 +102,12 @@ func (a *Agent) admitDSHMessage(ctx context.Context, message Message, target Inb
 	// successful fsync. The worker checkpoints its claim before model visibility
 	// and reports checkpoint failure through the accepted settlement/Error hook.
 	// A failed post-Splice flush cannot undo that committed source event.
-	mutation, err := a.durableInbox.Splice(target, len(a.durableInbox.Pending(target)), 0, []Message{message})
+	var mutation InboxMutation
+	if admit != nil {
+		mutation, err = a.durableInbox.SpliceAdmitted(ctx, store, target, len(a.durableInbox.Pending(target)), []Message{message}, admit)
+	} else {
+		mutation, err = a.durableInbox.Splice(target, len(a.durableInbox.Pending(target)), 0, []Message{message})
+	}
 	if err != nil {
 		a.inboxClaimMu.Unlock()
 		a.admissionMu.Unlock()

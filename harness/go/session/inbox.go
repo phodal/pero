@@ -2,6 +2,7 @@ package session
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -151,7 +152,22 @@ func (i *DurableInbox) Splice(target InboxTarget, start, deleteCount int, insert
 	return i.spliceLocked(target, start, deleteCount, inserted)
 }
 
+// SpliceAdmitted guards one exact published Session's commit without holding
+// the owner guard while subscribers run. It is an internal runtime seam.
+func (i *DurableInbox) SpliceAdmitted(ctx context.Context, store *SessionStore, target InboxTarget, start int, inserted []Message, admit func() (func(), error)) (InboxMutation, error) {
+	if store == nil || admit == nil {
+		return InboxMutation{}, ErrSessionNotCurrent
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.spliceLockedAdmitted(target, start, 0, inserted, ctx, store, admit)
+}
+
 func (i *DurableInbox) spliceLocked(target InboxTarget, start, deleteCount int, inserted []Message) (InboxMutation, error) {
+	return i.spliceLockedAdmitted(target, start, deleteCount, inserted, nil, nil, nil)
+}
+
+func (i *DurableInbox) spliceLockedAdmitted(target InboxTarget, start, deleteCount int, inserted []Message, ctx context.Context, store *SessionStore, admit func() (func(), error)) (InboxMutation, error) {
 	list, ok := i.state[target]
 	if !ok {
 		return InboxMutation{}, fmt.Errorf("harness: invalid durable inbox target %q", target)
@@ -192,7 +208,13 @@ func (i *DurableInbox) spliceLocked(target InboxTarget, start, deleteCount int, 
 		return InboxMutation{}, err
 	}
 	removed := cloneMessages(list[actualStart : actualStart+deleteCount])
-	event, err := i.session.Append("agent/inbox/spliced", splice)
+	var event Event
+	var err error
+	if store != nil {
+		event, err = store.AppendLogExactAdmitted(ctx, i.session, "agent/inbox/spliced", splice, admit)
+	} else {
+		event, err = i.session.Append("agent/inbox/spliced", splice)
+	}
 	if err != nil {
 		return InboxMutation{}, err
 	}

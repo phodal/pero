@@ -265,12 +265,17 @@ func testManagedAdmissionReentrantCommitOrder(t *testing.T, structured bool) {
 type structuredBlockingAttachments struct {
 	AttachmentStore
 	entered chan struct{}
+	release <-chan struct{}
 }
 
-func (s structuredBlockingAttachments) SaveImages(ctx context.Context, _ []SaveImageAttachment) ([]ImageAttachmentRef, error) {
+func (s structuredBlockingAttachments) SaveImages(ctx context.Context, inputs []SaveImageAttachment) ([]ImageAttachmentRef, error) {
 	s.entered <- struct{}{}
-	<-ctx.Done()
-	return nil, ctx.Err()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-s.release:
+		return s.AttachmentStore.SaveImages(ctx, inputs)
+	}
 }
 
 func TestStructuredAdmissionReservationBlocksCaptureBeforeMutationLocks(t *testing.T) {
