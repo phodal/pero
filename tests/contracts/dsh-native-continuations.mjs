@@ -1,4 +1,4 @@
-// Real ACP server and disposable loopback provider. No real model or tools.
+// Real ACP server and native control tools driven by a disposable loopback provider.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -13,16 +13,73 @@ const home = await realpath(await mkdtemp(join(tmpdir(), 'pero-dsh-native-')));
 const cwd = join(home, 'workspace');
 const journal = join(home, 'journal');
 await mkdir(cwd);
-let enabled = false, serial = 0, scenario;
+let enabled = false, serial = 0, scenario, control;
 const errors = [];
-const {server, url} = await listenJson((request, response, body) => {
+const {server, url} = await listenJson(async (request, response, body) => {
   assert.equal(request.headers.authorization, 'Bearer dsh-fixture');
   const tools = (body.tools ?? []).map(tool => tool.function.name);
-  for (const tool of ['subagent', 'subagent_fork'])
+  for (const tool of ['subagent', 'subagent_fork', 'send_message', 'interrupt_agent'])
     assert.equal(tools.includes(tool), enabled);
   assert.ok(tools.includes('spawn_agent'));
   const last = body.messages.at(-1);
   const answer = content => streamCompletion(response, {id:`reply-${++serial}`, model:body.model, delta:{content}, finish:'stop'});
+  const call = (id, name, args) => streamCompletion(response, {id:`tool-${++serial}`,
+    model:body.model, delta:{tool_calls:[{index:0,id,type:'function',function:{name,arguments:JSON.stringify(args)}}]},
+    finish:'tool_calls'});
+  if (control) {
+    const stop = body.messages.find(m=>m.role==='tool' && m.tool_call_id==='stop-target');
+    if (stop && !control.accepted) {
+      assert.deepEqual(JSON.parse(stop.content),{accepted:true});
+      control.accepted = true;
+      return answer('root received interrupt receipt');
+    }
+    const wake = body.messages.find(m=>m.role==='tool' && m.tool_call_id==='resume-target');
+    if (wake && !control.wakeMessageId) {
+      control.wakeMessageId = JSON.parse(wake.content).messageId;
+      return answer('root received wake receipt');
+    }
+    if (last.role === 'tool') {
+      switch (last.tool_call_id) {
+        case 'control-target':
+          control.target = JSON.parse(last.content).sessionId;
+          return call('control-relay','subagent',{name:'relay',description:'Relay probe',prompt:'relay control fixture'});
+        case 'control-relay':
+          control.relay = JSON.parse(last.content).sessionId;
+          return control.delivered.then(()=>call('stop-target','interrupt_agent',{agent:'receiver'}));
+        case 'wrong-interrupt':
+          assert.match(String(last.content),/another ancestor or parent/);
+          return call('relay-send','send_message',{agent:'receiver',message:'sibling delivery marker'});
+        case 'relay-send':
+          control.messageId = JSON.parse(last.content).messageId;
+          assert.ok(control.messageId);
+          control.finishDelivery();
+          return answer('relay returned');
+      }
+    }
+    if (String(last.content).includes('begin control fixture'))
+      return call('control-target','subagent',{name:'receiver',description:'Receive probe',prompt:'receiver control fixture'});
+    if (String(last.content).includes('continue control fixture'))
+      return call('resume-target','send_message',{agent:'receiver',message:'root wakes parked receiver'});
+    if (body.messages.some(m=>String(m.content).includes('receiver control fixture')) && control.resuming) {
+      const text = body.messages.filter(m=>m.role==='user').map(m=>String(m.content));
+      assert.equal(text.filter(s=>s.includes('sibling delivery marker')).length,1);
+      assert.equal(text.filter(s=>s.includes('root wakes parked receiver')).length,1);
+      control.resumed++;
+      return answer('receiver resumed');
+    }
+    if (String(last.content).includes('receiver control fixture')) {
+      assert.equal(control.targetStarted, undefined);
+      control.targetStarted = true;
+      response.once('close',()=>{control.targetCancelled = true;});
+      control.startTarget();
+      return;
+    }
+    if (String(last.content).includes('relay control fixture')) {
+      await control.targetReady;
+      return call('wrong-interrupt','interrupt_agent',{agent:'receiver'});
+    }
+    return answer('control fixture settled');
+  }
   if (last.role === 'tool' && scenario && last.tool_call_id === scenario.call) {
     scenario.receipt = JSON.parse(last.content);
     assert.ok(scenario.receipt.sessionId && scenario.receipt.messageId);
@@ -139,9 +196,29 @@ try {
         scenario = undefined;
       }
     }
+    const root = await open();
+    const target = Promise.withResolvers(), delivery = Promise.withResolvers();
+    control = {targetReady:target.promise,startTarget:target.resolve,delivered:delivery.promise,finishDelivery:delivery.resolve};
+    assert.equal((await prompt(root,'begin control fixture')).stopReason,'end_turn');
+    assert.ok(control.target && control.relay && control.messageId && control.accepted && control.targetCancelled,
+      JSON.stringify({...control,errors}));
+    const events = (await readFile(join(journal,control.target+'.jsonl'),'utf8')).trimEnd().split('\n')
+      .map(line=>JSON.parse(line).event).filter(Boolean);
+    const splices = events.filter(event=>event.type==='agent/inbox/spliced' && event.data.target==='next-step');
+    const deliveries = splices.flatMap(({data})=>data.inserted ?? []).filter(m=>m.id===control.messageId);
+    assert.equal(deliveries.length,1,'sibling input was stored once even when the live target is interrupted');
+    assert.equal(deliveries[0].source.senderSessionId,control.relay,'journal attributes delivery to the actual sender');
+    const pending = [];
+    for (const {data} of splices) pending.splice(data.start,data.removedCount ?? 0,...(data.inserted ?? []));
+    assert.deepEqual(pending.map(m=>m.id),[control.messageId],'interrupt parks, rather than claims or deletes, the pending input');
+    control.resuming = true;
+    control.resumed = 0;
+    assert.equal((await prompt(root,'continue control fixture')).stopReason,'end_turn');
+    assert.ok(control.wakeMessageId);
+    assert.equal(control.resumed,1,'later send wakes the original child and drains the parked input once');
   });
   assert.deepEqual(errors,[]);
-  console.log('ACP default-off, asynchronous spawn/fork, per-root settlement and final synthesis passed');
+  console.log('ACP default-off, asynchronous spawn/fork, per-root settlement, sibling send and ancestor interrupt passed');
 } finally {
   await closeLoopback(server);
   await rm(home,{recursive:true,force:true});

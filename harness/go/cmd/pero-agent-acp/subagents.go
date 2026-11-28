@@ -83,7 +83,11 @@ func mountSubagents(ctx context.Context, h *harness.Harness, persistence harness
 		if err := h.ProvideSubagentCatalogQuery(run, persistence); err != nil {
 			return nil, err
 		}
-		for _, tool := range []harness.Tool{h.Subagents().WaitAgentTool(run.Context), h.Subagents().ListAgentsTool()} {
+		tools := []harness.Tool{h.Subagents().WaitAgentTool(run.Context), h.Subagents().ListAgentsTool()}
+		if o.Continuations {
+			tools = append(tools, h.Subagents().DSHControlTools()...)
+		}
+		for _, tool := range tools {
 			if _, err := h.Tools().Register(run, tool); err != nil {
 				return nil, err
 			}

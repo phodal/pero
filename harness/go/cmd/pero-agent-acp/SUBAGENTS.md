@@ -46,5 +46,14 @@ client. Unrelated roots and parked, non-progressing input do not block it.
 The continuable depth limit is two; the existing one-shot tools keep their
 limits and permissions. A managed native child keeps its journal and can
 resume through the existing exact-parent service when the saved route and
-current parent policy still agree. Cross-level cold resume and model-facing
-message/interrupt tools are not part of this switch.
+current parent policy still agree.
+
+The same switch mounts `send_message({agent, message})` and
+`interrupt_agent({agent})`. Use `list_agents` for addresses. A sender can
+deliver to live members of the same managed tree, including siblings;
+interruption requires an exact live ancestor. The interrupt receipt confirms
+that the request was accepted, not that a turn has settled. Pending local input
+stays parked until a later explicit wake. The tool does not start an inactive
+target. Cross-level cold resume is not implemented; a cold send can still
+restore a direct child under the existing saved-route checks. Host delivery and
+interrupt authority are unchanged.

@@ -2,6 +2,7 @@ package harness
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -103,4 +104,66 @@ func (f *SubagentFacade) InterruptActivation(caller *Agent, target SessionID, ru
 }
 func (f *SubagentFacade) InterruptActivationByParentID(parentID, target SessionID, runID string) error {
 	return f.registry.interruptActivation(nil, parentID, target, runID, f)
+}
+
+// DSHControlTools are the model-facing adapters. The registry, not model
+// arguments or catalog visibility, determines who can deliver or interrupt.
+func (r *SubagentRegistry) DSHControlTools() []Tool {
+	return []Tool{
+		r.dshControlTool("send_message",
+			"Send text to another agent in your tree. A working agent receives it at its next step. An idle live agent or a resumable direct child starts a turn. Returns a delivery ID.",
+			`{"type":"object","properties":{"agent":{"type":"string","description":"Agent name or path shown by list_agents"},"message":{"type":"string"}},"required":["agent","message"],"additionalProperties":false}`,
+			func(ctx context.Context, caller *Agent, target SessionID, message *string) (ToolResult, error) {
+				if message == nil {
+					return ToolResult{}, errors.New("send_message requires a text message")
+				}
+				id, err := r.SendMessageDSH(ctx, caller, target, []ContentBlock{{Type: BlockText, Text: *message}})
+				if err != nil {
+					return ToolResult{}, err
+				}
+				raw, _ := json.Marshal(struct {
+					MessageID string `json:"messageId"`
+				}{id})
+				return ToolResult{Content: []ContentBlock{{Type: BlockText, Text: string(raw)}}}, nil
+			}),
+		r.dshControlTool("interrupt_agent",
+			"Ask one of your descendants to stop its current work without stopping its own descendants. An inactive target is not started by this tool. Acceptance is not proof that cancellation has settled.",
+			`{"type":"object","properties":{"agent":{"type":"string","description":"Name or path of a descendant from list_agents"}},"required":["agent"],"additionalProperties":false}`,
+			func(ctx context.Context, caller *Agent, target SessionID, _ *string) (ToolResult, error) {
+				if err := ctx.Err(); err != nil {
+					return ToolResult{}, context.Cause(ctx)
+				}
+				if err := r.InterruptDSH(caller, target); err != nil {
+					return ToolResult{}, err
+				}
+				return ToolResult{Content: []ContentBlock{{Type: BlockText, Text: `{"accepted":true}`}}}, nil
+			}),
+	}
+}
+
+func (r *SubagentRegistry) dshControlTool(name, description, schema string, execute func(context.Context, *Agent, SessionID, *string) (ToolResult, error)) Tool {
+	return Tool{
+		Schema: ToolSchema{Name: name, Description: description, InputSchema: json.RawMessage(schema)},
+		ExecuteRequest: func(ctx context.Context, request ToolRequest) (ToolResult, error) {
+			lineage, _ := ctx.Value(toolCallLineageKey{}).(toolCallLineage)
+			if request.Agent == nil || lineage.owner != request.Agent {
+				return ToolResult{}, &subagentActivationError{name + " requires the exact live calling agent", "UNAUTHORIZED"}
+			}
+			var input struct {
+				Agent   *string `json:"agent"`
+				Message *string `json:"message"`
+			}
+			if err := json.Unmarshal(request.Arguments, &input); err != nil {
+				return ToolResult{}, err
+			}
+			if input.Agent == nil {
+				return ToolResult{}, errors.New(name + " requires an agent address")
+			}
+			target, err := r.ResolveAgentNameDSH(ctx, request.Agent, *input.Agent)
+			if err != nil {
+				return ToolResult{}, err
+			}
+			return execute(ctx, request.Agent, target, input.Message)
+		},
+	}
 }
