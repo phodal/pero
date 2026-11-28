@@ -569,7 +569,7 @@ impl ChatPanel {
             })
         }).collect();
         let mut value = json!({"chats":self.chats,"activeChat":self.active_chat,"agents":self.agents,
-            "changes":self.changes_snapshot(),"connected":self.connected,"replayed":self.replayed,"visible":self.visible,"projectComposerActive":self.project_composer.scope.is_some(),"error":self.error,"historyStatus":self.history_status,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,"artifacts":self.artifact_snapshot(cx),"files":self.files_snapshot(cx),
+            "changes":self.changes_snapshot(),"connected":self.connected,"error":self.error,"historyStatus":self.history_status,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,"artifacts":self.artifact_snapshot(cx),"files":self.files_snapshot(cx),
             "composer":self.composer.read(cx).value().as_ref(),"composerFocused":self.composer_focused,
             "workspace":self.workspace,"attachments":self.attachments.iter().map(|r|r.label.as_str()).collect::<Vec<_>>(),
             "readableReplies":self.chats.iter().flat_map(|chat| chat.messages.iter().enumerate().filter_map(move |(index,_)| chat.reply_presentation(index).map(|reply| json!({"chat":chat.id,"index":index,"text":reply.summary})))).collect::<Vec<_>>(),
@@ -602,6 +602,9 @@ impl ChatPanel {
             "renderStats":self.chats.iter().map(|c|c.messages.iter().map(|m|m.view.read(cx).stats()).collect::<Vec<_>>()).collect::<Vec<_>>(),
             "renderedBytes":self.chats.iter().map(|c|c.messages.iter().map(|m|m.view.read(cx).rendered_bytes(cx)).collect::<Vec<_>>()).collect::<Vec<_>>()});
         value["mcpHistory"] = Value::Array(mcp_history);
+        value["replayed"] = self.replayed.into();
+        value["visible"] = self.visible.into();
+        value["projectComposerActive"] = self.project_composer.scope.is_some().into();
         value
     }
 }
