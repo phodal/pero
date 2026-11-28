@@ -145,10 +145,69 @@ func TestArtifactCollectorAndAuthorizedDownload(t *testing.T) {
 	if resp.StatusCode != 200 || !bytes.Equal(got, data) || !strings.HasPrefix(resp.Header.Get("Content-Disposition"), "attachment;") || resp.Header.Get("Content-Type") != "application/octet-stream" {
 		t.Fatalf("download not an isolated exact attachment: %d %q", resp.StatusCode, got)
 	}
+	deliveries := "/api/client/v1/projects/project/coding-deliveries"
+	ref := store.RunRef{TaskID: e.Source.TaskID, RunID: e.Source.RunID, Generation: e.Source.Generation}
+	manifest := store.DeliveryManifest{
+		Title: "Artifact handoff", BaseSHA: e.Source.WorkspaceRevision, Analysis: &ref,
+		Proposal: &store.DeliveryEvidence{ExportID: e.ID, FileID: file.ID, SHA256: strings.TrimPrefix(file.SHA256, "sha256:")},
+	}
+	wrongRef := manifest
+	wrongGeneration := ref
+	wrongGeneration.Generation++
+	wrongRef.Analysis = &wrongGeneration
+	request(t, server, "POST", deliveries, member, wrongRef, "wrong-run", 404)
+	wrongFile := manifest
+	wrongEvidence := *manifest.Proposal
+	wrongEvidence.SHA256 = strings.Repeat("0", 64)
+	wrongFile.Proposal = &wrongEvidence
+	request(t, server, "POST", deliveries, member, wrongFile, "wrong-digest", 404)
+
+	first := parse[store.DeliveryRecord](t, request(t, server, "POST", deliveries, member, manifest, "publish-handoff", 200))
+	replay := parse[store.DeliveryRecord](t, request(t, server, "POST", deliveries, member, manifest, "publish-handoff", 200))
+	if first.ID == "" || first.ID != replay.ID || !first.CreatedAt.Equal(replay.CreatedAt) {
+		t.Fatalf("lost delivery response did not resolve to the original record: %s, %s", first.ID, replay.ID)
+	}
+	delivery := deliveries + "/" + first.ID
+	preview := delivery + "/evidence/proposal"
+	for _, path := range []string{deliveries, delivery, preview} {
+		request(t, server, "GET", path, foreign, nil, "", 404)
+	}
+	view := parse[store.DeliveryView](t, request(t, server, "GET", delivery, member, nil, "", 200))
+	if view.AnalysisRun == nil || view.AnalysisRun.RunRef != ref || view.Proposal == nil || *view.Proposal != *manifest.Proposal {
+		t.Fatalf("reopened delivery lost exact provenance: %+v", view)
+	}
+	evidence := parse[map[string]string](t, request(t, server, "GET", preview, member, nil, "", 200))
+	if evidence["content"] != string(data) || evidence["sha256"] != file.SHA256 {
+		t.Fatalf("delivery preview changed the committed content: %v", evidence)
+	}
+	changed := manifest
+	changed.BaseSHA = strings.Repeat("0", 40)
+	request(t, server, "POST", deliveries, member, changed, "publish-handoff", 409)
+	request(t, server, "PUT", delivery, member, changed, "replace-baseline", 409)
+	worker, _, err := db.CreateWorker(ctx, "implementation", []string{"project"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := db.CreateTask(ctx, store.Spec{Title: "Implement", Prompt: "Refine change", Acceptance: "inspect", ProjectID: "project", WorkspaceKey: "repo", AgentID: "fixture"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := db.Dispatch(ctx, task.ID, worker.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	implementation := run.Ref()
+	manifest.Implementation = &implementation
+	request(t, server, "PUT", delivery, member, manifest, "append-implementation", 200)
+	view = parse[store.DeliveryView](t, request(t, server, "GET", delivery, member, nil, "", 200))
+	if view.AnalysisRun == nil || view.AnalysisRun.RunRef != ref || view.ImplementationRun == nil || view.ImplementationRun.RunRef != implementation {
+		t.Fatalf("appending a stage lost exact provenance: %+v", view)
+	}
 	objects.mu.Lock()
 	objects.corrupt = true
 	objects.mu.Unlock()
 	request(t, server, "GET", download, member, nil, "", 500)
+	request(t, server, "GET", preview, member, nil, "", 502)
 	// A bogus caller-supplied project cannot authorize a different Run's files.
 	if _, err = db.ClientArtifactExports(ctx, &store.Client{Projects: []string{"other"}}, e.Source.RunID); !errors.Is(err, store.ErrNotFound) {
 		t.Fatal("manifest project bypass", err)

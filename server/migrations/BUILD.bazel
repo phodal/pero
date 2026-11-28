@@ -25,6 +25,7 @@ go_library(
         "024_research_campaigns.sql",
         "025_campaign_review.sql",
         "027_paper_revisions.sql",
+        "028_project_deliveries.sql",
     ],
     importpath = "github.com/phodal/pero/server/migrations",
     visibility = ["//server:__subpackages__"],

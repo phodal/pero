@@ -95,6 +95,7 @@ func configuredHandler(db *store.Store, operatorToken string, runtime *sandbox.R
 	mux := http.NewServeMux()
 	a.registerClients(mux)
 	a.registerRunOperations(mux)
+	a.registerDeliveries(mux, artifactReader)
 	a.registerCampaigns(mux)
 	a.registerContributions(mux)
 	a.registerGitHub(mux)
@@ -197,7 +198,7 @@ func failure(w http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrNotFound):
 		status = 404
 		message = err.Error()
-	case errors.Is(err, store.ErrContributionInput), errors.Is(err, store.ErrEnrollmentInput), errors.Is(err, store.ErrTaskInput), errors.Is(err, store.ErrRunReconciliationInput), errors.Is(err, store.ErrCampaignInput):
+	case errors.Is(err, store.ErrContributionInput), errors.Is(err, store.ErrEnrollmentInput), errors.Is(err, store.ErrTaskInput), errors.Is(err, store.ErrRunReconciliationInput), errors.Is(err, store.ErrCampaignInput), errors.Is(err, store.ErrDeliveryInput):
 		status = 400
 		message = err.Error()
 	case errors.Is(err, store.ErrForbidden):
