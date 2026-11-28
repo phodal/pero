@@ -43,3 +43,4 @@
 - [0038: Capability inventory and typed wire contracts](0038-capability-inventory.md) — P0.1 protocol inventory; no shell migration
 - [0039: Shared capability dispatch and owner admission](0039-capability-dispatch.md) — P0.2 Electron and Native routes from the inventory; not a grant
 - [0040: App SDK capability client and transport port](0040-capability-client.md) — P0.3 typed client; a snapshot is not a grant
+- [0041: Owner-qualified resource identity and Paper read](0041-resource-identity.md) — P0.4 a reference is not a grant; Paper evidence stays with its owner
