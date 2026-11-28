@@ -263,6 +263,7 @@ model SetRemoteSettingsRequest {
 
 model ListAgentsCommand { action: "list_agents"; history?: "catalog"; ...Closed }
 model LoadThreadHistoryCommand { action: "load_thread_history"; thread_id: ThreadId; @minLength(1) @maxLength(128) request_id: string; ...Closed }
+model ReconnectSessionCommand { action: "reconnect_session"; thread_id: ThreadId; ...Closed }
 model WorkspaceCommand { action: "workspace"; path: string; ...Closed }
 model LoadRoadmapCommand { action: "load_roadmap"; ...Closed }
 model AttachFilesCommand { action: "attach_files"; paths: string[]; ...Closed }
@@ -329,6 +330,7 @@ model InsightsCommand { action: "insights"; thread_id: ThreadId; ...Closed }
 union HostCommand {
   ListAgentsCommand,
   LoadThreadHistoryCommand,
+  ReconnectSessionCommand,
   WorkspaceCommand,
   LoadRoadmapCommand,
   AttachFilesCommand,

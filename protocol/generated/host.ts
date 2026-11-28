@@ -116,6 +116,7 @@ export type ArtifactView = "icons" | "list" | "gallery";
 export type HostCommand =
   | ListAgentsCommand
   | LoadThreadHistoryCommand
+  | ReconnectSessionCommand
   | WorkspaceCommand
   | LoadRoadmapCommand
   | AttachFilesCommand
@@ -1787,6 +1788,10 @@ export interface LoadThreadHistoryCommand {
   action: "load_thread_history";
   thread_id: ThreadId;
   request_id: string;
+}
+export interface ReconnectSessionCommand {
+  action: "reconnect_session";
+  thread_id: ThreadId;
 }
 export interface WorkspaceCommand {
   action: "workspace";

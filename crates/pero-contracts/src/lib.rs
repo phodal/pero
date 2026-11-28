@@ -89,6 +89,7 @@ pub enum HostCommand {
         thread_id: String,
         request_id: String,
     },
+    ReconnectSession { thread_id: String },
     Workspace {
         path: String,
         #[serde(default)]

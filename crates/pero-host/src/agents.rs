@@ -530,6 +530,18 @@ impl Manager {
                 };
                 let _ = self.tx.send(event);
             }
+            HostCommand::ReconnectSession { thread_id } => {
+                if let Err(error) = self.reconnect_session(&thread_id) {
+                    let mut event = if error == acp::CREDENTIAL_REQUIRED {
+                        HostEvent::message("session_error", None, acp::CREDENTIAL_REQUIRED)
+                    } else {
+                        HostEvent::new("session_error", None, error)
+                    };
+                    event.thread_id = Some(thread_id);
+                    let _ = self.tx.send(event);
+                    return false;
+                }
+            }
             HostCommand::NewSession {
                 thread_id,
                 agent_id,

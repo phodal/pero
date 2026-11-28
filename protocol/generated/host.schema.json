@@ -9152,6 +9152,9 @@
           "$ref": "#/$defs/LoadThreadHistoryCommand"
         },
         {
+          "$ref": "#/$defs/ReconnectSessionCommand"
+        },
+        {
           "$ref": "#/$defs/WorkspaceCommand"
         },
         {
@@ -15776,6 +15779,24 @@
         "version",
         "request_id",
         "text"
+      ],
+      "additionalProperties": false
+    },
+    "ReconnectSessionCommand": {
+      "title": "ReconnectSessionCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "reconnect_session"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        }
+      },
+      "required": [
+        "action",
+        "thread_id"
       ],
       "additionalProperties": false
     },

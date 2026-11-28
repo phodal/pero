@@ -60,6 +60,7 @@ pub(super) type Permissions = Arc<Mutex<HashMap<String, oneshot::Sender<Option<S
 
 #[derive(Default)]
 pub struct SessionStartOptions {
+    pub quiet_reconnect: bool,
     pub initial_settings: Vec<SettingSelection>,
     pub project_prompt: Option<ProjectAgentPrompt>,
     pub app_tool_loading: Option<AppToolLoading>,
@@ -293,7 +294,7 @@ async fn run(
     options: SessionStartOptions,
 ) -> Result<(), String> {
     config.validate_mcp()?;
-    let SessionStartOptions { initial_settings, project_prompt, app_tool_loading } = options;
+    let SessionStartOptions { initial_settings, project_prompt, app_tool_loading, quiet_reconnect } = options;
     let project_prompt = project_prompt.as_ref().map(project_prompt_blocks).transpose()
         .map_err(|error| error.to_string())?;
     event(
@@ -443,6 +444,11 @@ async fn run(
             config.validate_mcp_tool_policy_capability(
                 initialized["agentCapabilities"]["_meta"][super::mcp::TOOL_POLICY_CAPABILITY] == json!(1),
             ).map_err(|message| failure(&message))?;
+            const QUIET_LOAD: &str = "pero.quietLoad";
+            let quiet_load_capable = initialized["agentCapabilities"]["_meta"][QUIET_LOAD] == json!(1);
+            if quiet_reconnect && (resume_id.is_none() || !quiet_load_capable) {
+                return Err(failure("This Harness cannot reconnect without resuming queued work; no session was opened"));
+            }
             let science_negotiated = initialized["agentCapabilities"]["_meta"][super::science::CAPABILITY] == json!(1);
             let mcp_session_negotiated = initialized["agentCapabilities"]["_meta"][super::mcp_session::CAPABILITY] == json!(1);
             let app_use_context_negotiated = initialized["agentCapabilities"]["_meta"][APP_USE_CONTEXT_CAPABILITY] == json!(1);
@@ -486,6 +492,7 @@ async fn run(
                 if negotiated {
                     request["_meta"] = json!({"pero.mcpRuntime": {"revision": mcp_runtime.lock().unwrap().revision}});
                 }
+                if quiet_reconnect { request["_meta"][QUIET_LOAD] = json!(1); }
                 if let Some(app_tool_loading) = &app_tool_loading {
                     request["_meta"][APP_TOOL_LOADING_CAPABILITY] = json!(app_tool_loading);
                 }
@@ -533,7 +540,12 @@ async fn run(
                     Err(error) => return Err(error),
                 }
             };
-            if let Some(id)=&resume_id {session_data["sessionId"]=json!(id);}
+            if let Some(id) = &resume_id {
+                if session_data.get("sessionId").is_some_and(|value| value.as_str() != Some(id.as_str())) {
+                    return Err(failure("Harness returned a different ACP session identity; no prompt was sent"));
+                }
+                session_data["sessionId"] = json!(id);
+            }
             // Validate the standard fields without dropping legacy `models` from the raw response.
             let session: NewSessionResponse = serde_json::from_value(session_data.clone()).map_err(agent_client_protocol::Error::into_internal_error)?;
             let session_id = session.session_id.clone();
@@ -544,6 +556,7 @@ async fn run(
             if !unavailable.is_empty() {
                 return Err(failure(&format!("Required MCP dependencies unavailable: {}. Check MCP settings and retry the conversation.", unavailable.join(", "))));
             }
+            session_data["peroQuietLoad"] = json!(quiet_load_capable && initialized.agent_capabilities.load_session);
             session_data["peroMcp"] = serde_json::to_value(&snapshot).unwrap_or_default();
             // Session-ready is journaled and replayed on renderer reconnect;
             // initialization is transient, so carry its composer capabilities
