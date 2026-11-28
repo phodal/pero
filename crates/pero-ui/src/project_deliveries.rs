@@ -283,6 +283,12 @@ impl Workbench {
                                 |el| {
                                     el.child(
                                         div()
+                                            .relative()
+                                            .child(
+                                                self.view_bounds
+                                                    .projects
+                                                    .probe("delivery:empty".into()),
+                                            )
                                             .text_color(palette.text_muted)
                                             .child(self.t("delivery.empty")),
                                     )

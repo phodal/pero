@@ -60,7 +60,8 @@ try {
   }, { timeout: 20000 }).toBeTruthy();
   origin = 'http://' + origin;
   const project = 'delivery-' + randomUUID().slice(0, 8);
-  const account = await api('/api/v1/clients', operator, { name: 'Project collaborator', projects: [project] });
+  const other = project + '-other';
+  const account = await api('/api/v1/clients', operator, { name: 'Project collaborator', projects: [project, other] });
   const stages = {};
   for (const [stage, worker, agent] of [
     ['analysis', 'Mac Studio', 'dsh-go'],
@@ -109,8 +110,25 @@ try {
   await api('/api/v1/tasks/' + stages.analysis.task_id + '/cancel', operator, {});
   await click('delivery:refresh');
   await bounds(`delivery:status:${runId}:cancelled`);
+  const savedProject = (await snapshot()).selectedProject;
+  assert.match(savedProject, /^research:/);
+  await click('sidebar:open:shared:' + other);
+  await expect.poll(async () => {
+    const { selectedProject } = await snapshot();
+    return selectedProject?.startsWith('research:') && selectedProject !== savedProject;
+  }).toBe(true);
+  await click('tab:delivery.title');
+  await expect.poll(async () => (await snapshot()).projectTab).toBe('deliveries');
+  await bounds('delivery:empty');
+  await click('sidebar:open:' + savedProject);
+  await expect.poll(async () => {
+    const { selectedProject, projectTab } = await snapshot();
+    return [selectedProject, projectTab];
+  }).toEqual([savedProject, 'deliveries']);
+  await click('delivery:record:' + delivery.id);
+  await bounds(`delivery:status:${runId}:cancelled`);
   await page.screenshot({ path: join(output, 'coding-delivery.png'), scale: 'css' });
-  console.log('Desktop reopened three exact Runs and refreshed a changed status without replacing the original Run.');
+  console.log('Desktop retained three exact Runs through refresh and restored the delivery tab after switching Projects.');
 } catch (error) {
   await page?.screenshot({ path: join(output, 'coding-delivery-failure.png'), scale: 'css' }).catch(() => {});
   throw error;

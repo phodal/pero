@@ -158,8 +158,10 @@ impl Workbench {
         }
         // Leaving the Project lets the one-shot poll expire. Reopening restores
         // this tab without a click, so start the read again.
-        if self.project_tab == ProjectTab::Campaigns {
-            self.refresh_campaigns(cx);
+        match self.project_tab {
+            ProjectTab::Campaigns => self.refresh_campaigns(cx),
+            ProjectTab::Deliveries => self.load_project_deliveries(cx),
+            _ => {}
         }
         cx.notify();
     }
