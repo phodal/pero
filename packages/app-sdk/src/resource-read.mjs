@@ -45,9 +45,9 @@ export async function readPaperResource(transport, request) {
     throw fail('owner_unavailable');
   }
   if (!value || value.ownerHost !== resource.ownerHost) throw fail('owner_unavailable');
-  if (value.digest !== resource.revision || value.provenance !== DOMAIN_PROVENANCE) throw fail('stale');
+  if (value.revision !== resource.revision || value.digest !== resource.revision || value.provenance !== DOMAIN_PROVENANCE) throw fail('stale');
   if (containsForbidden(value)) throw fail('spoofed');
   const body = bytes(value.body);
   if (await sha256(body) !== value.digest) throw fail('stale');
-  return { ownerHost: value.ownerHost, revision: value.revision, digest: value.digest, mediaType: value.mediaType, body, provenance: value.provenance };
+  return { ownerHost: value.ownerHost, revision: resource.revision, digest: value.digest, mediaType: value.mediaType, body, provenance: value.provenance };
 }

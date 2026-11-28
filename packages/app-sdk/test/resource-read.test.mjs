@@ -86,6 +86,7 @@ test('local and remote transports return the same paper evidence', async () => {
     assert.equal(calls, 1);
     await assert.rejects(readPaperResource({ read: async () => ({ ownerHost: 'host-c', revision: PAPER_DIGEST, digest: PAPER_DIGEST, mediaType: 'text/plain', body: Buffer.from(PAPER_EVIDENCE).toString('base64'), provenance: DOMAIN_PROVENANCE }) }, { resource: resource('host-b') }), error => error.code === 'owner_unavailable');
     await assert.rejects(readPaperResource(local, { resource: resource('host-b'), path: '/var/pero/papers' }), error => error.code === 'spoofed');
+    await assert.rejects(readPaperResource({ read: async () => ({ ownerHost: 'host-b', revision: 'wrong-revision', digest: PAPER_DIGEST, mediaType: 'text/plain', body: Buffer.from(PAPER_EVIDENCE).toString('base64'), provenance: DOMAIN_PROVENANCE }) }, { resource: resource('host-b') }), error => error.code === 'stale');
   } finally {
     await new Promise(resolve => server.close(resolve));
   }
