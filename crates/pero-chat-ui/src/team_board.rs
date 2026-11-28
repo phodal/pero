@@ -1,14 +1,15 @@
 //! The panel borrows a specific selected Host conversation and incarnation.
+#[cfg(any(target_family = "wasm", feature = "native"))]
 use crate::{panel::ChatPanel, theme::WorkbenchStyle as W};
+#[cfg(any(target_family = "wasm", feature = "native"))]
 use gpui_kit::{
     component::{button::*, *},
     prelude::*,
     *,
 };
-use pero_contracts::{
-    HostEvent,
-    team_board::{TeamBoard, TeamTaskStatus},
-};
+#[cfg(any(target_family = "wasm", feature = "native"))]
+use pero_contracts::team_board::TeamTaskStatus;
+use pero_contracts::{HostEvent, team_board::TeamBoard};
 use serde_json::json;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -73,6 +74,7 @@ impl TeamPanel {
     }
 }
 
+#[cfg(any(target_family = "wasm", feature = "native"))]
 impl ChatPanel {
     fn refresh_team(&mut self, cx: &mut Context<Self>) {
         let Some(chat) = self.active_chat.and_then(|i| self.chats.get_mut(i)) else {
@@ -224,20 +226,43 @@ mod tests {
         panel.dismiss();
         panel.open = true;
         let (_, after_switch) = panel.begin().unwrap();
-        let reply = |request_id, incarnation| {
+        let mut other = TeamPanel::default();
+        other.connect(Some(5));
+        other.open = true;
+        let (_, other_request) = other.begin().unwrap();
+        let reply = |request_id, incarnation, subject: &str| {
             let mut event = HostEvent::new("team_board", Some(request_id), String::new());
-            event.data = json!({"incarnation":incarnation,"board":{"revision":1,"enabled":true,"tasks":[]}});
+            event.data = json!({
+                "incarnation": incarnation,
+                "board": {"revision": 1, "enabled": true, "tasks": [
+                    {"id": "1", "subject": subject, "revision": 1, "status": "pending", "ready": true}
+                ]}
+            });
             event
         };
-        panel.receive(&reply(old, 3));
+        let delayed = reply(old, 3, "Original");
+        other.receive(&delayed);
+        assert!(other.snapshot.is_none());
+        other.receive(&reply(other_request, 5, "Other conversation"));
+        assert_eq!(
+            other.snapshot.as_ref().unwrap().tasks[0].subject,
+            "Other conversation"
+        );
+        panel.receive(&delayed);
         assert!(panel.snapshot.is_none());
         panel.connect(Some(4));
         panel.open = true;
         let (_, current) = panel.begin().unwrap();
-        panel.receive(&reply(after_switch, 3));
-        panel.receive(&reply(current.clone(), 3));
+        panel.receive(&reply(after_switch, 3, "Original"));
+        panel.receive(&reply(current.clone(), 3, "Original"));
         assert!(panel.snapshot.is_none());
-        panel.receive(&reply(current, 4));
-        assert!(panel.snapshot.is_some());
+        panel.receive(&reply(current, 4, "Refreshed original"));
+        assert_eq!(
+            panel.snapshot.as_ref().unwrap().tasks[0].subject,
+            "Refreshed original"
+        );
+        panel.changed();
+        assert!(!panel.open);
+        assert!(panel.snapshot.is_none());
     }
 }
