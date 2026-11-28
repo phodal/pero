@@ -260,8 +260,8 @@ func (s *Server) runGoalRounds(ctx context.Context, record *activeSession, state
 		message := harness.Message{
 			Role: harness.RoleUser, Source: source,
 			Content: []harness.ContentBlock{{Type: harness.BlockText, Text: fmt.Sprintf(
-				"Goal round %d/%d. The operator's objective is %q. Continue from the retained conversation and current workspace; verify actual progress. Report the evidence or blocker. Use pero_goal_stop to end automatic rounds when the objective is complete, operator input is needed, or a blocker persists after the first two rounds. Include blocked_reason when reporting a blocker.",
-				expected+1, state.Limit, state.Objective)}},
+				"Goal round %d/%d. The operator's objective is %q. Continue from the retained conversation and current workspace; verify actual progress. Report the evidence or blocker. Use pero_goal_stop to end automatic rounds when the objective is complete, operator input is needed, or the same blocker persists and the Goal has reached round %d. Include blocked_reason when reporting a blocker.",
+				expected+1, state.Limit, state.Objective, s.goalBlockAfterRounds)}},
 		}
 		receipt, queued, err := agent.TryFollowupOwnedContext(ctx, message, harness.FollowupAdmission{
 			Producer: "pero-goal", Lifetime: ctx,

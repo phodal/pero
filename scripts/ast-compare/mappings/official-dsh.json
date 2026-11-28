@@ -278,7 +278,7 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.handleNotification",
-        "sha256": "d9c23a51c4218d148fe9988cdaaafb6fb6183ca2b0e8de2abaa32fd18f54c083"
+        "sha256": "a1fe2b45e92ab980c04466cebbc0d3bb8c66107d5b72db31904c95b697033256"
       },
       "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity. Issue #50 also cancels outstanding same-session MCP App operations before Agent cancellation; the existing prompt admission and active-turn cancellation remain intact. PR #225 adds the shared science-session request and Reviewer setup elsewhere in this file. The selected Server.handleNotification cancellation handler is unchanged from master 60c800888; its file receipt is refreshed after reviewing the added composition and existing ACP cancellation tests, not to claim new upstream parity. The opt-in Goal option and shared session menu change composition elsewhere in server.go; the selected cancellation handler remains unchanged and cancels the Goal command through the existing promptCancel path.",
       "landmarks": [

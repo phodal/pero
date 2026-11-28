@@ -51,9 +51,12 @@ type Options struct {
 	// output-limit stop. Zero preserves ACP's single-prompt stop contract.
 	OutputLimitRecoveries int
 	// Goal enables the opt-in native ACP /goal command.
-	Goal             bool
-	Compaction       *harness.BasicCompactionConfig
-	ToolResultPruner *harness.ToolResultPruneConfig
+	Goal bool
+	// GoalBlockAfterRounds is the minimum admitted rounds for a model blocker.
+	// Zero uses the default (three). It does not change the Goal round limit.
+	GoalBlockAfterRounds int
+	Compaction           *harness.BasicCompactionConfig
+	ToolResultPruner     *harness.ToolResultPruneConfig
 	// OmitToolImages keeps the receipt in ACP notifications when the host
 	// transport cannot carry raster bytes. Model context and journal are intact.
 	OmitToolImages      bool
@@ -80,6 +83,7 @@ type Options struct {
 type Server struct {
 	sessionTitles            bool
 	goal                     bool
+	goalBlockAfterRounds     int
 	modelChoices             []harness.ModelCatalogEntry
 	modelCapacity            int
 	modelOutput              int
@@ -169,6 +173,12 @@ func NewServer(options Options) (*Server, error) {
 	if options.OutputLimitRecoveries < 0 {
 		return nil, errors.New("acp: output limit recoveries must be nonnegative")
 	}
+	if options.GoalBlockAfterRounds < 0 || options.GoalBlockAfterRounds > 0 && !options.Goal {
+		return nil, errors.New("acp: a positive Goal blocker threshold requires Goal mode")
+	}
+	if options.GoalBlockAfterRounds == 0 {
+		options.GoalBlockAfterRounds = defaultGoalBlockAfterRounds
+	}
 	if options.Name == "" {
 		options.Name = "pero-agent-acp"
 	}
@@ -186,9 +196,10 @@ func NewServer(options Options) (*Server, error) {
 		return nil, err
 	}
 	return &Server{
-		sessionTitles: options.SessionTitles,
-		goal:          options.Goal,
-		modelChoices:  choices, modelCapacity: capacity, modelOutput: output,
+		sessionTitles:        options.SessionTitles,
+		goal:                 options.Goal,
+		goalBlockAfterRounds: options.GoalBlockAfterRounds,
+		modelChoices:         choices, modelCapacity: capacity, modelOutput: output,
 		h: options.Harness, persistence: options.Persistence, validateWorkingDirectory: options.ValidateWorkingDirectory,
 		registerAppDeferredTools: options.RegisterAppDeferredTools,
 		provider:                 options.Provider, model: options.Model, maxSteps: options.MaxSteps, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,

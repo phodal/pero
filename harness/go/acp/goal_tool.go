@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	goalStopTool         = "pero_goal_stop"
-	goalBlockAfterRounds = 3
-	goalBlockReasonMax   = 1024
+	goalStopTool                = "pero_goal_stop"
+	defaultGoalBlockAfterRounds = 3
+	goalBlockReasonMax          = 1024
 )
 
 type goalDecision string
@@ -49,7 +49,7 @@ func (r *goalRoundControl) reset(number int) {
 	r.number, r.call, r.receipt, r.value = number, "", nil, goalDecisionArgs{}
 }
 
-func (r *goalRoundControl) propose(call harness.ToolCallID, receipt json.RawMessage, value goalDecisionArgs) error {
+func (r *goalRoundControl) propose(call harness.ToolCallID, receipt json.RawMessage, value goalDecisionArgs, blockAfter int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if call == "" || r.call != "" {
@@ -61,8 +61,8 @@ func (r *goalRoundControl) propose(call harness.ToolCallID, receipt json.RawMess
 		if value.BlockedReason == "" || len(value.BlockedReason) > goalBlockReasonMax {
 			return fmt.Errorf("blocked requires a nonempty blocked_reason of at most %d bytes", goalBlockReasonMax)
 		}
-		if r.number < goalBlockAfterRounds {
-			return fmt.Errorf("blocked requires at least %d admitted Goal rounds; current round is %d", goalBlockAfterRounds, r.number)
+		if r.number < blockAfter {
+			return fmt.Errorf("blocked requires at least %d admitted Goal rounds; current round is %d", blockAfter, r.number)
 		}
 	case goalCompleted, goalPaused:
 		if value.BlockedReason != "" {
@@ -118,7 +118,7 @@ func (s *Server) registerGoalTool(run *point.Run, agent *harness.Agent) error {
 			Name: goalStopTool,
 			Description: "End automatic Goal rounds. First report evidence or the blocker in your answer. " +
 				"Use completed when the objective is met or paused when an operator decision is needed. " +
-				"Use blocked only from round three if the same blocker persists, and include a concrete blocked_reason.",
+				fmt.Sprintf("Use blocked only from round %d if the same blocker persists, and include a concrete blocked_reason.", s.goalBlockAfterRounds),
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"outcome":{"enum":["completed","blocked","paused"]},"blocked_reason":{"type":"string","maxLength":1024}},"required":["outcome"],"additionalProperties":false}`),
 		},
 		ExecutionMode: harness.ExecutionSerial,
@@ -139,7 +139,7 @@ func (s *Server) registerGoalTool(run *point.Run, agent *harness.Agent) error {
 			receipt, _ := json.Marshal(struct {
 				GoalReceipt harness.SessionID `json:"peroGoalReceipt"`
 			}{id})
-			if err := round.propose(request.CallID, receipt, args); err != nil {
+			if err := round.propose(request.CallID, receipt, args, s.goalBlockAfterRounds); err != nil {
 				return harness.ToolResult{}, err
 			}
 			return harness.ToolResult{

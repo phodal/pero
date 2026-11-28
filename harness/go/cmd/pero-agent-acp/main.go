@@ -95,6 +95,7 @@ func run() (resultErr error) {
 	maxTurnSteps := flag.Int("max-turn-steps", harness.DefaultMaxSteps, "maximum model/tool steps per turn; 0 disables this ceiling (cancellation and provider budgets still apply)")
 	enableTeam := flag.Bool("enable-team", false, "enable per-session shared task boards via ACP session configuration or the /team command")
 	enableGoal := flag.Bool("enable-goal", false, "Enable bounded /goal continuation in the native ACP harness")
+	goalBlockAfterRounds := flag.Int("goal-block-after-rounds", 0, "minimum admitted rounds before the model can report a persistent Goal blocker; 0 uses 3")
 	outputLimitRecoveries := flag.Int("output-limit-recoveries", 0, "ACP-only attributed follow-up turns after output truncation; 0 returns max_tokens immediately")
 	sessionTitles := flag.Bool("session-titles", false, "generate one conversation title after its first completed ACP turn")
 	skillRoots := bindSkillRoots(flag.CommandLine)
@@ -138,6 +139,9 @@ func run() (resultErr error) {
 	}
 	if *enableGoal && (*printMode || *initOnly || *maintenance) {
 		return errors.New("--enable-goal is only supported when serving ACP")
+	}
+	if *goalBlockAfterRounds < 0 || *goalBlockAfterRounds > 0 && !*enableGoal {
+		return errors.New("--goal-block-after-rounds must be nonnegative; a positive value requires --enable-goal")
 	}
 	if *maxTurnSteps == 0 {
 		*maxTurnSteps = harness.UnlimitedMaxSteps
@@ -599,6 +603,7 @@ func run() (resultErr error) {
 	serverOptions := acp.Options{SessionTitles: *sessionTitles, UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
 	serverOptions.OutputLimitRecoveries = *outputLimitRecoveries
 	serverOptions.Goal = *enableGoal
+	serverOptions.GoalBlockAfterRounds = *goalBlockAfterRounds
 	if *enableTeam {
 		serverOptions.TeamBoard = &team.Board{Registry: h.Subagents()}
 	}

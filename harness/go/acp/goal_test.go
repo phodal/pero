@@ -42,7 +42,7 @@ func TestGoalACPExplicitResumeAndCap(t *testing.T) {
 		}}, nil
 	})
 	home, cwd := t.TempDir(), t.TempDir()
-	newServer := func() *Server { return newGoalTestServer(t, ctx, home, adapter, false) }
+	newServer := func() *Server { return newGoalTestServer(t, ctx, home, adapter, false, 0) }
 	first := newServer()
 	id, err := first.newSession(ctx, NewSessionParams{CWD: cwd})
 	if err != nil {
@@ -176,7 +176,7 @@ func TestGoalWaitsForOwnedDescendantsBetweenRounds(t *testing.T) {
 					Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "evidence checked"}},
 				}}, nil
 			})
-			server := newGoalTestServer(t, ctx, t.TempDir(), adapter, true)
+			server := newGoalTestServer(t, ctx, t.TempDir(), adapter, true, 0)
 			if _, err := subagents.MountInProcess(ctx, server.h, subagents.InProcessOptions{}); err != nil {
 				t.Fatal(err)
 			}
@@ -345,7 +345,7 @@ func TestGoalForkRoundRequiresMatchingMessage(t *testing.T) {
 	}
 }
 
-func newGoalTestServer(t *testing.T, ctx context.Context, home string, adapter harness.AdapterFunc, enableSubagents bool) *Server {
+func newGoalTestServer(t *testing.T, ctx context.Context, home string, adapter harness.AdapterFunc, enableSubagents bool, blockAfter int) *Server {
 	t.Helper()
 	h, err := harness.Boot(ctx, harness.Options{Adapter: adapter, AdapterProviders: []string{"fixture"}, EnableSubagents: enableSubagents})
 	if err != nil {
@@ -356,7 +356,7 @@ func newGoalTestServer(t *testing.T, ctx context.Context, home string, adapter h
 	if err != nil {
 		t.Fatal(err)
 	}
-	server, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "fixture", Model: "fixture", Goal: true})
+	server, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "fixture", Model: "fixture", Goal: true, GoalBlockAfterRounds: blockAfter})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,7 +412,7 @@ func TestGoalModelDecision(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()
 			home, cwd := t.TempDir(), t.TempDir()
-			server := newGoalTestServer(t, ctx, home, adapter, false)
+			server := newGoalTestServer(t, ctx, home, adapter, false, 0)
 			if row.name == "failed tool finalizer" {
 				fixture := point.Define(point.Descriptor{ID: "fixture/goal-finalizer"}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
 					_, err := server.h.Tools().Finalized.On(run, func(_ context.Context, o harness.ToolOutcome) error {
@@ -472,7 +472,7 @@ func TestGoalModelDecision(t *testing.T) {
 			if err := server.closeSession(ctx, id); err != nil {
 				t.Fatal(err)
 			}
-			second := newGoalTestServer(t, ctx, home, adapter, false)
+			second := newGoalTestServer(t, ctx, home, adapter, false, 0)
 			if err := second.resumeSession(ctx, ResumeSessionParams{SessionID: string(id), CWD: cwd}); err != nil {
 				t.Fatal(err)
 			}
@@ -493,82 +493,91 @@ func TestGoalModelDecision(t *testing.T) {
 	}
 }
 
-func TestGoalBlockedReasonAfterThreeAdmittedRounds(t *testing.T) {
-	const blocker = "The versioned input dataset is unavailable."
-	var requests int
-	var earlyError, emptyError bool
-	adapter := harness.AdapterFunc(func(_ context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
-		requests++
-		last := req.Messages[len(req.Messages)-1]
-		if last.Role == harness.RoleTool && len(last.Content) > 0 {
-			result := last.Content[0]
-			if result.IsError && len(result.Content) > 0 {
-				text := result.Content[0].Text
-				earlyError = earlyError || strings.Contains(text, "at least 3 admitted Goal rounds")
-				emptyError = emptyError || strings.Contains(text, "requires a nonempty blocked_reason")
+func TestGoalBlockedReasonAfterAdmittedRounds(t *testing.T) {
+	for _, tc := range []struct{ configured, minimum int }{{0, 3}, {2, 2}} {
+		t.Run(fmt.Sprintf("minimum_%d", tc.minimum), func(t *testing.T) {
+			const blocker = "The versioned input dataset is unavailable."
+			var requests int
+			var earlyError, emptyError bool
+			adapter := harness.AdapterFunc(func(_ context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+				requests++
+				for _, tool := range req.Tools {
+					if tool.Name == goalStopTool && !strings.Contains(tool.Description, fmt.Sprintf("from round %d", tc.minimum)) {
+						t.Errorf("tool guidance does not use the configured threshold: %s", tool.Description)
+					}
+				}
+				last := req.Messages[len(req.Messages)-1]
+				if last.Role == harness.RoleTool && len(last.Content) > 0 {
+					result := last.Content[0]
+					if result.IsError && len(result.Content) > 0 {
+						text := result.Content[0].Text
+						earlyError = earlyError || strings.Contains(text, fmt.Sprintf("at least %d admitted Goal rounds", tc.minimum))
+						emptyError = emptyError || strings.Contains(text, "requires a nonempty blocked_reason")
+					}
+				}
+				switch requests {
+				case 1, tc.minimum + 1, tc.minimum + 2:
+					reason := " " + blocker + " "
+					if requests == tc.minimum+1 {
+						reason = "  "
+					}
+					args, _ := json.Marshal(goalDecisionArgs{Outcome: goalBlocked, BlockedReason: reason})
+					return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{
+						Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: goalStopTool,
+							ToolCallID: harness.ToolCallID(fmt.Sprintf("block-%d", requests)), Arguments: args}},
+					}}, nil
+				default:
+					return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{
+						Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "Looked for alternate sources."}},
+					}}, nil
+				}
+			})
+			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+			defer cancel()
+			home, cwd := t.TempDir(), t.TempDir()
+			first := newGoalTestServer(t, ctx, home, adapter, false, tc.configured)
+			id, err := first.newSession(ctx, NewSessionParams{CWD: cwd})
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-		switch requests {
-		case 1, 4, 5:
-			reason := " " + blocker + " "
-			if requests == 4 {
-				reason = "  "
+			run := func(s *Server, line string) {
+				t.Helper()
+				body, _ := json.Marshal(PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: line}}})
+				result, err := s.handle(ctx, request{Method: "session/prompt", Params: body})
+				if err != nil || !reflect.DeepEqual(result, map[string]any{"stopReason": "end_turn"}) {
+					t.Fatalf("%s: result=%+v error=%+v", line, result, err)
+				}
 			}
-			args, _ := json.Marshal(goalDecisionArgs{Outcome: goalBlocked, BlockedReason: reason})
-			return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{
-				Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: goalStopTool,
-					ToolCallID: harness.ToolCallID(fmt.Sprintf("block-%d", requests)), Arguments: args}},
-			}}, nil
-		default:
-			return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{
-				Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "Looked for alternate sources."}},
-			}}, nil
-		}
-	})
-	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
-	defer cancel()
-	home, cwd := t.TempDir(), t.TempDir()
-	first := newGoalTestServer(t, ctx, home, adapter, false)
-	id, err := first.newSession(ctx, NewSessionParams{CWD: cwd})
-	if err != nil {
-		t.Fatal(err)
-	}
-	run := func(s *Server, line string) {
-		t.Helper()
-		body, _ := json.Marshal(PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: line}}})
-		result, err := s.handle(ctx, request{Method: "session/prompt", Params: body})
-		if err != nil || !reflect.DeepEqual(result, map[string]any{"stopReason": "end_turn"}) {
-			t.Fatalf("%s: result=%+v error=%+v", line, result, err)
-		}
-	}
-	run(first, "/goal start 4 Find the required dataset")
-	if requests != 5 || !earlyError || !emptyError {
-		t.Fatalf("expected round-one rejection, empty reason rejection and no extra closing inference: requests=%d early=%v empty=%v", requests, earlyError, emptyError)
-	}
-	if err := first.closeSession(ctx, id); err != nil {
-		t.Fatal(err)
-	}
-	second := newGoalTestServer(t, ctx, home, adapter, false)
-	var output bytes.Buffer
-	second.writer = &wireWriter{encoder: json.NewEncoder(&output)}
-	if err := second.resumeSession(ctx, ResumeSessionParams{SessionID: string(id), CWD: cwd}); err != nil {
-		t.Fatal(err)
-	}
-	run(second, "/goal status")
-	second.writer.mu.Lock()
-	status := output.String()
-	second.writer.mu.Unlock()
-	if requests != 5 || !strings.Contains(status, "3/4 (blocked by model)") || !strings.Contains(status, "Blocker: "+blocker) {
-		t.Fatalf("restored status=%s requests=%d", status, requests)
-	}
-	run(second, "/goal resume")
-	saved, err := second.persistence.Load(ctx, id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	state := foldGoal(saved.Events())
-	if requests != 6 || state.Rounds != 4 || state.Stop != "round-limit" || state.StopDetail != "" {
-		t.Fatalf("last round after explicit resume: requests=%d state=%+v", requests, state)
+			run(first, "/goal start 4 Find the required dataset")
+			if requests != tc.minimum+2 || !earlyError || !emptyError {
+				t.Fatalf("expected round-one rejection, empty reason rejection and no extra closing inference: requests=%d early=%v empty=%v", requests, earlyError, emptyError)
+			}
+			if err := first.closeSession(ctx, id); err != nil {
+				t.Fatal(err)
+			}
+			second := newGoalTestServer(t, ctx, home, adapter, false, tc.configured)
+			var output bytes.Buffer
+			second.writer = &wireWriter{encoder: json.NewEncoder(&output)}
+			if err := second.resumeSession(ctx, ResumeSessionParams{SessionID: string(id), CWD: cwd}); err != nil {
+				t.Fatal(err)
+			}
+			run(second, "/goal status")
+			second.writer.mu.Lock()
+			status := output.String()
+			second.writer.mu.Unlock()
+			if requests != tc.minimum+2 || !strings.Contains(status, fmt.Sprintf("%d/4 (blocked by model)", tc.minimum)) || !strings.Contains(status, "Blocker: "+blocker) {
+				t.Fatalf("restored status=%s requests=%d", status, requests)
+			}
+			run(second, "/goal resume")
+			saved, err := second.persistence.Load(ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := foldGoal(saved.Events())
+			if requests != 6 || state.Rounds != 4 || state.Stop != "round-limit" || state.StopDetail != "" {
+				t.Fatalf("last round after explicit resume: requests=%d state=%+v", requests, state)
+			}
+		})
 	}
 }
 
@@ -583,7 +592,7 @@ func TestGoalEditPreservesRoundsAndFencesStaleRevision(t *testing.T) {
 		}}, nil
 	})
 	home, cwd := t.TempDir(), t.TempDir()
-	first := newGoalTestServer(t, ctx, home, adapter, false)
+	first := newGoalTestServer(t, ctx, home, adapter, false, 0)
 	id, err := first.newSession(ctx, NewSessionParams{CWD: cwd})
 	if err != nil {
 		t.Fatal(err)
@@ -642,7 +651,7 @@ func TestGoalEditPreservesRoundsAndFencesStaleRevision(t *testing.T) {
 	if err := first.closeSession(ctx, id); err != nil {
 		t.Fatal(err)
 	}
-	second := newGoalTestServer(t, ctx, home, adapter, false)
+	second := newGoalTestServer(t, ctx, home, adapter, false, 0)
 	if err := second.resumeSession(ctx, ResumeSessionParams{SessionID: string(id), CWD: cwd}); err != nil {
 		t.Fatal(err)
 	}
