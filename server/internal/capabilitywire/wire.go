@@ -371,7 +371,8 @@ func KnownOperations(inventory []byte) (map[[2]string]bool, error) {
 	return known, nil
 }
 
-// Admit fails closed. Accepted never means the caller was granted the operation.
+// Admit is a reference fail-closed check for P0.2 and P0.3.
+// No shell, Host, or SDK calls it. Accepted is not a grant.
 func Admit(document []byte, known map[[2]string]bool) Admission {
 	var raw map[string]json.RawMessage
 	if json.Unmarshal(document, &raw) != nil {

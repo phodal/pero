@@ -32,6 +32,7 @@ Negotiation is a new document (`CapabilityNegotiation`). Legacy operation bodies
 - Unknown fields, a wrong enum, and a non-integer where an integer is required fail as `invalid_input`.
 - The current operation body stays accepted. Agent status is still `{operation:"status", scope:{workspaceId}, runId}`. Research query read is still `{operation:"queries", queryId}`.
 - `declaredHost` carries the existing `permissions.host` list. `advertised` records a manifest or provider advertisement. `CapabilityAdmission.grant` is `false` in both cases. Manifest declaration and advertisement are not grants.
+- `admit` is a reference for P0.2 and P0.3. No Electron shell, Native shell, Host handler, or App SDK calls it.
 - A routing entry, a TypeSpec model, and this inventory are not authorization. The owner that already admits the call stays the owner.
 
 Shells still answer failures with plain text or their existing JSON codes. `CapabilityError` is the contract those carriers can adopt later. This slice does not make them emit it.
