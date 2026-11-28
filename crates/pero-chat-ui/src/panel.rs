@@ -133,6 +133,8 @@ pub struct ChatPanel {
     pub(crate) visible: bool,
     /// The Workbench route is the Conversation page. Layout can show this panel earlier.
     conversation_page: bool,
+    /// The user removed the active chat. Re-entering Sessions clears it.
+    hold_empty_conversation: bool,
     pub(crate) next_request: u64,
     pub(crate) retired_chats: HashMap<String, String>,
     pub(crate) artifacts: crate::session_artifacts::SessionArtifacts,
@@ -225,6 +227,7 @@ impl ChatPanel {
             replayed: false,
             visible: true,
             conversation_page: false,
+            hold_empty_conversation: false,
             next_request: 0,
             retired_chats: HashMap::new(),
             artifacts: Default::default(),
@@ -356,22 +359,34 @@ impl ChatPanel {
         }
     }
 
-    pub fn set_conversation_page(&mut self, conversation_page: bool) {
-        self.conversation_page = conversation_page;
-    }
-
-    /// A connected, replayed, visible Conversation page with no project composer
-    /// owns a chat. Visibility edges miss a panel that was already showing.
-    pub fn ensure_conversation_target(&mut self, cx: &mut Context<Self>) {
-        let gate = crate::conversation_target::ConversationTarget {
+    fn conversation_gate(&self) -> crate::conversation_target::ConversationTarget {
+        crate::conversation_target::ConversationTarget {
             connected: self.connected,
             replayed: self.replayed,
             visible: self.visible,
             project_composer: self.project_composer.scope.is_some(),
             conversation_page: self.conversation_page,
             active_chat: self.active_chat.is_some(),
-        };
-        if gate.missing() {
+            hold_empty: self.hold_empty_conversation,
+        }
+    }
+
+    pub fn set_conversation_page(&mut self, conversation_page: bool) {
+        let mut gate = self.conversation_gate();
+        gate.set_page(conversation_page);
+        self.conversation_page = gate.conversation_page;
+        self.hold_empty_conversation = gate.hold_empty;
+    }
+
+    pub(crate) fn note_active_chat_removed(&mut self) {
+        let mut gate = self.conversation_gate();
+        gate.note_active_removed();
+        self.hold_empty_conversation = gate.hold_empty;
+    }
+
+    /// Restores a scope chat exactly when [`crate::conversation_target::ConversationTarget::missing`] is true.
+    pub fn ensure_conversation_target(&mut self, cx: &mut Context<Self>) {
+        if self.conversation_gate().missing() {
             self.restore_scope_chat(cx);
         }
     }
@@ -382,11 +397,7 @@ impl ChatPanel {
             if !visible { self.expanded_mcp = None; self.hide_mcp_surfaces(); }
             if visible {
                 if let Some(chat) = self.active_chat.and_then(|index| self.chats.get_mut(index)) { chat.notice.read(); }
-                if self.active_chat.is_none() && self.replayed && self.project_composer.scope.is_none() {
-                    self.new_draft(cx);
-                } else {
-                    self.prepare_chat(cx);
-                }
+                self.prepare_chat(cx);
             }
             self.sync_follow(cx);
             cx.notify();

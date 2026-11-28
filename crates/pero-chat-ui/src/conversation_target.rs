@@ -1,8 +1,8 @@
 //! When the Conversation page must own an active chat.
 //!
-//! Creating a draft only on a visibility edge misses Sessions: the panel can
-//! already be visible on Projects, so opening the page does not transition.
-//! The shell applies each signal, then asks [`ConversationTarget::ensure`].
+//! [`ConversationTarget::missing`] is the only automatic-draft decision.
+//! `ChatPanel::ensure_conversation_target` restores a scope chat exactly when
+//! it is true. Replay and visibility do not create a draft on their own.
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConversationTarget {
@@ -12,6 +12,8 @@ pub struct ConversationTarget {
     pub project_composer: bool,
     pub conversation_page: bool,
     pub active_chat: bool,
+    /// The user removed the active chat. Opening Sessions again clears this.
+    pub hold_empty: bool,
 }
 
 impl Default for ConversationTarget {
@@ -23,59 +25,73 @@ impl Default for ConversationTarget {
             project_composer: false,
             conversation_page: false,
             active_chat: false,
+            hold_empty: false,
         }
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum ConversationSignal {
-    Connected(bool),
-    Replay,
-    Visible(bool),
-    ConversationPage(bool),
-    ProjectComposer(bool),
-    Workspace,
-    Agents,
-}
-
 impl ConversationTarget {
+    /// Entering the Conversation page from another page may own a chat again.
+    pub fn set_page(&mut self, conversation_page: bool) {
+        if conversation_page && !self.conversation_page {
+            self.hold_empty = false;
+        }
+        self.conversation_page = conversation_page;
+    }
+
+    /// The active chat was removed. Do not immediately open a replacement.
+    pub fn note_active_removed(&mut self) {
+        self.active_chat = false;
+        self.hold_empty = true;
+    }
+
     pub fn missing(&self) -> bool {
-        self.connected
+        !self.hold_empty
+            && self.connected
             && self.replayed
             && self.visible
             && !self.project_composer
             && self.conversation_page
             && !self.active_chat
     }
-
-    /// Level trigger shared by visibility, replay, workspace, agents, and the
-    /// Workbench follow after the project composer changes.
-    pub fn ensure(&mut self) {
-        if self.missing() {
-            self.active_chat = true;
-        }
-    }
-
-    pub fn apply(&mut self, signal: ConversationSignal) {
-        match signal {
-            ConversationSignal::Connected(value) => self.connected = value,
-            ConversationSignal::Replay => self.replayed = true,
-            ConversationSignal::Visible(value) => self.visible = value,
-            ConversationSignal::ConversationPage(value) => self.conversation_page = value,
-            ConversationSignal::ProjectComposer(value) => self.project_composer = value,
-            ConversationSignal::Workspace | ConversationSignal::Agents => {}
-        }
-        self.ensure();
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{ConversationSignal::*, ConversationTarget};
+    use super::ConversationTarget;
+
+    #[derive(Clone, Copy)]
+    enum Signal {
+        Connected(bool),
+        Replay,
+        Visible(bool),
+        ConversationPage(bool),
+        ProjectComposer(bool),
+        Workspace,
+        Agents,
+        ReleaseActive,
+    }
+
+    fn drive(signals: &[Signal]) -> ConversationTarget {
+        let mut target = ConversationTarget::default();
+        for signal in signals {
+            match signal {
+                Signal::Connected(value) => target.connected = *value,
+                Signal::Replay => target.replayed = true,
+                Signal::Visible(value) => target.visible = *value,
+                Signal::ConversationPage(value) => target.set_page(*value),
+                Signal::ProjectComposer(value) => target.project_composer = *value,
+                Signal::Workspace | Signal::Agents => {}
+                Signal::ReleaseActive => target.note_active_removed(),
+            }
+        }
+        target
+    }
 
     #[test]
     fn conversation_page_owns_one_chat_for_every_signal_order() {
-        let cases: &[(&str, &[super::ConversationSignal], bool)] = &[
+        use Signal::*;
+        let cases: &[(&str, &[Signal], bool)] = &[
             (
                 "replay before the panel is visible",
                 &[
@@ -211,18 +227,33 @@ mod tests {
                 &[Replay, Visible(true), ConversationPage(true), Workspace],
                 false,
             ),
+            (
+                "closing the last chat does not open a replacement",
+                &[
+                    Connected(true),
+                    Replay,
+                    Visible(true),
+                    ConversationPage(true),
+                    ReleaseActive,
+                ],
+                false,
+            ),
+            (
+                "opening Sessions again after that close does",
+                &[
+                    Connected(true),
+                    Replay,
+                    Visible(true),
+                    ConversationPage(true),
+                    ReleaseActive,
+                    ConversationPage(false),
+                    ConversationPage(true),
+                ],
+                true,
+            ),
         ];
-        for (name, signals, active) in cases {
-            let mut target = ConversationTarget::default();
-            for signal in *signals {
-                target.apply(*signal);
-            }
-            assert_eq!(target.active_chat, *active, "{name}");
-            if *active {
-                target.apply(Workspace);
-                target.apply(Agents);
-                assert!(target.active_chat, "{name} keeps a single chat");
-            }
+        for (name, signals, restore) in cases {
+            assert_eq!(drive(signals).missing(), *restore, "{name}");
         }
     }
 }

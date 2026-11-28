@@ -147,6 +147,9 @@ impl ChatPanel {
             self.composer_restore = Some(gpui_kit::component::input::InputContent::new(""));
             self.composer_state = Default::default();
             self.attachments.clear();
+            if self.active_chat.is_none() && !self.chats.iter().any(|chat| chat.scope == self.scope) {
+                self.note_active_chat_removed();
+            }
         }
         self.sync_follow(cx);
         cx.notify();
@@ -574,9 +577,6 @@ impl ChatPanel {
             self.replayed = true;
             if self.project_composer.scope.is_none() {
                 self.focus_chat(next, cx);
-                if next.is_none() && self.visible {
-                    self.new_draft(cx);
-                }
                 if first_replay && self.visible {
                     self.retry_chat(cx);
                 }
