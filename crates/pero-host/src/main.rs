@@ -348,7 +348,7 @@ fn main() -> io::Result<()> {
             .and_then(|action| action.as_str())
             .is_some_and(|action| action.starts_with("local_worker_"))
         {
-            workers.dispatch(value, settings_path.as_deref());
+            workers.dispatch(value, settings_path.as_deref(), agents.catalog());
             continue;
         }
         if value.get("action").is_some() {
