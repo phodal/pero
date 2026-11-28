@@ -516,7 +516,8 @@ func (i *Instance) send(ctx context.Context, command instanceCommand) error {
 	select {
 	case <-i.done:
 		if command.kind == commandDispose {
-			return nil
+			// Already finished. A canceled caller must not observe success.
+			return ctx.Err()
 		}
 		return ErrDisposedInstance
 	case i.commands <- command:
@@ -525,10 +526,25 @@ func (i *Instance) send(ctx context.Context, command instanceCommand) error {
 	}
 	select {
 	case err := <-command.ack:
+		if command.kind == commandDispose {
+			return expireCaller(ctx, err)
+		}
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// expireCaller keeps a canceled caller from observing a nil dispose result.
+// select may take the finished command while ctx.Done is also ready.
+func expireCaller(ctx context.Context, err error) error {
+	if ctx.Err() == nil {
+		return err
+	}
+	if err == nil {
+		return ctx.Err()
+	}
+	return errors.Join(ctx.Err(), err)
 }
 
 func (i *Instance) Update(ctx context.Context, config []byte) error {
@@ -543,6 +559,19 @@ func (i *Instance) Restart(ctx context.Context) error {
 	return i.send(ctx, instanceCommand{kind: commandRestart, ack: make(chan error, 1)})
 }
 
+// Dispose asks the actor to shut down and waits for it.
+//
+// A canceled or expired caller context is returned even when shutdown itself
+// succeeded. select can observe both the finished command and ctx.Done, and
+// the caller must see that they left. This is not a failed dispose and not a
+// signal to start the instance again: Runtime.Dispose cancels the runtime
+// before this wait, so shutdown continues after the return.
+//
+// Callers that surface the error:
+//   - Application reconcile (application.go) stops the pass and does not retry.
+//   - workflow.App.Dispose / Close returns it from a fresh timeout and does not retry.
+//   - ToolContribution.Dispose returns it to the composition root; a canceled
+//     caller is cancellation, not a reason to mount the tool again.
 func (i *Instance) Dispose(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -555,7 +584,7 @@ func (i *Instance) Dispose(ctx context.Context) error {
 		i.snapshotMu.RLock()
 		err := i.disposeError
 		i.snapshotMu.RUnlock()
-		return err
+		return expireCaller(ctx, err)
 	case <-ctx.Done():
 		return ctx.Err()
 	}

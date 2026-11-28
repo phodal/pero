@@ -200,6 +200,25 @@ requests. The test now waits for the Composer to be reachable and focused,
 then verifies that the question entered the draft before submitting it.
 The fixture still checks that one follow-up reaches the model with the pinned
 Notebook context.
+
+Opening Sessions on a fresh profile also left `activeChat` unset. Draft
+creation ran only when visibility changed, when replay arrived while the panel
+was visible, or when the project composer closed. Layout can already show the
+panel on the Projects start page, so Sessions changes the route without that
+edge. The Conversation page now restores a scope chat whenever it is connected,
+replayed, and visible, and has neither a project composer nor an active chat.
+Removing the last chat in the current scope does not immediately open a
+replacement; entering Sessions from another page does.
+The panel snapshot records `replayed`, `projectComposerActive`, and its own
+`visible` flag.
+
+A later Notebook failure kept the Inspector iframe as `document.activeElement`
+after the canvas click. GPUI drew a composer caret while the question never
+entered the draft. After a canvas press, the shell reclaims the canvas input on the following
+frames only when the composer is focused and the active iframe is not an App
+pane the shell just focused. The script waits for that focus,
+checks the prompt is in the draft before Enter, and writes `failure-state.json`
+when it fails.
 This record stays open with GitHub #218.
 
 ## 2026-11-13 implementation and CI receipt follow-up
