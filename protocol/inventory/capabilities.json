@@ -1,0 +1,214 @@
+{
+  "schema": "pero.capability.inventory.v1",
+  "baseline": "59d9addeb92b42d600095329204ecfb81c325d6c",
+  "protocolVersion": 1,
+  "remoteNow": false,
+  "grant": false,
+  "note": "A row classifies an existing call. It does not admit, expose, or grant it. remoteNow is false for every row. exposure is the contract class only.",
+  "mappings": {
+    "capabilitySelection": {
+      "owner": "crates/pero-contracts/src/capability_selection.rs",
+      "meaning": "User selection of a composer target. A selection grants no access."
+    },
+    "composerCapabilities": {
+      "owner": "crates/pero-contracts/src/composer_capabilities.rs",
+      "meaning": "ACP initialize advertisement (images, embedded context, science session). Advertisement is not a grant."
+    },
+    "workerCapability": {
+      "owner": "protocol/remote.tsp WorkerCapability; server/internal/store/worker_devices.go",
+      "meaning": "Execution tuple project_id, workspace_key, agent_id. Not an App capability."
+    },
+    "permissionsHost": {
+      "owner": "packages/app-sdk/src/core.mjs createAppHost; protocol/apps.tsp AppSdkPermissions.host",
+      "meaning": "Manifest declaration. The SDK hides HostCapability.call without it. Declaration is not a grant."
+    }
+  },
+  "families": [
+    {
+      "id": "agent",
+      "permission": "agent",
+      "envelope": "/host/capability",
+      "evidence": "desktop/src/main/apps.ts; crates/pero-ui/src/native_apps.rs",
+      "operations": [
+        {"name": "prepare", "owner": "host", "route": "/host/app-agent", "hostAction": "agentrun", "input": "AgentRunPrepare", "output": "prepared context", "effect": "control", "permission": "permissions.host agent; Host session owner", "carrier": "capability-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "crates/pero-runtime/src/apps/agent_run.rs Request::Prepare"},
+        {"name": "terminal", "owner": "host", "route": "/host/app-agent", "hostAction": "agentrun", "input": "AgentRunTerminal", "output": "terminal list or page", "effect": "read", "permission": "permissions.host agent; Host-lent terminal", "carrier": "capability-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "crates/pero-runtime/src/apps/agent_run.rs Request::Terminal"},
+        {"name": "start", "owner": "host", "route": "/host/app-agent", "hostAction": "agentrun", "input": "AgentRunStart", "output": "AgentRun", "effect": "write", "permission": "permissions.host agent; Host creates the session", "carrier": "capability-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "crates/pero-runtime/src/apps/agent_run.rs Request::Start"},
+        {"name": "lookup", "owner": "host", "route": "/host/app-agent", "hostAction": "agentrun", "input": "AgentRunLookup", "output": "AgentRunLookupReply", "effect": "read", "permission": "permissions.host agent", "carrier": "capability-envelope", "platforms": ["electron", "native"], "exposure": "remotely_exposable", "evidence": "crates/pero-runtime/src/apps/agent_run.rs Request::Lookup"},
+        {"name": "status", "owner": "host", "route": "/host/app-agent", "hostAction": "agentrun", "input": "AgentStatusRequest", "output": "AgentStatusResponse", "effect": "read", "permission": "permissions.host agent; not a grant", "carrier": "capability-envelope", "platforms": ["electron", "native"], "exposure": "remotely_exposable", "evidence": "crates/pero-runtime/src/apps/agent_run.rs Request::Status; packages/app-sdk/src/agent.mjs status"},
+        {"name": "events", "owner": "host", "route": "/host/app-agent", "hostAction": "agentrun", "input": "AgentRunEvents", "output": "AgentRunTranscript", "effect": "read", "permission": "permissions.host agent", "carrier": "capability-envelope", "platforms": ["electron", "native"], "exposure": "remotely_exposable", "evidence": "crates/pero-runtime/src/apps/agent_run.rs Request::Events"},
+        {"name": "cancel", "owner": "host", "route": "/host/app-agent", "hostAction": "agentrun", "input": "AgentRunCancel", "output": "AgentRun", "effect": "control", "permission": "permissions.host agent; Host cancel", "carrier": "capability-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "crates/pero-runtime/src/apps/agent_run.rs Request::Cancel"},
+        {"name": "retry", "owner": "host", "route": "/host/app-agent", "hostAction": "agentrun", "input": "AgentRunRetry", "output": "AgentRun", "effect": "write", "permission": "permissions.host agent", "carrier": "capability-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "crates/pero-runtime/src/apps/agent_run.rs Request::Retry"},
+        {"name": "open", "owner": "host", "route": "/host/app-agent", "hostAction": "agentrun", "input": "AgentRunOpen", "output": "AgentRunOpenReply", "effect": "control", "permission": "permissions.host agent", "carrier": "capability-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "crates/pero-runtime/src/apps/agent_run.rs Request::Open"},
+        {"name": "science_sessions", "owner": "host", "route": "/host/agent", "hostAction": "agent", "input": "empty object", "output": "session list", "effect": "read", "permission": "permissions.host agent", "carrier": "capability-envelope-special", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "crates/pero-runtime/src/apps/agent.rs AgentRequest::ScienceSessions"},
+        {"name": "science", "owner": "host", "route": "/host/agent", "hostAction": "agent", "input": "AppScienceCommand", "output": "AppScienceSnapshot", "effect": "control", "permission": "permissions.host agent; kernel stays on the device", "carrier": "capability-envelope-special", "platforms": ["electron", "native"], "exposure": "local_only", "actions": ["start", "status", "execute", "interrupt", "restart", "close"], "evidence": "crates/pero-runtime/src/apps/agent.rs AgentRequest::Science; packages/app-sdk/src/host.tsx AppScienceCommand"},
+        {"name": "info", "owner": "host", "route": "/host/agent", "hostAction": "agent", "input": "AgentInfoRequest", "output": "AppAgentInfo", "effect": "read", "permission": "direct route; envelope would hit app-agent and fail", "carrier": "direct-host-agent", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "packages/app-sdk/src/agent.ts useAppAgent refresh; crates/pero-runtime/src/apps/agent.rs AgentRequest::Info"},
+        {"name": "start", "owner": "host", "route": "/host/agent", "hostAction": "agent", "input": "AgentStartRequest", "output": "sessionId", "effect": "write", "permission": "direct legacy research start, including optional insightsProjectId", "carrier": "direct-host-agent", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "crates/pero-runtime/src/apps/agent.rs AgentRequest::Start"},
+        {"name": "events", "owner": "host", "route": "/host/agent", "hostAction": "agent", "input": "AgentEventsRequest", "output": "AppAgentTranscript", "effect": "read", "permission": "direct legacy session events", "carrier": "direct-host-agent", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "crates/pero-runtime/src/apps/agent.rs AgentRequest::Events"},
+        {"name": "cancel", "owner": "host", "route": "/host/agent", "hostAction": "agent", "input": "AgentCancelRequest", "output": "cancelled", "effect": "control", "permission": "direct legacy cancel", "carrier": "direct-host-agent", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "crates/pero-runtime/src/apps/agent.rs AgentRequest::Cancel"}
+      ]
+    },
+    {
+      "id": "insights",
+      "permission": "insights",
+      "envelope": "/host/capability",
+      "route": "/host/insights",
+      "hostAction": "insights",
+      "operations": [],
+      "legacyBody": ["threadId", "projectId"],
+      "owner": "host",
+      "effect": "read",
+      "permissionNote": "The shell requires an operation string, then forwards only threadId and projectId. There is no stable operation name to admit.",
+      "carrier": "direct-and-envelope",
+      "platforms": ["electron", "native"],
+      "exposure": "local_only",
+      "evidence": "desktop/src/main/apps.ts /host/insights; apps/insights/ui-src/index.tsx"
+    },
+    {
+      "id": "connectors",
+      "permission": "connectors",
+      "envelope": "/host/capability",
+      "route": "/host/connectors",
+      "hostAction": "connectors",
+      "owner": "shell",
+      "evidence": "packages/connectors/src/settings-controller.mjs; packages/connectors/src/host.mjs",
+      "operations": [
+        {"name": "list", "owner": "shell", "route": "/host/connectors", "input": "operation", "output": "connector list", "effect": "read", "permission": "connectors grant; not a tool grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "settings-controller.mjs fields.list"},
+        {"name": "snapshot", "owner": "shell", "route": "/host/connectors", "input": "operation", "output": "redacted snapshot", "effect": "read", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "settings-controller.mjs snapshot"},
+        {"name": "cancel", "owner": "shell", "route": "/host/connectors", "input": "operation", "output": "cancellation", "effect": "control", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "settings-controller.mjs cancel"},
+        {"name": "put", "owner": "shell", "route": "/host/connectors", "input": "connectorId, definition, expectedRevision", "output": "result", "effect": "write", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "settings-controller.mjs put"},
+        {"name": "enable", "owner": "shell", "route": "/host/connectors", "input": "connectorId, enabled, expectedRevision", "output": "result", "effect": "control", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "settings-controller.mjs enable"},
+        {"name": "remove", "owner": "shell", "route": "/host/connectors", "input": "connectorId, expectedRevision", "output": "result", "effect": "write", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "settings-controller.mjs remove"},
+        {"name": "logout", "owner": "shell", "route": "/host/connectors", "input": "connectorId, expectedRevision", "output": "result", "effect": "control", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "privileged", "evidence": "settings-controller.mjs logout"},
+        {"name": "verify", "owner": "shell", "route": "/host/connectors", "input": "connectorId", "output": "toolCount", "effect": "observe", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "settings-controller.mjs verify"},
+        {"name": "disconnect", "owner": "shell", "route": "/host/connectors", "input": "connectorId", "output": "result", "effect": "control", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "settings-controller.mjs disconnect"},
+        {"name": "authorization.refresh", "owner": "shell", "route": "/host/connectors", "input": "connectorId", "output": "result", "effect": "control", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "privileged", "evidence": "settings-controller.mjs authorization.refresh"},
+        {"name": "connect.begin", "owner": "shell", "route": "/host/connectors", "input": "connectorId, intent", "output": "attempt", "effect": "control", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "privileged", "evidence": "settings-controller.mjs connect.begin"},
+        {"name": "connect.cancel", "owner": "shell", "route": "/host/connectors", "input": "connectorId, attemptId", "output": "result", "effect": "control", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "settings-controller.mjs connect.cancel"},
+        {"name": "connect.observe", "owner": "shell", "route": "/host/connectors", "input": "connectorId, attemptId", "output": "result", "effect": "read", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "settings-controller.mjs connect.observe"},
+        {"name": "link", "owner": "shell", "route": "/host/connectors", "input": "providerId, kind", "output": "opened", "effect": "control", "permission": "connectors grant; opens docs or revoke", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "settings-controller.mjs link"},
+        {"name": "tools.set", "owner": "shell", "route": "/host/connectors", "input": "connectorId, tools, expectedRevision", "output": "result", "effect": "control", "permission": "connectors grant; tool list is not itself a grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "settings-controller.mjs tools.set"},
+        {"name": "secret.set", "owner": "shell", "route": "/host/connectors", "input": "reference, value", "output": "stored", "effect": "write", "permission": "connectors grant; secret bytes stay in the shell", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "privileged", "evidence": "settings-controller.mjs secret.set"},
+        {"name": "secret.delete", "owner": "shell", "route": "/host/connectors", "input": "reference", "output": "deleted", "effect": "write", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "privileged", "evidence": "settings-controller.mjs secret.delete"},
+        {"name": "discover", "owner": "shell", "route": "/host/connectors", "input": "providerId", "output": "discovery", "effect": "observe", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "packages/connectors/src/host.mjs discover"},
+        {"name": "install.records", "owner": "shell", "route": "/host/connectors", "input": "operation", "output": "records", "effect": "read", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "packages/connectors/src/host.mjs install.records"},
+        {"name": "install.verify", "owner": "shell", "route": "/host/connectors", "input": "providerId", "output": "state", "effect": "read", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "packages/connectors/src/host.mjs install.verify"},
+        {"name": "install.run", "owner": "shell", "route": "/host/connectors", "input": "providerId", "output": "job", "effect": "write", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "packages/connectors/src/host.mjs setup install.run"},
+        {"name": "install.status", "owner": "shell", "route": "/host/connectors", "input": "providerId", "output": "job", "effect": "read", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "packages/connectors/src/host.mjs install.status"},
+        {"name": "install.cancel", "owner": "shell", "route": "/host/connectors", "input": "providerId", "output": "job", "effect": "control", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "packages/connectors/src/host.mjs install.cancel"},
+        {"name": "install.command", "owner": "shell", "route": "/host/connectors", "input": "providerId", "output": "command", "effect": "read", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "packages/connectors/src/host.mjs install.command"},
+        {"name": "feishu.authorization", "owner": "shell", "route": "/host/connectors", "input": "connectorId, action, capabilities, attemptId", "output": "result", "effect": "control", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "privileged", "evidence": "packages/connectors/src/host.mjs feishu.authorization"},
+        {"name": "feishu.workspace", "owner": "shell", "route": "/host/connectors", "input": "connectorId, input.action account", "output": "account", "effect": "read", "permission": "connectors grant", "carrier": "direct-host-connectors", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "packages/connectors/src/host.mjs feishu.workspace"}
+      ]
+    },
+    {
+      "id": "automation",
+      "permission": "automation",
+      "envelope": "/host/capability",
+      "route": "/host/automation",
+      "hostAction": "automation",
+      "operations": [],
+      "legacyBody": ["method", "path", "body"],
+      "owner": "host",
+      "effect": "control",
+      "permissionNote": "Direct POST /host/automation sends AppRequest. The capability envelope also copies operation onto that object, which deny_unknown_fields rejects. Direct calls remain the working carrier.",
+      "carrier": "direct-host-automation",
+      "platforms": ["electron", "native"],
+      "exposure": "privileged",
+      "evidence": "crates/pero-host/src/automation_app.rs AppRequest; protocol/apps.tsp AutomationApiRequest"
+    },
+    {
+      "id": "research-assets",
+      "permission": "research-assets",
+      "envelope": "/host/capability",
+      "route": "/host/research-assets",
+      "hostAction": "research-assets",
+      "owner": "host",
+      "evidence": "crates/pero-host/src/research_assets.rs ResearchAssetsRequest",
+      "operations": [
+        {"name": "start", "owner": "host", "route": "/host/research-assets", "input": "bundleId, assetId", "output": "ResearchAssetReply", "effect": "write", "permission": "paper-agent grant research-assets; Host picks Data", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "research_assets.rs Start"},
+        {"name": "status", "owner": "host", "route": "/host/research-assets", "input": "bundleId, optional assetId", "output": "download state", "effect": "read", "permission": "paper-agent grant research-assets", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "transport_neutral", "evidence": "research_assets.rs Status"},
+        {"name": "cancel", "owner": "host", "route": "/host/research-assets", "input": "bundleId, optional assetId", "output": "download state", "effect": "control", "permission": "paper-agent grant research-assets", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "research_assets.rs Cancel"},
+        {"name": "datasets", "owner": "host", "route": "/host/research-assets", "input": "operation only", "output": "dataset catalog", "effect": "read", "permission": "paper-agent grant research-assets", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "transport_neutral", "evidence": "research_assets.rs Datasets; apps/paper-agent/ui-src/manual-records.tsx"},
+        {"name": "queries", "owner": "host", "route": "/host/research-assets", "input": "optional queryId", "output": "list or Data evidence", "effect": "read", "permission": "paper-agent grant research-assets; queryId reads one saved query", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "remotely_exposable", "evidence": "research_assets.rs Queries; apps/paper-agent/ui-src/data-evidence.tsx; apps/data/backend/semantic_queries.py evidence"},
+        {"name": "linkquery", "owner": "host", "route": "/host/research-assets", "input": "queryId, claim", "output": "evidence link", "effect": "write", "permission": "paper-agent grant research-assets", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "research_assets.rs Linkquery"},
+        {"name": "saverecord", "owner": "host", "route": "/host/research-assets", "input": "record, datasets", "output": "revision", "effect": "write", "permission": "paper-agent grant research-assets", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "research_assets.rs Saverecord"}
+      ]
+    },
+    {
+      "id": "skills",
+      "permission": "skills",
+      "envelope": "/host/capability",
+      "route": "/host/skills",
+      "hostAction": "skillsmarket",
+      "owner": "host",
+      "evidence": "protocol/apps.tsp SkillMarketOperation",
+      "operations": [
+        {"name": "catalog", "owner": "host", "route": "/host/skills", "input": "operation", "output": "SkillMarketCatalog", "effect": "read", "permission": "permissions.host skills", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "transport_neutral", "evidence": "protocol/apps.tsp SkillMarketRead"},
+        {"name": "installed", "owner": "host", "route": "/host/skills", "input": "operation", "output": "SkillMarketInstalled", "effect": "read", "permission": "permissions.host skills", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "protocol/apps.tsp SkillMarketRead"},
+        {"name": "skillhub-search", "owner": "host", "route": "/host/skills", "input": "keyword, page, sort", "output": "SkillHubPage", "effect": "read", "permission": "permissions.host skills", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "transport_neutral", "evidence": "protocol/apps.tsp SkillHubSearch"},
+        {"name": "skillhub-versions", "owner": "host", "route": "/host/skills", "input": "publisher, slug", "output": "SkillHubHistory", "effect": "read", "permission": "permissions.host skills", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "transport_neutral", "evidence": "protocol/apps.tsp SkillHubVersions"},
+        {"name": "skillhub-install", "owner": "host", "route": "/host/skills", "input": "publisher, slug, versionId", "output": "install result", "effect": "write", "permission": "permissions.host skills", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "protocol/apps.tsp SkillHubInstall"},
+        {"name": "install", "owner": "host", "route": "/host/skills", "input": "id", "output": "install result", "effect": "write", "permission": "permissions.host skills", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "protocol/apps.tsp SkillMarketEntryOperation"},
+        {"name": "remove", "owner": "host", "route": "/host/skills", "input": "id", "output": "remove result", "effect": "write", "permission": "permissions.host skills", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "protocol/apps.tsp SkillMarketEntryOperation"},
+        {"name": "check-update", "owner": "host", "route": "/host/skills", "input": "id", "output": "SkillMarketUpdate", "effect": "read", "permission": "permissions.host skills", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "protocol/apps.tsp SkillMarketEntryOperation"},
+        {"name": "update", "owner": "host", "route": "/host/skills", "input": "id, revision, sha256", "output": "update result", "effect": "write", "permission": "permissions.host skills; digest from check-update", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "protocol/apps.tsp SkillMarketUpdateOperation"},
+        {"name": "enable", "owner": "host", "route": "/host/skills", "input": "id, enabled", "output": "enable result", "effect": "control", "permission": "permissions.host skills", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "protocol/apps.tsp SkillMarketEnable"},
+        {"name": "rollback", "owner": "host", "route": "/host/skills", "input": "id, optional revision", "output": "rollback result", "effect": "write", "permission": "permissions.host skills", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "protocol/apps.tsp SkillMarketRollback"},
+        {"name": "cancel", "owner": "host", "route": "/host/skills", "input": "id", "output": "SkillMarketCancelled", "effect": "control", "permission": "permissions.host skills", "carrier": "direct-and-envelope", "platforms": ["electron", "native"], "exposure": "local_only", "evidence": "protocol/apps.tsp SkillMarketCancel"}
+      ]
+    }
+  ],
+  "sciencePath": {
+    "capability": "agent",
+    "operations": ["science", "science_sessions"],
+    "route": "/host/agent",
+    "note": "These two envelope operations are forwarded to /host/agent. Every other agent envelope operation is forwarded to /host/app-agent. science.action status is a kernel read, not AgentRun status.",
+    "evidence": "desktop/src/main/apps.ts capability route; crates/pero-ui/src/native_apps.rs"
+  },
+  "directRoutes": [
+    {"path": "/host/sdk", "owner": "shell", "effect": "read", "exposure": "local_only", "permission": "App origin", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/sdk; native_apps.rs /host/sdk"},
+    {"path": "/host/environment", "owner": "host", "effect": "observe", "exposure": "local_only", "permission": "App origin; method target only", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/environment"},
+    {"path": "/host/environment/profiles", "owner": "host", "effect": "control", "exposure": "local_only", "permission": "App origin", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/environment/profiles"},
+    {"path": "/host/notebook-projects", "owner": "host", "effect": "control", "exposure": "local_only", "permission": "notebook origin", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/notebook-projects"},
+    {"path": "/host/canvas", "owner": "host", "effect": "control", "exposure": "local_only", "permission": "notebook origin", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/canvas"},
+    {"path": "/host/inputs", "owner": "shell", "effect": "read", "exposure": "privileged", "permission": "frozen input grant", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/inputs"},
+    {"path": "/host/artifacts", "owner": "shell", "effect": "read", "exposure": "local_only", "permission": "scientific-viewer snapshot", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/artifacts"},
+    {"path": "/host/docling-runtime", "owner": "shell", "effect": "control", "exposure": "local_only", "permission": "paper-agent origin", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/docling-runtime"},
+    {"path": "/host/reproduction", "owner": "host", "effect": "control", "exposure": "privileged", "permission": "paper-agent; Host approval stays private", "carrier": "app-frame", "platforms": ["electron"], "deferred": true, "evidence": "desktop/src/main/apps.ts /host/reproduction"},
+    {"path": "/api/*", "owner": "domain-app", "effect": "control", "exposure": "privileged", "permission": "apiaccess allowlist plus backend token", "carrier": "app-frame-proxy", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /api proxy"},
+    {"path": "/api/workspaces", "owner": "host", "effect": "read", "exposure": "local_only", "permission": "App origin", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "protocol/apps.tsp AgentCatalogCommand"},
+    {"path": "/api/harnesses", "owner": "host", "effect": "read", "exposure": "local_only", "permission": "App origin", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "protocol/apps.tsp AgentCatalogCommand"}
+  ],
+  "carriers": [
+    {"id": "sdk-exports", "owner": "sdk", "exposure": "transport_neutral", "evidence": "packages/app-sdk/src/index.tsx; packages/app-sdk/src/host.tsx; packages/app-sdk/test/contracts/public-exports.json", "note": "Public surface includes useHostCapability, useHostAgent, and createAppHost. permissions.host gates the call. No export was added or renamed."},
+    {"id": "parent-frame", "owner": "shell", "exposure": "local_only", "evidence": "packages/app-sdk/src/iframe-host.ts; web/src/apps.ts", "note": "pero:app:sdk, ready, context, navigate, chat, chat-slot, document, event, window-modal, panel-slot, examples, location, icon-theme, data-changed. Presentation stays in the shell. Not forwarded to a remote Host."},
+    {"id": "ipc-preload", "owner": "electron", "exposure": "privileged", "platforms": ["electron"], "evidence": "desktop/src/preload/index.ts; desktop/src/main/index.ts", "note": "pero:connect, locale, probe, content-read, app-use, web, shortcuts, session, remote, apps, computer, workspace, context, event, linux-desktop. The App frame has no preload."},
+    {"id": "product-preload", "owner": "electron", "exposure": "privileged", "platforms": ["electron"], "evidence": "desktop/src/product/preload.ts", "note": "product:connect, open, content-read, app-use, session, open-external, event, context."},
+    {"id": "host-jsonl", "owner": "host", "exposure": "privileged", "evidence": "protocol/host.tsp", "note": "Shell-to-host stdio. Not an App capability and not published as an App DTO."},
+    {"id": "go-client-api", "owner": "go", "exposure": "privileged", "evidence": "server/internal/httpapi/routes.go; server/internal/httpapi/clients.go", "note": "Client and worker HTTP for tasks, runs, enrollment, artifacts, and runtime. Separate from AppHost. WorkerCapability stays the execution tuple."},
+    {"id": "mcp-adapters", "owner": "shell", "exposure": "privileged", "evidence": "packages/connectors/src/host.mjs; desktop/src/main/mcp-sources.ts; desktop/src/main/mcp-session-sources.ts; desktop/src/main/app-use-mcp.ts; crates/pero-ui/src/native_connectors.rs", "note": "Tool, resource, and App Use adapters. A connector operation is not an MCP tool grant."}
+  ],
+  "asymmetries": [
+    {"id": "sdk-slots", "electron": "/host/sdk adds slots [conversation]", "native": "/host/sdk sets slots []", "evidence": "desktop/src/main/apps.ts; crates/pero-ui/src/native_apps.rs sdk branch"},
+    {"id": "capability-rejection", "electron": "Unknown capability returns HTTP 403 text Host capability unavailable", "native": "anyhow bail becomes HTTP 503 text", "evidence": "apps.ts capability check; native_apps.rs serve Err mapping"},
+    {"id": "opaque-origin", "electron": "A set Origin must equal the pero-app origin", "native": "respond also allows Origin null", "evidence": "apps.ts caller check; native_apps.rs respond"},
+    {"id": "skillhub-deadline", "electron": "skillhub-search and skillhub-versions use a 12000ms host deadline", "native": "skillsmarket uses the shared request timeout", "evidence": "apps.ts /host/skills"},
+    {"id": "agent-cancel-hook", "electron": "Direct /host/agent cancel with cancelled true calls onAgentCancel", "native": "The route returns the Host result and does not show that shell hook", "evidence": "apps.ts /host/agent"},
+    {"id": "reproduction-route", "electron": "POST /host/reproduction exists for paper-agent", "native": "No matching /host/reproduction branch in native_apps.rs", "evidence": "apps.ts /host/reproduction; native_apps.rs"},
+    {"id": "automation-envelope", "electron": "Envelope copies operation onto the automation body", "native": "Same copy", "evidence": "automation_app.rs deny_unknown_fields AppRequest", "note": "Both shells share this clash. Direct /host/automation is the working carrier."}
+  ],
+  "drift": [
+    {"id": "research-assets-operations", "typespec": "protocol/apps.tsp ResearchAssetsRequest is start, status, cancel", "host": "research_assets.rs also accepts datasets, queries, linkquery, saverecord", "resolution": "Canonical operations are this inventory and capabilities.tsp. apps.tsp stays the legacy Host-bundle subset. Parsers and shells are unchanged."},
+    {"id": "agent-scope-project-id", "typespec": "AgentScope.workspaceId only", "sdk": "AppAgentScope allows projectId xor workspaceId", "host": "agent_run::Scope is workspace_id only and denies unknown fields", "resolution": "Canonical agent status scope is workspaceId. projectId fails closed as an unknown field. The SDK type is unchanged."},
+    {"id": "agent-run-result", "sdk": "AppAgentRun.result is optional", "host": "Run has no result field", "resolution": "Canonical AgentStatusResponse rejects result."}
+  ],
+  "deferred": [
+    "P0.2 dispatch and owner admission for both shells",
+    "P0.3 SDK negotiation and transport ports",
+    "P0.4 resource identity and remote read",
+    "environment, environment profiles, canvas, notebook-projects, docling, reproduction, inputs, artifacts, and the /api proxy",
+    "insights has no named operation; automation envelope operation injection",
+    "parent-frame messages, Electron IPC, Host JSONL, Go client API, and MCP tool adapters",
+    "legacy /host/agent info, start, events, and cancel versus /host/app-agent operations of the same name"
+  ]
+}

@@ -40,3 +40,4 @@
 - [0035: Data semantic definition and query receipt contract](0035-data-semantic-contract.md) — reuse-contract-only; no upstream deployment adoption
 - [0036: MCP Apps Host Runtime and saved Notebook Inspector](0036-mcp-apps-host-runtime.md) — v0 renderer and first product consumer
 - [0037: Temporal for durable shared research campaigns](0037-temporal-research-campaigns.md) — accepted, implementation tracked under Compute #249
+- [0038: Capability inventory and typed wire contracts](0038-capability-inventory.md) — P0.1 protocol inventory; no shell migration
