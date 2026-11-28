@@ -1,0 +1,9 @@
+{
+  "id": "research-assets",
+  "protocolVersion": 1,
+  "operations": [
+    { "name": "queries", "version": 1, "effect": "read", "exposure": "remotely_exposable" }
+  ],
+  "provider": { "id": "local-host", "incarnation": "59d9addeb92b42d600095329204ecfb81c325d6c" },
+  "availability": { "scopeKind": "app", "scopeId": "paper-agent", "state": "advertised" }
+}

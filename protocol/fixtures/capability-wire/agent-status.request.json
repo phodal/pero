@@ -1,0 +1,5 @@
+{
+  "operation": "status",
+  "scope": { "workspaceId": "ws_0123456789abcdef0123456789abcdef" },
+  "runId": "app:paper-agent:0123456789abcdef0123456789abcdef"
+}
