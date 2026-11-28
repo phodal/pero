@@ -48,8 +48,12 @@ func TestPaperPDFImportIsIdempotent(t *testing.T) {
 	if first["created"] != true || second["created"] != false || first["paperId"] != "doc-1" || first["paperId"] == "paper-"+digest[:12] || second["paperId"] != first["paperId"] || importer.n != 1 {
 		t.Fatalf("first %#v second %#v imports %d", first, second, importer.n)
 	}
+	kept, _, remembered, ok := desk.Get("lab", "upload-1")
+	if !ok || len(kept) != 0 || remembered == nil || remembered.PaperID != "doc-1" {
+		t.Fatalf("retained %d %#v", len(kept), remembered)
+	}
 	code, body := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", "ab", uint64(len(samplePDF)))
-	if code != 409 || body["error"] != "digest_mismatch" {
+	if code != 409 || body["error"] != "conflict" {
 		t.Fatalf("digest %d %#v", code, body)
 	}
 	code, _ = postBytes(t, api, "lab", []string{"lab"}, "partial", "handle-1", samplePDF[:4])
@@ -209,6 +213,83 @@ func postFinalizeStatus(t *testing.T, api *API, project string, projects []strin
 		t.Fatal(rec.Body.String())
 	}
 	return rec.Code, payload
+}
+
+type gateImport struct {
+	mu       sync.Mutex
+	n        int
+	id       string
+	revision string
+	entered  chan struct{}
+	release  chan struct{}
+	once     sync.Once
+}
+
+func (g *gateImport) ImportPDF(string, []byte, string) (string, string, bool) {
+	g.mu.Lock()
+	g.n++
+	g.mu.Unlock()
+	g.once.Do(func() { close(g.entered) })
+	<-g.release
+	return g.id, g.revision, true
+}
+
+func TestConcurrentFinalizeImportsOnceAndCancelDoesNotWin(t *testing.T) {
+	sum := sha256.Sum256(samplePDF)
+	digest := hex.EncodeToString(sum[:])
+	gate := &gateImport{id: "rev_gate", revision: digest, entered: make(chan struct{}), release: make(chan struct{})}
+	desk := newImportingDesk(gate)
+	desk.Register("lab", devicetransfer.Handle{ID: "handle-1", Provider: "browser", MediaType: "application/pdf", Size: uint64(len(samplePDF)), Name: "note.pdf"})
+	api := &API{files: desk}
+	if code, _ := postBytes(t, api, "lab", []string{"lab"}, "upload-1", "handle-1", samplePDF); code != 202 {
+		t.Fatal(code)
+	}
+	type finish struct {
+		code int
+		body map[string]any
+	}
+	done := make(chan finish, 2)
+	go func() {
+		code, body := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", digest, uint64(len(samplePDF)))
+		done <- finish{code, body}
+	}()
+	<-gate.entered
+	go func() {
+		code, body := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", digest, uint64(len(samplePDF)))
+		done <- finish{code, body}
+	}()
+	cancelCode := make(chan int, 1)
+	go func() {
+		req := httptest.NewRequest(http.MethodPost, "/api/client/v1/projects/lab/device-transfers/upload-1/cancel", strings.NewReader("{}"))
+		req.SetPathValue("project", "lab")
+		req.SetPathValue("upload", "upload-1")
+		req = req.WithContext(context.WithValue(req.Context(), clientContextKey{}, &store.Client{Projects: []string{"lab"}, Role: "client"}))
+		rec := httptest.NewRecorder()
+		api.cancelDeviceTransfer(rec, req)
+		cancelCode <- rec.Code
+	}()
+	close(gate.release)
+	first, second := <-done, <-done
+	if cancel := <-cancelCode; cancel == 200 {
+		t.Fatalf("cancel won %d", cancel)
+	}
+	if first.code != 200 || second.code != 200 || gate.n != 1 || first.body["paperId"] != "rev_gate" || second.body["paperId"] != "rev_gate" {
+		t.Fatalf("imports %d %#v %#v", gate.n, first, second)
+	}
+	created := 0
+	if first.body["created"] == true {
+		created++
+	}
+	if second.body["created"] == true {
+		created++
+	}
+	if created != 1 {
+		t.Fatalf("created %#v %#v", first, second)
+	}
+	kept, _, _, ok := desk.Get("lab", "upload-1")
+	if !ok || len(kept) != 0 {
+		t.Fatalf("bytes %d", len(kept))
+	}
 }
 
 func postCancel(t *testing.T, api *API, project, upload string) {

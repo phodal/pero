@@ -27,6 +27,7 @@ type DeviceDesk interface {
 	Remember(project, upload string, commit devicetransfer.Commit)
 	Import(project, digest string, body []byte) (devicetransfer.Commit, bool)
 	Cancel(project, upload string) bool
+	Reserve(project, upload string, fn func(body []byte, transfer devicetransfer.Transfer, prior *devicetransfer.Commit) (devicetransfer.Commit, string)) (devicetransfer.Commit, string, bool)
 }
 
 func mountDeviceDesk(api *API, importer PaperImporter) {
@@ -40,7 +41,7 @@ type importingDesk struct {
 	mu       sync.Mutex
 	importer PaperImporter
 	handles  map[string]map[string]deskHandle
-	uploads  map[string]map[string]storedUpload
+	uploads  map[string]map[string]*uploadSlot
 }
 
 type deskHandle struct {
@@ -48,14 +49,35 @@ type deskHandle struct {
 	expired bool
 }
 
-type storedUpload struct {
+type uploadSlot struct {
+	mu       sync.Mutex
 	body     []byte
 	transfer devicetransfer.Transfer
 	commit   *devicetransfer.Commit
 }
 
 func newImportingDesk(importer PaperImporter) *importingDesk {
-	return &importingDesk{importer: importer, handles: map[string]map[string]deskHandle{}, uploads: map[string]map[string]storedUpload{}}
+	return &importingDesk{importer: importer, handles: map[string]map[string]deskHandle{}, uploads: map[string]map[string]*uploadSlot{}}
+}
+
+func (d *importingDesk) ensure(project, upload string) *uploadSlot {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.uploads[project] == nil {
+		d.uploads[project] = map[string]*uploadSlot{}
+	}
+	slot := d.uploads[project][upload]
+	if slot == nil {
+		slot = &uploadSlot{}
+		d.uploads[project][upload] = slot
+	}
+	return slot
+}
+
+func (d *importingDesk) find(project, upload string) *uploadSlot {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.uploads[project][upload]
 }
 
 func (d *importingDesk) Register(project string, handle devicetransfer.Handle) {
@@ -84,34 +106,65 @@ func (d *importingDesk) Lookup(project, handle string) (devicetransfer.Handle, b
 }
 
 func (d *importingDesk) Put(project, upload string, body []byte, transfer devicetransfer.Transfer) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if d.uploads[project] == nil {
-		d.uploads[project] = map[string]storedUpload{}
+	slot := d.ensure(project, upload)
+	slot.mu.Lock()
+	defer slot.mu.Unlock()
+	if slot.commit != nil || slot.transfer.Cancelled {
+		return
 	}
-	current := d.uploads[project][upload]
-	current.body = append([]byte(nil), body...)
-	current.transfer = transfer
-	d.uploads[project][upload] = current
+	slot.body = append([]byte(nil), body...)
+	slot.transfer = transfer
 }
 
 func (d *importingDesk) Get(project, upload string) ([]byte, devicetransfer.Transfer, *devicetransfer.Commit, bool) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	value, ok := d.uploads[project][upload]
-	if !ok {
+	slot := d.find(project, upload)
+	if slot == nil {
 		return nil, devicetransfer.Transfer{}, nil, false
 	}
-	return append([]byte(nil), value.body...), value.transfer, value.commit, true
+	slot.mu.Lock()
+	defer slot.mu.Unlock()
+	var commit *devicetransfer.Commit
+	if slot.commit != nil {
+		copy := *slot.commit
+		commit = &copy
+	}
+	return append([]byte(nil), slot.body...), slot.transfer, commit, true
 }
 
 func (d *importingDesk) Remember(project, upload string, commit devicetransfer.Commit) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	current := d.uploads[project][upload]
+	slot := d.ensure(project, upload)
+	slot.mu.Lock()
+	defer slot.mu.Unlock()
 	stored := commit
-	current.commit = &stored
-	d.uploads[project][upload] = current
+	slot.commit = &stored
+	slot.body = nil
+}
+
+func (d *importingDesk) Reserve(project, upload string, fn func(body []byte, transfer devicetransfer.Transfer, prior *devicetransfer.Commit) (devicetransfer.Commit, string)) (devicetransfer.Commit, string, bool) {
+	slot := d.find(project, upload)
+	if slot == nil {
+		return devicetransfer.Commit{}, "", false
+	}
+	slot.mu.Lock()
+	defer slot.mu.Unlock()
+	if slot.transfer.Cancelled {
+		return devicetransfer.Commit{}, devicetransfer.CancelledTransfer, true
+	}
+	var prior *devicetransfer.Commit
+	if slot.commit != nil {
+		copy := *slot.commit
+		prior = &copy
+	}
+	commit, code := fn(append([]byte(nil), slot.body...), slot.transfer, prior)
+	if code != "" {
+		return devicetransfer.Commit{}, code, true
+	}
+	if slot.commit == nil {
+		stored := commit
+		slot.commit = &stored
+		slot.body = nil
+	}
+	return commit, "", true
 }
 
 func (d *importingDesk) Import(project, digest string, body []byte) (devicetransfer.Commit, bool) {
@@ -126,15 +179,17 @@ func (d *importingDesk) Import(project, digest string, body []byte) (devicetrans
 }
 
 func (d *importingDesk) Cancel(project, upload string) bool {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	current, ok := d.uploads[project][upload]
-	if !ok {
+	slot := d.find(project, upload)
+	if slot == nil {
 		return false
 	}
-	current.transfer.Cancelled = true
-	current.body = nil
-	d.uploads[project][upload] = current
+	slot.mu.Lock()
+	defer slot.mu.Unlock()
+	if slot.commit != nil {
+		return false
+	}
+	slot.transfer.Cancelled = true
+	slot.body = nil
 	return true
 }
 
@@ -269,33 +324,43 @@ func (a *API) finalizeDeviceTransfer(w http.ResponseWriter, r *http.Request) {
 		deviceError(w, devicetransfer.Traversal)
 		return
 	}
-	body, stored, prior, found := a.files.Get(project, upload)
+	commit, failure, found := a.files.Reserve(project, upload, func(body []byte, stored devicetransfer.Transfer, prior *devicetransfer.Commit) (devicetransfer.Commit, string) {
+		if request.Handle != stored.HandleID || request.MediaType != stored.MediaType {
+			return devicetransfer.Commit{}, devicetransfer.Conflict
+		}
+		if request.App != "paper-agent" {
+			return devicetransfer.Commit{}, devicetransfer.WrongApp
+		}
+		if prior != nil {
+			if prior.Digest == request.Digest {
+				copy := *prior
+				copy.Created = false
+				return copy, ""
+			}
+			return devicetransfer.Commit{}, devicetransfer.Conflict
+		}
+		stored.Digest = request.Digest
+		stored.Size = request.Size
+		stored.App = request.App
+		_, known, expired := a.files.Lookup(project, stored.HandleID)
+		sum := sha256.Sum256(body)
+		domainID, domainRevision := "", ""
+		if known && !expired && hex.EncodeToString(sum[:]) == request.Digest && uint64(len(body)) == request.Size {
+			imported, ok := a.files.Import(project, request.Digest, body)
+			if ok {
+				domainID, domainRevision = imported.PaperID, imported.Revision
+			}
+		}
+		return devicetransfer.Finalize(true, project, stored, body, known, expired, nil, domainID, domainRevision)
+	})
 	if !found {
 		deviceError(w, devicetransfer.Interrupted)
 		return
 	}
-	if request.Handle != stored.HandleID || request.MediaType != stored.MediaType {
-		deviceError(w, devicetransfer.Conflict)
-		return
-	}
-	stored.Digest = request.Digest
-	stored.Size = request.Size
-	stored.App = request.App
-	_, known, expired := a.files.Lookup(project, stored.HandleID)
-	sum := sha256.Sum256(body)
-	domainID, domainRevision := "", ""
-	if prior == nil && known && !expired && !stored.Cancelled && hex.EncodeToString(sum[:]) == request.Digest && uint64(len(body)) == request.Size {
-		imported, ok := a.files.Import(project, request.Digest, body)
-		if ok {
-			domainID, domainRevision = imported.PaperID, imported.Revision
-		}
-	}
-	commit, failure := devicetransfer.Finalize(true, project, stored, body, known, expired, prior, domainID, domainRevision)
 	if failure != "" {
 		deviceError(w, failure)
 		return
 	}
-	a.files.Remember(project, upload, commit)
 	respond(w, 200, commit)
 }
 
