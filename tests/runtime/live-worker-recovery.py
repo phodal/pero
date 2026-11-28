@@ -252,7 +252,8 @@ os.execve(str(root/'pero-worker'),[str(root/'pero-worker')],env)
     stack.callback(stop,peer)
     remote_pid=remote+'/'+out.name+'/pid'
     def stop_remote():
-        subprocess.run([*ssh,host, 'test ! -f '+remote_pid+' || kill -TERM $(cat '+remote_pid+') 2>/dev/null || true'],
+        quoted_pid = shlex.quote(remote_pid)
+        subprocess.run([*ssh,host, f'test ! -f {quoted_pid} || kill -TERM $(cat {quoted_pid}) 2>/dev/null || true'],
                        timeout=7, stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False)
     stack.callback(stop_remote)
     ready(peer,'worker-b','Ready for assigned tasks')
