@@ -239,7 +239,7 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "927eb0bb8c4f593f5a29f737fd50fa92cd72d43187674cddb2cf2fedc021ed97"
+        "sha256": "8e780a40b0da472b52c4cbe77d51160e489302d03ab0de88d148645d16ab4eb7"
       },
       "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement. ACP may explicitly enable bounded output-limit follow-up turns. Each uses a plugin source and the same prompt lifetime; default zero retains the single-prompt contract. The core sticky max-token outcome is unchanged. Recovery, exhausted budgets and cancellation are pinned by native tests. PR #225 adds explicit /review handling and optional bounded post-turn review under the same promptCtx/inflight admission. Manual review reads retained evidence instead of submitting another ordinary model prompt. ACP admission, review cancellation and output-limit regression tests cover this intentional local composition; the refreshed receipt does not assert cross-language equivalence. The opt-in native /goal command also owns this slot through all bounded rounds; each round uses a context-bound guarded follow-up. It does not alter default admission.",
       "landmarks": [
@@ -307,7 +307,7 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "927eb0bb8c4f593f5a29f737fd50fa92cd72d43187674cddb2cf2fedc021ed97"
+        "sha256": "8e780a40b0da472b52c4cbe77d51160e489302d03ab0de88d148645d16ab4eb7"
       },
       "notes": "Go waits for the active Agent to become idle before releasing its ACP slot after cancellation; official also drains descendants/output updates. PR #225 settles optional bounded review within the admitted prompt lifetime before the existing WhenIdle and inflight-slot release. Manual /review uses the same cancellable prompt slot without starting the ordinary parent turn. Review and prompt-termination regressions cover the local paths; extraction remains a cross-language review, not semantic equivalence. Opt-in Goal cancellation joins its exact follow-up owner before returning from the same prompt slot. Session reopen does not rearm the goal; the explicit resume regression exercises that distinction.",
       "landmarks": [
