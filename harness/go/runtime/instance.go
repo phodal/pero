@@ -516,7 +516,8 @@ func (i *Instance) send(ctx context.Context, command instanceCommand) error {
 	select {
 	case <-i.done:
 		if command.kind == commandDispose {
-			return nil
+			// Already finished. A canceled caller must not observe success.
+			return ctx.Err()
 		}
 		return ErrDisposedInstance
 	case i.commands <- command:
@@ -525,10 +526,25 @@ func (i *Instance) send(ctx context.Context, command instanceCommand) error {
 	}
 	select {
 	case err := <-command.ack:
+		if command.kind == commandDispose {
+			return expireCaller(ctx, err)
+		}
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// expireCaller keeps a canceled caller from observing a nil dispose result.
+// select may take the finished command while ctx.Done is also ready.
+func expireCaller(ctx context.Context, err error) error {
+	if ctx.Err() == nil {
+		return err
+	}
+	if err == nil {
+		return ctx.Err()
+	}
+	return errors.Join(ctx.Err(), err)
 }
 
 func (i *Instance) Update(ctx context.Context, config []byte) error {
@@ -555,7 +571,7 @@ func (i *Instance) Dispose(ctx context.Context) error {
 		i.snapshotMu.RLock()
 		err := i.disposeError
 		i.snapshotMu.RUnlock()
-		return err
+		return expireCaller(ctx, err)
 	case <-ctx.Done():
 		return ctx.Err()
 	}
