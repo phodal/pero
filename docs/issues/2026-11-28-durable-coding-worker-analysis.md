@@ -215,6 +215,10 @@ Worker journal、approval receipt 和 Temporal replay。PR #265 和 #276 合入�
 
 ### P0 #277 增量
 
+在共享 Project 右侧面板打开「代码交付」，可关联三个阶段的精确 Run。选择器展示节点和代次。交付详情保留 Git 基线及原 Run 的关联，点击短 ID 可复制完整值。已关联且通过 digest 校验的导出产物可直接预览。
+
+隔离的 macOS Native 验收使用真实 Go 控制面和 PostgreSQL。通过 Project 的窄侧栏保存并重开一条交付，三段 Run、机器和代次与服务端一致。HTTP 回归另覆盖跨项目拒绝、创建幂等、追加阶段、冻结基线及已提交产物的内容校验。现有双机 runner 仍把方案、候选补丁、人工决定和验证报告保存在验收目录，需要接入 Project 产物发布后再做统一验收。
+
 - [ ] 在共享 Project 中创建一个 Delivery 入口，关联已有 Campaign 或精确 Run。
 - [ ] 将 DSH 分析、Codex 候选、人工决定、验证报告和最终结果绑定到同一个 Delivery。
 - [ ] 将 PR #276 的双机 runner 与 PR #265 的 review/replay 检查提升为 #277 的必过验收。
