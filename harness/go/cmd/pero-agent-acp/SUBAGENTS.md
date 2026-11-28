@@ -54,6 +54,7 @@ deliver to live members of the same managed tree, including siblings;
 interruption requires an exact live ancestor. The interrupt receipt confirms
 that the request was accepted, not that a turn has settled. Pending local input
 stays parked until a later explicit wake. The tool does not start an inactive
-target. Cross-level cold resume is not implemented; a cold send can still
-restore a direct child under the existing saved-route checks. Host delivery and
+target. A cold send can restore a target across levels through its original live
+creator and the same saved-route checks. It cannot yet restore a target with
+an offline creator. Host delivery and
 interrupt authority are unchanged.

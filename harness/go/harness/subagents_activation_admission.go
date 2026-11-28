@@ -13,16 +13,26 @@ import (
 // direct-parent edge. The Host constructs attribution and steers the active
 // turn; an idle direct child wakes without changing that authorization boundary.
 func (r *SubagentRegistry) SendMessage(ctx context.Context, sender *Agent, targetID SessionID, content []ContentBlock) (string, error) {
-	return r.sendMessage(ctx, sender, targetID, content, false)
+	return r.sendMessage(ctx, sender, targetID, content, subagentMessageAdjacent)
 }
 
 // SendMessageDSH permits live managed members of the same tree to exchange
 // messages. Cold delivery still uses the existing direct-parent resume path.
 func (r *SubagentRegistry) SendMessageDSH(ctx context.Context, sender *Agent, targetID SessionID, content []ContentBlock) (string, error) {
-	return r.sendMessage(ctx, sender, targetID, content, true)
+	return r.sendMessage(ctx, sender, targetID, content, subagentMessageDSH)
 }
 
-func (r *SubagentRegistry) sendMessage(ctx context.Context, sender *Agent, targetID SessionID, content []ContentBlock, dsh bool) (string, error) {
+type subagentMessageMode uint8
+
+const (
+	subagentMessageAdjacent subagentMessageMode = iota
+	subagentMessageDSH
+	// Native DSH control can find a cold target through its live creator.
+	subagentMessageNativeDSH
+)
+
+func (r *SubagentRegistry) sendMessage(ctx context.Context, sender *Agent, targetID SessionID, content []ContentBlock, mode subagentMessageMode) (string, error) {
+	dsh := mode != subagentMessageAdjacent
 	if r == nil || !r.beginSubagentCallback() {
 		return "", errors.New("harness: subagent registry is disposed")
 	}
@@ -96,7 +106,15 @@ func (r *SubagentRegistry) sendMessage(ctx context.Context, sender *Agent, targe
 		}
 		return messageID, nil
 	}
-	preparationCtx, releasePreparation, err := r.reserveSubagentPreparation(ctx, sender)
+	creator := sender
+	if mode == subagentMessageNativeDSH {
+		var err error
+		creator, err = r.resolveColdDSHCreator(ctx, sender, targetID)
+		if err != nil {
+			return "", err
+		}
+	}
+	preparationCtx, releasePreparation, err := r.reserveSubagentPreparation(ctx, creator)
 	if err != nil {
 		return "", err
 	}
@@ -105,17 +123,76 @@ func (r *SubagentRegistry) sendMessage(ctx context.Context, sender *Agent, targe
 		preparation, _ := preparationCtx.Value(subagentPreparationContextKey{}).(*subagentPreparation)
 		preparationCtx = context.WithValue(preparationCtx, dshSubagentSendContextKey{}, &dshSubagentSendInvocation{registry: r, sender: sender, target: targetID, preparation: preparation})
 	}
-	record, created, err := r.continuableRecordMode(preparationCtx, sender, targetID, true)
+	record, created, err := r.continuableRecordMode(preparationCtx, creator, targetID, true)
 	if err != nil {
 		return "", err
 	}
 	if created {
 		defer record.activation.finishInitial()
 	}
+	if mode == subagentMessageNativeDSH {
+		if err := r.sendToLiveTreeMember(ctx, sender, record.child, message); err != nil {
+			if created {
+				// Do not clean up an activation another admitted send already owns.
+				r.mu.Lock()
+				unused := !record.activation.started.Load()
+				if unused {
+					record.activation.closing.Store(true)
+				}
+				r.mu.Unlock()
+				if unused {
+					r.beginActivationCleanup(record)
+				}
+			}
+			return "", err
+		}
+		return messageID, nil
+	}
 	if err := r.steerActivationMessage(ctx, record, sender, nil, message); err != nil {
 		return "", err
 	}
 	return messageID, nil
+}
+
+// Only native DSH control opts into cross-level reconstruction. Catalog facts
+// identify the creation edge; they never give the sender the creator's authority.
+func (r *SubagentRegistry) resolveColdDSHCreator(ctx context.Context, sender *Agent, target SessionID) (*Agent, error) {
+	root, err := r.LiveTreeRoot(sender)
+	if err != nil {
+		return nil, err
+	}
+	r.mu.RLock()
+	source := r.records[sender.ID()]
+	managed := sender == root || source != nil && source.snapshot.Continuable && source.activation != nil && source.activation.bindingReady.Load()
+	r.mu.RUnlock()
+	if !managed {
+		return sender, nil // Keep the direct-parent path's original capability checks.
+	}
+	read, query, release, err := r.beginCatalogRead(ctx, sender)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	rows, err := listSubagentDescendants(read, query, root.ID())
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if row.ID != target || row.Kind != "child" || row.Mode != "continuable" {
+			continue
+		}
+		if row.ParentID == sender.ID() {
+			return sender, nil
+		}
+		if creator, found := r.agents.Get(row.ParentID); found {
+			creatorRoot, err := r.LiveTreeRoot(creator)
+			if err == nil && creatorRoot == root {
+				return creator, nil
+			}
+		}
+		return nil, &subagentActivationError{"cold target's creator is not live in this agent tree", "NOT_RESUMABLE"}
+	}
+	return sender, nil // Preserve direct-parent behavior and provider diagnostics.
 }
 
 // Admission reserves the exact destination without holding a lock across

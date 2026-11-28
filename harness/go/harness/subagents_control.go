@@ -111,13 +111,13 @@ func (f *SubagentFacade) InterruptActivationByParentID(parentID, target SessionI
 func (r *SubagentRegistry) DSHControlTools() []Tool {
 	return []Tool{
 		r.dshControlTool("send_message",
-			"Send text to another agent in your tree. A working agent receives it at its next step. An idle live agent or a resumable direct child starts a turn. Returns a delivery ID.",
+			"Send text to another agent in your tree. A working agent receives it at its next step. An idle agent starts a turn when it can be resumed through its live creator. Returns a delivery ID.",
 			`{"type":"object","properties":{"agent":{"type":"string","description":"Agent name or path shown by list_agents"},"message":{"type":"string"}},"required":["agent","message"],"additionalProperties":false}`,
 			func(ctx context.Context, caller *Agent, target SessionID, message *string) (ToolResult, error) {
 				if message == nil {
 					return ToolResult{}, errors.New("send_message requires a text message")
 				}
-				id, err := r.SendMessageDSH(ctx, caller, target, []ContentBlock{{Type: BlockText, Text: *message}})
+				id, err := r.sendMessage(ctx, caller, target, []ContentBlock{{Type: BlockText, Text: *message}}, subagentMessageNativeDSH)
 				if err != nil {
 					return ToolResult{}, err
 				}

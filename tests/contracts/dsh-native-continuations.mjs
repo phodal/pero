@@ -13,7 +13,7 @@ const home = await realpath(await mkdtemp(join(tmpdir(), 'pero-dsh-native-')));
 const cwd = join(home, 'workspace');
 const journal = join(home, 'journal');
 await mkdir(cwd);
-let enabled = false, serial = 0, scenario, control;
+let enabled = false, serial = 0, scenario, control, cold;
 const errors = [];
 const {server, url} = await listenJson(async (request, response, body) => {
   assert.equal(request.headers.authorization, 'Bearer dsh-fixture');
@@ -26,6 +26,55 @@ const {server, url} = await listenJson(async (request, response, body) => {
   const call = (id, name, args) => streamCompletion(response, {id:`tool-${++serial}`,
     model:body.model, delta:{tool_calls:[{index:0,id,type:'function',function:{name,arguments:JSON.stringify(args)}}]},
     finish:'tool_calls'});
+  if (cold) {
+    const content = String(last.content);
+    const byCall = id => body.messages.find(m=>m.role==='tool' && m.tool_call_id===id);
+    const result = byCall('cold-seed-leaf');
+    if (result && !cold.leaf) {
+      cold.leaf = JSON.parse(result.content).sessionId;
+      return answer('creator finished original work');
+    }
+    const offline = byCall('cold-identify-offline');
+    if (offline && !cold.offlineChecked) {
+      assert.match(String(offline.content),/creator is not live/);
+      cold.offlineChecked = true;
+      return answer('creator is offline');
+    }
+    const creatorWake = byCall('cold-wake-creator');
+    if (creatorWake && !cold.creatorWake) {
+      cold.creatorWake = JSON.parse(creatorWake.content).messageId;
+      await cold.creatorReady;
+      return call('cold-wake-leaf','send_message',{agent:'branch/checker',message:'cross-level cold relay'});
+    }
+    const leafWake = byCall('cold-wake-leaf');
+    if (leafWake && !cold.leafWake) {
+      cold.leafWake = JSON.parse(leafWake.content).messageId;
+      return answer('cross-level wake accepted');
+    }
+    if (content.includes('seed cross-level fixture'))
+      return call('cold-seed-creator','subagent',{name:'branch',description:'Creator probe',prompt:'seed creator fixture'});
+    if (content.includes('seed creator fixture'))
+      return call('cold-seed-leaf','subagent',{name:'checker',description:'Leaf probe',prompt:'seed leaf fixture'});
+    if (content.includes('seed leaf fixture'))
+      return answer('leaf saved baseline');
+    if (content.includes('check offline creator fixture'))
+      return call('cold-identify-offline','send_message',{agent:'branch/checker',message:'must not start leaf'});
+    if (content.includes('restore cross-level fixture'))
+      return call('cold-wake-creator','send_message',{agent:'branch',message:'rejoin creator fixture'});
+    if (content.includes('rejoin creator fixture')) {
+      cold.creatorJoined();
+      await cold.leafReady;
+      return answer('creator observed materialized leaf');
+    }
+    if (content.includes('cross-level cold relay')) {
+      const messages = body.messages.flatMap(m=>[String(m.content)]);
+      assert.ok(messages.includes('leaf saved baseline'),'resumed leaf kept its original model history');
+      cold.leafResumes++;
+      cold.leafJoined();
+      return answer('leaf accepted cross-level input');
+    }
+    return answer('cross-level fixture settled');
+  }
   if (control) {
     const stop = body.messages.find(m=>m.role==='tool' && m.tool_call_id==='stop-target');
     if (stop && !control.accepted) {
@@ -147,7 +196,8 @@ async function acp(run) {
     await rpc('initialize',{protocolVersion:1,clientCapabilities:{}});
     const open = () => rpc('session/new',{cwd,mcpServers:[]}).then(({sessionId})=>sessionId);
     const prompt = (sessionId,text) => rpc('session/prompt',{sessionId,prompt:[{type:'text',text}]});
-    await run({open,prompt,replies});
+    const load = sessionId => rpc('session/load',{sessionId,cwd,mcpServers:[]});
+    await run({open,load,prompt,replies});
   } finally {
     child.stdin.end();
     const kill = setTimeout(() => child.kill('SIGKILL'), 5_000);
@@ -217,8 +267,30 @@ try {
     assert.ok(control.wakeMessageId);
     assert.equal(control.resumed,1,'later send wakes the original child and drains the parked input once');
   });
+  control = undefined;
+  const creator = Promise.withResolvers(), leaf = Promise.withResolvers();
+  cold = {creatorReady:creator.promise,creatorJoined:creator.resolve,leafReady:leaf.promise,leafJoined:leaf.resolve,leafResumes:0};
+  let originalRoot;
+  await acp(async ({open,prompt}) => {
+    originalRoot = await open();
+    assert.equal((await prompt(originalRoot,'seed cross-level fixture')).stopReason,'end_turn');
+    assert.ok(cold.leaf);
+  });
+  await acp(async ({load,prompt}) => {
+    await load(originalRoot);
+    assert.equal((await prompt(originalRoot,'check offline creator fixture')).stopReason,'end_turn');
+    assert.equal(cold.offlineChecked,true);
+    assert.equal(cold.leafResumes,0);
+    assert.equal((await prompt(originalRoot,'restore cross-level fixture')).stopReason,'end_turn');
+    assert.ok(cold.creatorWake && cold.leafWake,JSON.stringify({errors,cold}));
+    assert.equal(cold.leafResumes,1);
+    const journalLines = (await readFile(join(journal,cold.leaf+'.jsonl'),'utf8')).trimEnd().split('\n').map(JSON.parse);
+    const messages = journalLines.flatMap(line=>line.event?.data?.inserted ?? []).filter(m=>m.id===cold.leafWake);
+    assert.equal(messages.length,1);
+    assert.equal(messages[0].source.senderSessionId,originalRoot);
+  });
   assert.deepEqual(errors,[]);
-  console.log('ACP default-off, asynchronous spawn/fork, per-root settlement, sibling send and ancestor interrupt passed');
+  console.log('ACP default-off, asynchronous spawn/fork, per-root settlement, sibling send, ancestor interrupt, and cold cross-level delivery with live creator passed');
 } finally {
   await closeLoopback(server);
   await rm(home,{recursive:true,force:true});
