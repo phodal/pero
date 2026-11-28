@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -324,12 +325,16 @@ func (s *server) form(w http.ResponseWriter, r *http.Request, operator bool) (*s
 		return nil, false
 	}
 	limit := int64(16 * 1024)
+	parseForm := r.ParseForm
 	if r.URL.Path == privateTasksPath {
-		// Form encoding may use 12 bytes per non-ASCII code point.
-		limit = 1024 * 1024
+		// Match the Task Center proxy limit. Multipart keeps UTF-8 values compact.
+		limit = 512 * 1024
+		if mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mediaType == "multipart/form-data" {
+			parseForm = func() error { return r.ParseMultipartForm(limit) }
+		}
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
-	if err := r.ParseForm(); err != nil {
+	if err := parseForm(); err != nil {
 		http.Error(w, "表单过大或格式错误。", 400)
 		return nil, false
 	}

@@ -1,8 +1,11 @@
 package community
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"html"
+	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -64,7 +67,7 @@ func TestPrivateTaskReceipts(t *testing.T) {
 	}
 	status, body = fetch(t, browser, "GET", draftsURL, "", nil)
 	match := regexp.MustCompile(`name="request_id" value="([a-f0-9]{64})"`).FindStringSubmatch(body)
-	if status != http.StatusOK || len(match) != 2 || !strings.Contains(body, "mobile/开发") {
+	if status != http.StatusOK || len(match) != 2 || !strings.Contains(body, "mobile/开发") || !strings.Contains(body, `enctype="multipart/form-data"`) {
 		t.Fatalf("task form: %d %s", status, body)
 	}
 	encoded, _ := json.Marshal(capability)
@@ -85,11 +88,29 @@ func TestPrivateTaskReceipts(t *testing.T) {
 		t.Fatalf("forged workspace or lost form values: %d %s", status, body)
 	}
 	form.Set("workspace", string(encoded))
+	longPrompt := "<script>draft</script>" + strings.Repeat("数", 60_000)
+	form.Set("prompt", longPrompt)
+	if len(form.Encode()) <= 512*1024 {
+		t.Fatal("urlencoded form fits the production proxy limit")
+	}
 	postDraft := func() (int, string) {
 		t.Helper()
-		req, _ := http.NewRequest("POST", draftsURL, strings.NewReader(form.Encode()))
+		var payload bytes.Buffer
+		writer := multipart.NewWriter(&payload)
+		for name, value := range form {
+			if err := writer.WriteField(name, value[0]); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Len() > 512*1024 {
+			t.Fatal("multipart form exceeds the production proxy limit")
+		}
+		req, _ := http.NewRequest("POST", draftsURL, &payload)
 		req.Header.Set("Origin", f.app.URL)
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Content-Type", writer.FormDataContentType())
 		postBrowser := *browser
 		postBrowser.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 		resp, err := postBrowser.Do(req)
@@ -111,8 +132,8 @@ func TestPrivateTaskReceipts(t *testing.T) {
 		t.Fatalf("changed submission under same receipt: %d", status)
 	}
 	taskID := strings.TrimPrefix(taskPath, privateTasksPath+"/")
-	if status, body := fetch(t, browser, "GET", f.app.URL+taskPath, "", nil); status != http.StatusOK || !strings.Contains(body, "待 Desktop 分配") || !strings.Contains(body, "&lt;script&gt;draft&lt;/script&gt;") {
-		t.Fatalf("draft detail: %d %s", status, body)
+	if status, body := fetch(t, browser, "GET", f.app.URL+taskPath, "", nil); status != http.StatusOK || !strings.Contains(body, "待 Desktop 分配") || !strings.Contains(body, html.EscapeString(longPrompt)) {
+		t.Fatalf("draft detail with escaped prompt: status %d, body length %d", status, len(body))
 	}
 	if status, _ := fetch(t, browser, "GET", f.app.URL+"/tasks/"+taskID, "", nil); status != http.StatusNotFound {
 		t.Fatalf("draft appeared in public board: %d", status)

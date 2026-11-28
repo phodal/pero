@@ -54,7 +54,7 @@
     <h2>提交任务</h2>
     {{if .Message}}<p role="alert">{{.Message}}</p>{{end}}
     {{if $view.Workspaces}}
-      <form action="/my/tasks" method="post" class="stack">
+      <form action="/my/tasks" method="post" enctype="multipart/form-data" class="stack">
         <input type="hidden" name="csrf" value="{{.Session.CSRF}}">
         <input type="hidden" name="request_id" value="{{$view.RequestID}}">
         <label for="workspace">项目与工作区</label>
