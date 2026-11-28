@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "campaign",
+    srcs = ["campaign.go"],
+    importpath = "github.com/phodal/pero/server/internal/campaign",
+    visibility = ["//server:__subpackages__"],
+    deps = ["//server/internal/runref"],
+)
+
+go_test(
+    name = "campaign_test",
+    srcs = ["campaign_test.go"],
+    embed = [":campaign"],
+    deps = ["//server/internal/runref"],
+)

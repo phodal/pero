@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "store",
     srcs = [
+        "campaigns.go",
         "clients.go",
         "project_sources.go",
         "artifacts.go",
@@ -32,6 +33,8 @@ go_library(
     importpath = "github.com/phodal/pero/server/internal/store",
     visibility = ["//server:__subpackages__"],
     deps = [
+        "//server/internal/campaign",
+        "//server/internal/runref",
         "//server/migrations",
         "//server/internal/runtimebinding",
         "//server/internal/projectsource",
