@@ -4,6 +4,8 @@ use serde::Deserialize;
 use serde_json::{Map, Value};
 use std::collections::BTreeSet;
 
+/// Reference outcome for a future shell. No current carrier calls [`admit`].
+/// P0.2 and P0.3 may adopt it. `Accepted` is not a grant.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Admission {
     Accepted,
@@ -419,6 +421,11 @@ fn nonzero_u32<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<u32,
     Ok(value)
 }
 
+/// Parse one canonical wire document. Parsing does not admit or grant the call.
+pub fn parse_document(schema: &str, value: &Value) -> Result<(), String> {
+    typed(schema, value)
+}
+
 fn typed(schema: &str, value: &Value) -> Result<(), String> {
     let parsed = match schema {
         "AgentStatusRequest" => {
@@ -447,7 +454,11 @@ fn typed(schema: &str, value: &Value) -> Result<(), String> {
     parsed.map_err(|error| error.to_string())
 }
 
-/// Fail closed. `grant` is never true: declaration and advertisement are not grants.
+/// Reference fail-closed check for P0.2 and P0.3.
+///
+/// Electron, Native, the Host, and the App SDK do not call this. `Accepted`
+/// means the negotiation document names a known operation at protocol version
+/// 1. It does not grant that operation. Declaration and advertisement are not grants.
 pub fn admit(value: &Value, known: &BTreeSet<(String, String)>) -> Admission {
     let Some(object) = value.as_object() else {
         return Admission::InvalidInput;
