@@ -167,7 +167,7 @@ struct ResearchQueryReceipt {
     #[allow(dead_code)]
     rows: Vec<Value>,
     #[allow(dead_code)]
-    #[serde(rename = "rowCount")]
+    #[serde(rename = "rowCount", deserialize_with = "required_nullable_u32")]
     row_count: Option<u32>,
     #[allow(dead_code)]
     truncated: bool,
@@ -402,6 +402,14 @@ fn absent_bounded<'de, D: serde::Deserializer<'de>>(
         return Err(serde::de::Error::custom("bounded"));
     }
     Ok(value)
+}
+
+fn required_nullable_u32<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<u32>, D::Error> {
+    // Called only when the key is present. Option's implicit default would
+    // otherwise turn a missing rowCount into None.
+    Option::<u32>::deserialize(deserializer)
 }
 
 fn absent_research_id<'de, D: serde::Deserializer<'de>>(

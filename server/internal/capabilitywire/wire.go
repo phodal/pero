@@ -406,9 +406,22 @@ func Admit(document []byte, known map[[2]string]bool) Admission {
 	if json.Unmarshal(raw["operation"], &operation) != nil || operation == "" || utf8.RuneCountInString(operation) > 64 {
 		return InvalidInput
 	}
-	var declared []string
-	if json.Unmarshal(raw["declaredHost"], &declared) != nil {
+	host, ok := raw["declaredHost"]
+	if !ok || len(bytes.TrimSpace(host)) == 0 || bytes.TrimSpace(host)[0] != '[' {
 		return InvalidInput
+	}
+	var declared []json.RawMessage
+	if json.Unmarshal(host, &declared) != nil {
+		return InvalidInput
+	}
+	for _, item := range declared {
+		if bytes.Equal(bytes.TrimSpace(item), []byte("null")) {
+			return InvalidInput
+		}
+		var text string
+		if json.Unmarshal(item, &text) != nil {
+			return InvalidInput
+		}
 	}
 	var advertised bool
 	if json.Unmarshal(raw["advertised"], &advertised) != nil || !jsonBool(raw["advertised"]) {
