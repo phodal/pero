@@ -17,15 +17,13 @@ const AGENT: &str = r#"
 import readline from 'node:readline';
 import fs from 'node:fs';
 import {spawn} from 'node:child_process';
-let active, permission='auto-review';
+let active;
 const send = value => process.stdout.write(JSON.stringify({jsonrpc:'2.0',...value})+'\n');
 const result = (id,result) => send({id,result});
-const permissionConfig = () => ({id:'permission',name:'Permission',category:'mode',type:'select',currentValue:permission,options:[{value:'read-only',name:'View only'},{value:'full-access',name:'Full access'},{value:'auto-review',name:'Auto-review'}]});
 readline.createInterface({input:process.stdin}).on('line',line=>{
  const m=JSON.parse(line);
- if(m.method==='initialize')result(m.id,{protocolVersion:1,agentCapabilities:{},agentInfo:{name:'pero-agent-acp',version:'1'}});
- if(m.method==='session/new')result(m.id,{sessionId:'fixture',configOptions:[permissionConfig()]});
- if(m.method==='session/set_config_option'&&m.params.configId==='permission'){permission=m.params.value;result(m.id,{configOptions:[permissionConfig()]});}
+ if(m.method==='initialize')result(m.id,{protocolVersion:1,agentCapabilities:{}});
+ if(m.method==='session/new')result(m.id,{sessionId:'fixture'});
  if(m.method==='session/prompt'){
   fs.appendFileSync(process.env.WORKER_FIXTURE_MARKER,'prompt\n'); active=m.id;
   if(m.params.prompt[0].text==='wait'){
@@ -160,7 +158,7 @@ impl Fixture {
             .map(|p| p.join("node"))
             .find(|p| p.is_file())
             .unwrap();
-        std::fs::write(root.join("agents.json"),json!([{"id":"fixture","name":"Fixture","command":node,"args":[root.join("agent.mjs")],"env":{"WORKER_FIXTURE_MARKER":root.join("marker"),"WORKER_FIXTURE_DESCENDANT":root.join("descendant")}}]).to_string()).unwrap();
+        std::fs::write(root.join("agents.json"),json!([{"id":"fixture","name":"Fixture","command":node,"args":[root.join("agent.mjs")],"env":{"WORKER_FIXTURE_MARKER":root.join("marker"),"WORKER_FIXTURE_DESCENDANT":root.join("descendant")},"supervision":"gate"}]).to_string()).unwrap();
         std::fs::write(root.join("config.json"),json!({"workspaces":{"fixture":root.join("workspace")},"agents_file":root.join("agents.json")}).to_string()).unwrap();
         let state = Arc::new(Mutex::new(CloudState {
             run: json!({"id":"run_1","generation":1,"instance_id":"","status":"running","lease_expires_at":expiry(),"spec":{"title":"Fixture","prompt":prompt,"workspace_key":"fixture","agent_id":"fixture","acceptance":""}}),
@@ -352,6 +350,22 @@ fn accepts_full_unicode_prompt_and_acceptance_input() {
 }
 
 #[test]
+fn ungated_non_dsh_peer_is_refused_before_prompt() {
+    let fixture = Fixture::new("permission", false, false);
+    let path = fixture.root.join("agents.json");
+    let mut agents: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    agents[0].as_object_mut().unwrap().remove("supervision");
+    std::fs::write(&path, agents.to_string()).unwrap();
+    let output = fixture.run();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(!fixture.root.join("marker").exists(), "prompt was sent");
+    let state = fixture.state.lock().unwrap();
+    assert_eq!(state.completion.as_ref().unwrap()["outcome"], "failed");
+    assert!(state.events.iter().any(|event| event["kind"] == "session_error" && event["text"].as_str().unwrap_or("").contains("did not opt in")));
+    assert!(state.events.iter().all(|event| event["kind"] != "session_ready"));
+}
+
+#[test]
 fn unattended_permissions_are_denied() {
     let fixture = Fixture::new("permission", false, false);
     let output = fixture.run();
@@ -485,9 +499,8 @@ int main(void) {
  while(fgets(line,sizeof(line),stdin)) {
   char *id=strstr(line,"\"id\":"); char n[128]="0";
   if(id) { id+=5; size_t count=strcspn(id,",}"); if(count>=sizeof(n)) return 3; memcpy(n,id,count); n[count]=0; }
-  if(strstr(line,"\"initialize\"")) printf("{\"jsonrpc\":\"2.0\",\"id\":%s,\"result\":{\"protocolVersion\":1,\"agentCapabilities\":{},\"agentInfo\":{\"name\":\"pero-agent-acp\",\"version\":\"1\"}}}\n",n);
-  else if(strstr(line,"set_config_option")) printf("{\"jsonrpc\":\"2.0\",\"id\":%s,\"result\":{\"configOptions\":[{\"id\":\"permission\",\"name\":\"Permission\",\"category\":\"mode\",\"type\":\"select\",\"currentValue\":\"full-access\",\"options\":[{\"value\":\"read-only\",\"name\":\"View only\"},{\"value\":\"full-access\",\"name\":\"Full access\"},{\"value\":\"auto-review\",\"name\":\"Auto-review\"}]}]}}\n",n);
-  else if(strstr(line,"session/new")) printf("{\"jsonrpc\":\"2.0\",\"id\":%s,\"result\":{\"sessionId\":\"fixture\",\"configOptions\":[{\"id\":\"permission\",\"name\":\"Permission\",\"category\":\"mode\",\"type\":\"select\",\"currentValue\":\"auto-review\",\"options\":[{\"value\":\"read-only\",\"name\":\"View only\"},{\"value\":\"full-access\",\"name\":\"Full access\"},{\"value\":\"auto-review\",\"name\":\"Auto-review\"}]}]}}\n",n);
+  if(strstr(line,"\"initialize\"")) printf("{\"jsonrpc\":\"2.0\",\"id\":%s,\"result\":{\"protocolVersion\":1,\"agentCapabilities\":{}}}\n",n);
+  else if(strstr(line,"session/new")) printf("{\"jsonrpc\":\"2.0\",\"id\":%s,\"result\":{\"sessionId\":\"fixture\"}}\n",n);
   else if(strstr(line,"session/prompt")) { strcpy(prompt,n); puts(getenv("FIXTURE_PERMISSION")); }
   else if(strcmp(n,"900")==0) {
    if(!strstr(line,"selected")) return 2;
@@ -503,7 +516,7 @@ int main(void) {
     let workspace = fixture.root.join("workspace");
     let permission = json!({"jsonrpc":"2.0","id":900,"method":"session/request_permission","params":{"sessionId":"fixture","toolCall":{"toolCallId":"native-shell"},"options":[{"optionId":"once","kind":"allow_once","name":"Once"}],"_meta":{"pero.dev/native-approval":{"version":1,"operation":"shell","workspace":workspace,"sandbox_mode":"workspace-write","enforcement":"required","network":"deny"}}}});
     let env = json!({"FIXTURE_PERMISSION":permission.to_string()});
-    std::fs::write(fixture.root.join("agents.json"), json!([{"id":"fixture","name":"Native fixture","command":binary,"args":[],"env":env}]).to_string()).unwrap();
+    std::fs::write(fixture.root.join("agents.json"), json!([{"id":"fixture","name":"Native fixture","command":binary,"args":[],"env":env,"supervision":"gate"}]).to_string()).unwrap();
     std::fs::write(fixture.root.join("config.json"), json!({"workspaces":{"fixture":workspace},"agents_file":fixture.root.join("agents.json"),"native_approvals":{"fixture":{"agent_id":"fixture","executable":binary,"sha256":sha256,"args":[],"env":env,"operations":["shell"],"sandbox_mode":"workspace-write"}}}).to_string()).unwrap();
     let output = fixture.command().env("LD_PRELOAD", "").env("UNTRUSTED_INHERITED", "present").output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
