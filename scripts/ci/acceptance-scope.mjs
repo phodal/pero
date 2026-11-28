@@ -2,7 +2,7 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { matchesPath } from './workflow-scope.mjs';
+import { fisherGlobs, matchesPath } from './workflow-scope.mjs';
 
 export const acceptancePaths = Object.freeze({
   "sandbox": [
@@ -36,16 +36,7 @@ export const acceptancePaths = Object.freeze({
     "scripts/ci/acceptance-scope.mjs",
     "scripts/ci/workflow-scope.mjs"
   ],
-  "fisher": [
-    "apps/paper-agent/**",
-    "packages/app-sdk/**",
-    "packages/source-extraction/**",
-    "scripts/build/source-parsers.mjs",
-    "tests/e2e/paper-fisher-*.mjs",
-    ".github/workflows/acceptance.yml",
-    "scripts/ci/acceptance-scope.mjs",
-    "scripts/ci/workflow-scope.mjs"
-  ]
+  "fisher": fisherGlobs
 });
 
 export function acceptanceScope(files) {

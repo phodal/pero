@@ -1,24 +1,27 @@
 # CI feedback and complete acceptance
 
-## Current routing — 2026-11-15
+## Current routing — 2026-11-28
 
-Ordinary PR/push core contracts remain enabled. Expensive App jobs now use one
-source dependency map: Notebook, Notebook Canvas, Native shell, Scientific
-Viewer, LCMS2Yield, Data, Lab, Control Lab and Virtual Cell run for affected
-paths, shared SDK/design inputs, or an explicit full run. The Notebook Python
-setup and core Canvas/MCP Apps browser consumers follow that same scope;
-lightweight MCP settings/ownership contracts remain in core.
+Ordinary PR/push core contracts remain enabled. A pull request runs the jobs in
+`ci.yml` only. Each called workflow has one job, so a path-skipped suite is one
+check and a selected suite is one check. Notebook, Notebook Canvas, Native
+shell, Scientific Viewer, LCMS2Yield, Data, Lab, Control Lab and Virtual Cell
+still run for affected paths, shared SDK/design inputs, or `ci:full`. The
+Notebook Python setup and core Canvas/MCP Apps browser consumers follow that
+same scope. Generated contracts, the AST comparison and, when Fisher paths
+match, the Fisher browser journey run as steps of the Linux core job.
 
 The scope job reads actual PR or push refs, including deleted/renamed paths.
-Unknown diffs select all scoped checks. Daily/manual/`ci:full` coverage remains
-complete. `Linux CI gate` permits only explicitly out-of-scope App skips and
-still fails for actual failures, cancellations or missing scope evidence.
-App implementations live in the existing `ci-jobs.yml`, preserving Bash
-pipefail, commands, artifacts and setup dependencies.
+Unknown diffs select all scoped checks. `Linux CI gate` permits only explicitly
+out-of-scope App skips and still fails for actual failures, cancellations or
+missing scope evidence. Desktop, Windows, macOS Go/Bazel/Harness, Windows ACL
+and the Paper HTML/PDF opt-ins live in `CI full` (`ci-full.yml`), which runs on
+the daily schedule and `workflow_dispatch`, not on `pull_request`.
 
-PR product packaging is opt-in (`ci:package` or `ci:full`). Tag/manual/daily
-packaging and exact-SHA publication trust remain enabled. Superseded PR
-package attempts cancel; tagged/manual releases keep their non-cancelling policy.
+Release packaging is tag, manual, or the daily Virtual Cell canary. It does not
+run on pull requests. Acceptance suites (sandbox, Docling, Fisher, graphics,
+locked scientific Linux) are `workflow_dispatch` only. Fisher browser coverage
+on a pull request stays inside the Linux core job when those paths change.
 
 Local fast contracts: 150 passed, five existing platform/VM skips. Routing
 regressions execute the actual Bash scope step against disposable Git PR/push
@@ -121,13 +124,13 @@ Both cold and warm latency require actual exact-head Actions measurements.
 
 - Generated contracts and CI runner tests provide early, cheap failure evidence.
 - Ordinary PR/push runs Linux only, as explicitly requested. Daily at 20:00 UTC
-  (04:00 UTC+08) and manual `workflow_dispatch` run Linux/macOS/Windows builds,
-  Go/Bazel/Harness and Windows positive ACL tests. Computer Use is manual-only through `workflow_dispatch`; PR, push and
-  scheduled events do not run that workflow. Scheduled runs use the default branch. On a PR, an operator can
-  add the `ci:full` label to run the full matrix at that exact head and remove it
-  to return to the ordinary tier. GitHub cannot filter label names in the trigger:
-  other label changes rerun the currently selected tier, rather than emitting a
-  misleading skipped required gate; they cannot cancel an active main CI run.
+  (04:00 UTC+08) runs that Linux tier from `ci.yml` and the Desktop/Windows/macOS
+  tier from `CI full`. Manual `workflow_dispatch` of `CI full` runs the same
+  extra tier against the selected branch. `ci:full` on a pull request selects
+  every scoped App check inside `ci.yml`; it does not start Desktop, Windows ACL,
+  or the other-OS matrix. Computer Use is manual-only through `workflow_dispatch`.
+  Scheduled runs use the default branch. Other label changes rerun the Linux
+  tier and cannot cancel an active full run.
 - Daily/manual selected OS jobs retain complete build, typechecks, generated
   checks, Rust tests, Host contracts and transport tests. Ordinary core jobs
   do not depend on a Desktop build or runtime artifact.
@@ -146,11 +149,12 @@ Both cold and warm latency require actual exact-head Actions measurements.
   conflict/import and visual states; transport covers rejected/unrelated IPC,
   unknown save reload and disconnection. The default command still runs all.
 - `Linux CI gate` requires every ordinary Linux contract job, including core.
-  Only Desktop Linux build, other-OS Desktop builds, Desktop acceptance and
-  Windows ACL jobs may be skipped in normal mode.
-  `Full-platform CI gate` requires all seventeen acceptance shards and all jobs,
-  including Windows positive ACL and macOS/Windows builds. Failure/cancellation of any required job rejects the gate;
-  the Linux result is not represented as proof of cross-platform acceptance.
+  Only an App suite whose paths are out of scope may be skipped. Desktop builds,
+  Desktop acceptance, Windows ACL and the macOS/Windows Go/Bazel/Harness legs are
+  not pull request checks. `Full-platform CI gate` on `CI full` requires those
+  legs and all acceptance shards. A skipped Paper HTML corpus is allowed only
+  when that opt-in is off. Failure or cancellation of any required job rejects
+  the gate. The Linux result is not proof of cross-platform acceptance.
 
 Daily acceptance parity and the independent core command coverage are pinned by `scripts/ci/desktop-ci.test.mjs`: Workbench,
 Automation, Toolcalls, Data, Data Product, three Control Lab suites, two Virtual Cell suites,

@@ -7,7 +7,7 @@ const read = name => YAML.parse(readFileSync(`.github/workflows/${name}.yml`, 'u
 
 test('manual diagnostics select exactly one suite without automatic execution', () => {
   const workflow = read('acceptance');
-  assert.deepEqual(Object.keys(workflow.on).sort(), ['pull_request', 'workflow_dispatch']);
+  assert.deepEqual(Object.keys(workflow.on).sort(), ['workflow_dispatch']);
   assert.deepEqual(workflow.permissions, { contents: 'read' });
   const suite = workflow.on.workflow_dispatch.inputs.suite;
   assert.equal(suite.type, 'choice');
@@ -20,9 +20,9 @@ test('manual diagnostics select exactly one suite without automatic execution', 
   assert.equal(workflow.jobs['prepare-and-use'].concurrency['cancel-in-progress'], false);
 });
 
-test('sandbox profiles retain separate same-repository label opt-ins', () => {
+test('sandbox profiles run only from manual dispatch', () => {
   const workflow = read('acceptance');
-  assert.deepEqual(Object.keys(workflow.on).sort(), ['pull_request', 'workflow_dispatch']);
+  assert.deepEqual(Object.keys(workflow.on).sort(), ['workflow_dispatch']);
   assert.deepEqual(workflow.permissions, { contents: 'read' });
   const profile = workflow.on.workflow_dispatch.inputs.suite;
   assert.ok(profile.options.includes('sandbox-standard'));
@@ -32,9 +32,9 @@ test('sandbox profiles retain separate same-repository label opt-ins', () => {
     ['isolated-kind', 'isolated', 'agent-sandbox-isolated-e2e'],
   ]) {
     const job = workflow.jobs[id];
-    assert.ok(job.if.includes(`github.event_name == 'workflow_dispatch' && inputs.suite == 'sandbox-${choice}'`));
-    assert.ok(job.if.includes('github.event.pull_request.head.repo.full_name == github.repository'));
-    assert.ok(job.if.includes(`contains(github.event.pull_request.labels.*.name, '${label}')`));
+    assert.equal(job.if, `github.event_name == 'workflow_dispatch' && inputs.suite == 'sandbox-${choice}'`);
+    assert.equal(job.needs, undefined);
+    assert.doesNotMatch(job.if, /pull_request/);
     assert.equal(job.steps.at(-1).if, 'always()');
     assert.equal(job.concurrency.group, label.replace('-e2e', '') + '-${{ github.ref }}');
     assert.equal(job.concurrency['cancel-in-progress'], false);

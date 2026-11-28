@@ -16,7 +16,8 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
     'mcp-settings', 'mcp-settings', 'mcp-settings', 'scientific-viewer', 'apps/automations/test/ui-smoke.mjs', 'paper-research-import-all', 'paper-reading',
   ].sort());
   const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
-  const acceptance = workflow.jobs['desktop-acceptance'];
+  const full = YAML.parse(readFileSync('.github/workflows/ci-full.yml', 'utf8'));
+  const acceptance = full.jobs['desktop-acceptance'];
   assert.deepEqual(acceptance.strategy.matrix.suite, Object.keys(suites));
   assert.match(acceptance.if, /schedule.*workflow_dispatch/);
   assert.equal(acceptance.strategy['fail-fast'], false);
@@ -24,7 +25,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   const metadata = acceptance.steps.find(step => step.name === 'Observe public TimesFM and HF metadata separately');
   assert.equal(metadata.if, "${{ !cancelled() && matrix.suite == 'paper-research-import' }}");
   assert.equal(metadata['timeout-minutes'], 3);
-  assert.equal(workflow.on.workflow_dispatch.inputs.paper_pdf_live.default, false);
+  assert.equal(full.on.workflow_dispatch.inputs.paper_pdf_live.default, false);
   const livePdf = acceptance.steps.find(step => step.name === 'Explicit public PDF study journey');
   assert.match(livePdf.if, /workflow_dispatch.*inputs.paper_pdf_live/);
   assert.match(livePdf.if, /contains\(github.event.pull_request.labels.\*.name, 'ci:paper-pdf-live'\)/);
@@ -39,23 +40,30 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.match(livePdf.run, /run-acceptance.*paper-pdf-study\.mjs/);
   assert.match(metadata.run, /research_metadata\.py --allow-public-metadata --output test-results\/research-import\/live-metadata\.json/);
   assert.match(workflow.jobs.complete.if, /always\(\)/);
+  assert.match(full.jobs.complete.if, /always\(\)/);
+  assert.equal(workflow.jobs.complete.name, 'Linux CI gate');
+  assert.equal(full.jobs.complete.name, 'Full-platform CI gate');
   assert.deepEqual(workflow.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
+  assert.equal(full.on.pull_request, undefined);
   assert.match(acceptance.if, /contains\(github.event.pull_request.labels.\*.name, 'ci:full'\)/);
   assert.deepEqual([...workflow.jobs.complete.needs].sort(), Object.keys(workflow.jobs).filter(name => name !== 'complete').sort());
   assert.equal(workflow.jobs.complete.steps.at(-1).run, 'node scripts/ci/gate.mjs');
-  for (const name of ['bazel', 'go', 'harness']) {
-    const matrix = workflow.jobs[name].strategy.matrix.os;
-    assert.match(matrix, /schedule/); assert.match(matrix, /workflow_dispatch/);
-    assert.match(matrix, /windows-latest/); assert.match(matrix, /macos-latest/);
-    assert.match(matrix, /\|\| fromJSON\('\["ubuntu-latest"\]'\)/);
-  }
-  const harness = workflow.jobs.harness;
-  assert.equal(harness.if, undefined);
+  assert.equal(workflow.jobs.platform.strategy, undefined);
+  assert.equal(workflow.jobs.harness.strategy, undefined);
+  assert.deepEqual(full.jobs.platform.strategy.matrix.os, ['windows-latest', 'macos-latest']);
+  assert.deepEqual(full.jobs.harness.strategy.matrix.os, ['windows-latest', 'macos-latest']);
+  const platformJob = YAML.parse(readFileSync('.github/workflows/ci-platform.yml', 'utf8')).jobs.platform;
+  assert(platformJob.steps.some(step => step.run === 'go test -race ./...'));
+  assert(platformJob.steps.some(step => step.run === 'bazel test --config=ci //:checks'));
+  assert(platformJob.steps.some(step => step.run === 'bazel build //server/cmd/server'));
+  const harness = YAML.parse(readFileSync('.github/workflows/ci-harness.yml', 'utf8')).jobs.harness;
   assert(harness.steps.some(step => step.run === 'go test -race -count=1 ./...'));
-  const official = workflow.jobs.ast.steps;
+  assert(harness.steps.some(step => step.run?.includes('bazel test --lockfile_mode=error')));
+  const official = workflow.jobs.core.steps;
   const catalog = official.find(step => step.name === 'Compare actual official Skill catalog hook');
-  assert.equal(catalog.if, acceptance.if);
+  assert.equal(catalog.if, "${{ !cancelled() && steps.checkout.outcome == 'success' }}");
   assert.equal(catalog['continue-on-error'], undefined);
+  assert.match(catalog.run, /ci:full/);
   assert.match(catalog.run, /compare-skill-catalog\.mjs .*tool-skill\/src\/index\.ts/);
   const source = official.find(step => step.with?.repository === 'deepseek-ai/deepseek-harness');
   assert.equal(source.with.ref, 'f3803c96974ad4a94195fb97e5c637e9c2a3afe3');
@@ -63,9 +71,13 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   const receipt = official.find(step => step.with?.name === 'official-skill-catalog');
   assert.match(receipt.if, /always\(\).*schedule.*workflow_dispatch.*ci:full/);
   assert.equal(receipt.with.path, '${{ runner.temp }}/official-skill-catalog.json');
-  for (const name of ['desktop-linux', 'desktop', 'desktop-acceptance', 'windows-acl-sandbox']) assert.match(workflow.jobs[name].if, /schedule.*workflow_dispatch/);
+  for (const name of ['desktop-linux', 'desktop', 'desktop-acceptance', 'windows-acl-sandbox']) {
+    assert.equal(workflow.jobs[name], undefined);
+    assert.match(full.jobs[name].if, /schedule.*workflow_dispatch/);
+  }
   assert.equal(workflow.on.schedule[0].cron, '0 20 * * *');
-  const platform = YAML.parse(readFileSync('.github/workflows/ci-jobs.yml', 'utf8')).jobs.desktop;
+  assert.equal(full.on.schedule[0].cron, '0 20 * * *');
+  const platform = YAML.parse(readFileSync('.github/workflows/ci-desktop.yml', 'utf8')).jobs.desktop;
   const startup = platform.steps.find(step => step.run?.includes('tests/e2e/workbench-startup.mjs'));
   const runtimePack = platform.steps.find(step => step.run?.includes('desktop-artifact.mjs pack'));
   assert.ok(platform.steps.indexOf(startup) > platform.steps.findIndex(step => step.run === 'npm run build'));
@@ -171,8 +183,7 @@ test('independent Paper aggregates cover every offline journey once and restore 
       assert.deepEqual(covered.sort(), [...entries].sort());
       assert.equal(new Set(covered).size, entries.length, 'no duplicate acceptance across parallel groups');
     }
-    const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
-    const steps = workflow.jobs['desktop-acceptance'].steps;
+    const steps = YAML.parse(readFileSync('.github/workflows/ci-full.yml', 'utf8')).jobs['desktop-acceptance'].steps;
     const python = steps.find(step => step.name === 'Paper research Python environment');
     assert.equal(python.if, "matrix.suite == 'paper-research-import' || matrix.suite == 'paper-reading'");
     const browser = steps.find(step => step.name === 'Browser for explicitly mocked App UI seams');
@@ -280,12 +291,14 @@ test('ordinary core runs source campaign contracts after dependencies without pr
 });
 
 test('public HTML corpus requires its own opt-in and exports only per-case summaries', () => {
-  const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
+  const workflow = YAML.parse(readFileSync('.github/workflows/ci-full.yml', 'utf8'));
+  assert.equal(workflow.on.pull_request, undefined);
   assert.equal(workflow.on.workflow_dispatch.inputs.paper_html_live.default, false);
   const job = workflow.jobs['paper-html-live'];
   const condition = "${{ (github.event_name == 'workflow_dispatch' && inputs.paper_html_live) || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-html-live')) }}";
   assert.equal(job.if, condition);
-  assert.equal(workflow.jobs.complete.steps.at(-1).env.PAPER_HTML_LIVE, condition);
+  assert.equal(workflow.jobs.complete.steps.at(-1).env.FULL_MATRIX, 'true');
+  assert.match(workflow.jobs.complete.steps.at(-1).env.PAPER_HTML_LIVE, /inputs.paper_html_live/);
   assert.deepEqual(job.permissions, { contents: 'read' });
   assert.deepEqual(job.strategy.matrix.corpus, ['d5', 'pc-gym', 'controlgym']);
   assert.equal(job.strategy['fail-fast'], false);
@@ -307,7 +320,7 @@ test('public HTML corpus requires its own opt-in and exports only per-case summa
   }
 });
 test('fast reader contracts install their locked Paper runtime before testing', () => {
-  const steps = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8')).jobs.generated.steps;
+  const steps = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8')).jobs.core.steps;
   const rootInstall = steps.findIndex(step => step.run === 'npm ci');
   const paperInstall = steps.findIndex(step => step.run === 'npm ci --prefix apps/paper-agent --ignore-scripts');
   const contracts = steps.findIndex(step => step.run?.includes('node --test scripts/ci/*.test.mjs'));
@@ -321,12 +334,12 @@ test('fast reader contracts install their locked Paper runtime before testing', 
 
 test('Paper backend CI consumers package their shared parser before direct Python imports', () => {
   const consumers = [
-    ['.github/workflows/ci.yml', 'generated', 'node --test scripts/ci/*.test.mjs'],
+    ['.github/workflows/ci.yml', 'core', 'node --test scripts/ci/*.test.mjs'],
     ['.github/workflows/ci.yml', 'core', "python -m unittest discover -s apps/paper-agent/test -p 'test_*.py' -v"],
-    ['.github/workflows/ci.yml', 'windows-acl-sandbox', 'python -m unittest discover -s apps/paper-agent/test -p test_research_import.py -v'],
+    ['.github/workflows/ci-full.yml', 'windows-acl-sandbox', 'python -m unittest discover -s apps/paper-agent/test -p test_research_import.py -v'],
     ['.github/workflows/acceptance.yml', 'fisher', "python -m unittest discover -s apps/paper-agent/test -p 'test_fisher*.py' -v"],
     ['.github/workflows/acceptance.yml', 'docling', 'python apps/paper-agent/test/manual/docling_ci.py'],
-    ['.github/workflows/ci-jobs.yml', 'notebook', 'npm run test:notebook'],
+    ['.github/workflows/ci-notebook.yml', 'notebook', 'npm run test:notebook'],
   ];
   for (const [file, job, command] of consumers) {
     const steps = YAML.parse(readFileSync(file, 'utf8')).jobs[job].steps;
@@ -338,12 +351,13 @@ test('Paper backend CI consumers package their shared parser before direct Pytho
 });
 
 test('ordinary fast contracts cover Product shutdown without native Electron', () => {
-  const job = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8')).jobs.generated;
+  const job = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8')).jobs.core;
   const install = job.steps.findIndex(step => step.run === 'npm ci');
   const regression = job.steps.findIndex(step => step.run?.includes('tests/build/product-shutdown.test.mjs'));
   assert(install >= 0 && regression > install);
   assert.equal(job.if, undefined);
-  assert.equal(job.steps[regression].if, undefined);
+  assert.match(job.steps[regression].if, /steps\.npm\.outcome == 'success'/);
+  assert.match(job.steps[regression].if, /steps\.paper_npm\.outcome == 'success'/);
   assert.equal(job.steps[regression]['continue-on-error'], undefined);
   assert.match(job.steps[regression].run, /^node --test /);
 });

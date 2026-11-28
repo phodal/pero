@@ -13,7 +13,7 @@ const checks = steps.filter(step => step.run && !['npm', 'gpui', 'paper_python',
 // Interpret only this workflow's deliberately small condition vocabulary. This
 // verifies the declared dependency graph, not an emulation of the Actions runner.
 function dependencies(step) {
-  const setup = step.if.replace(/ && env\.(NOTEBOOK_PYTHON|NOTEBOOK_CANVAS|MCP_BROWSER) == 'true'/g, '');
+  const setup = step.if.replace(/ && env\.(NOTEBOOK_PYTHON|NOTEBOOK_CANVAS|MCP_BROWSER|FISHER) == 'true'/g, '');
   assert.match(setup, /^\$\{\{ !cancelled\(\)( && steps\.\w+\.outcome == 'success')* \}\}$/);
   return [...step.if.matchAll(/steps\.(\w+)\.outcome/g)].map(match => match[1]);
 }
@@ -23,7 +23,7 @@ function outcomes(failed = [], cancelBefore, scoped = true) {
   for (const step of steps) {
     if (!step.id) continue; // Evidence upload runs even after failures/cancellation.
     if (step.id === cancelBefore) cancelled = true;
-    const selected = scoped || !/env\.(NOTEBOOK_PYTHON|NOTEBOOK_CANVAS|MCP_BROWSER)/.test(step.if);
+    const selected = scoped || !/env\.(NOTEBOOK_PYTHON|NOTEBOOK_CANVAS|MCP_BROWSER|FISHER)/.test(step.if);
     const ready = !cancelled && selected && (step.id === 'checkout' || dependencies(step).every(id => results[id] === 'success'));
     results[step.id] = !ready ? 'skipped' : failed.includes(step.id) ? 'failure' : 'success';
   }
@@ -46,11 +46,12 @@ test('core checks have explicit preceding prerequisites and never mask failures'
 
 test('unrelated changes skip Notebook and MCP browser work while retaining core protocol checks', () => {
   const result = outcomes([], undefined, false);
-  for (const id of ['notebook_canvas_python', 'app_canvas', 'mcp_browser']) assert.equal(result[id], 'skipped');
-  for (const id of ['rust_tests', 'host_build', 'host_stdio', 'host_mcp_settings', 'host_mcp_ownership', 'worker_acceptance_python']) assert.equal(result[id], 'success');
+  for (const id of ['notebook_canvas_python', 'app_canvas', 'mcp_browser', 'fisher']) assert.equal(result[id], 'skipped');
+  for (const id of ['rust_tests', 'host_build', 'host_stdio', 'host_mcp_settings', 'host_mcp_ownership', 'worker_acceptance_python', 'fast_contracts', 'ast_tests']) assert.equal(result[id], 'success');
   assert.equal(workflow.jobs.core.env.NOTEBOOK_PYTHON, "${{ fromJSON(needs.scope.outputs.scopes)['notebook-python'] }}");
   assert.equal(workflow.jobs.core.env.NOTEBOOK_CANVAS, "${{ fromJSON(needs.scope.outputs.scopes)['notebook-canvas'] }}");
   assert.equal(workflow.jobs.core.env.MCP_BROWSER, "${{ fromJSON(needs.scope.outputs.scopes)['mcp-browser'] }}");
+  assert.equal(workflow.jobs.core.env.FISHER, "${{ fromJSON(needs.scope.outputs.scopes)['fisher'] }}");
 });
 
 test('every assertion failure leaves independent core checks running and the gate red', () => {
@@ -70,7 +71,7 @@ test('failed prerequisites skip their consumers without hiding unrelated checks'
     ['rust', ['rust_tests', 'host_build', 'host_stdio', 'app_canvas'], ['paper_components', 'core_types', 'app_use', 'mcp_build']],
     ['host_build', ['app_canvas', 'mcp_browser', 'host_stdio', 'host_research', 'host_mcp_settings', 'host_mcp_ownership', 'host_automation', 'host_app_automation', 'host_app_agent', 'control_lab_host'], ['rust_tests', 'core_types', 'mcp_build', 'control_lab']],
     ['mcp_build', ['host_mcp_settings', 'host_mcp_ownership', 'mcp_browser'], ['host_stdio', 'host_research', 'host_app_agent']],
-    ['paper_python', ['paper_backend', 'paper_pdf_http', 'paper_source_http', 'paper_source_cli', 'host_research'], ['data_backend', 'viewer_backend', 'paper_components', 'host_stdio']],
+    ['paper_python', ['paper_backend', 'paper_pdf_http', 'paper_source_http', 'paper_source_cli', 'host_research', 'fisher'], ['data_backend', 'viewer_backend', 'paper_components', 'host_stdio']],
     ['notebook_canvas_python', ['app_canvas', 'mcp_browser'], ['paper_backend', 'core_types', 'host_build', 'host_stdio']],
     ['npm', ['core_types', 'app_use', 'paper_components', 'host_stdio'], ['rust_tests', 'host_build', 'paper_backend', 'data_backend']],
   ]) {
@@ -89,7 +90,7 @@ test('cancellation stops new checks rather than acting like an assertion failure
 });
 
 test('Viewer inspection survives bridge failure and retains screenshot evidence', () => {
-  const job = YAML.parse(readFileSync('.github/workflows/ci-jobs.yml', 'utf8')).jobs['scientific-viewer'];
+  const job = YAML.parse(readFileSync('.github/workflows/ci-scientific-viewer.yml', 'utf8')).jobs['scientific-viewer'];
   const bridge = job.steps.find(step => step.run === 'node tests/e2e/app-use-bridge.mjs');
   const viewer = job.steps.find(step => step.run === 'node tests/e2e/scientific-viewer-browser.mjs');
   const prepare = job.steps.find(step => step.id === 'prepare');
@@ -117,8 +118,8 @@ test('Viewer inspection survives bridge failure and retains screenshot evidence'
 });
 
 test('Notebook browser and type checks survive unit failures and gate completion', () => {
-  assert.equal(workflow.jobs.notebook.uses, "./.github/workflows/ci-jobs.yml");
-  const job = YAML.parse(readFileSync('.github/workflows/ci-jobs.yml', 'utf8')).jobs.notebook;
+  assert.equal(workflow.jobs.notebook.uses, "./.github/workflows/ci-notebook.yml");
+  const job = YAML.parse(readFileSync('.github/workflows/ci-notebook.yml', 'utf8')).jobs.notebook;
   const prepare = job.steps.find(step => step.id === 'prepare');
   assert.match(prepare.run, /npm --prefix apps\/notebook run build/);
   assert(job.steps.some(step => step.run === 'npm run test:notebook'));

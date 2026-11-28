@@ -1,0 +1,58 @@
+name: CI control-lab
+
+# Reusable jobs only: all automatic triggers and required gates stay in CI.
+on:
+  workflow_call:
+    inputs:
+      suite:
+        description: CI-owned job family
+        type: string
+        required: true
+      os:
+        type: string
+        default: ubuntu-latest
+      upload-runtime:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  control-lab:
+    if: inputs.suite == 'control-lab'
+    name: Control Lab actual python-control and ngspice
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install real numerical engines
+        run: |
+          node scripts/build/scientific-runtime.mjs
+          sudo apt-get update
+          sudo apt-get install --yes ngspice
+          python -m pip install --only-binary=:all: -r apps/control-lab/requirements.txt
+          mkdir -p test-results/control-lab-science
+          python -c 'import control; print(control.__version__)' | tee test-results/control-lab-science/python-control-version.txt
+          ngspice --version | tee test-results/control-lab-science/ngspice-version.txt
+      - name: Require both numerical engines and scientific contracts without dependency skips
+        env:
+          CONTROL_LAB_REQUIRE_SOLVERS: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python -m unittest discover -s apps/control-lab/test -p 'test_*.py' -v 2>&1 | tee test-results/control-lab-science/tests.log
+      - name: Numerical engine versions and scientific results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: control-lab-science-linux
+          path: test-results/control-lab-science/
+          if-no-files-found: warn
+          retention-days: 7
+

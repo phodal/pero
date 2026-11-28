@@ -27,6 +27,24 @@ export const computerUseGlobs = Object.freeze([
 
 const computerUseLabels = new Set(['ci:full', 'ci:paper-native-diagnostic', 'ci:paper-host-approval-native']);
 
+// Kept beside the CI scope map so the Linux core job can run Fisher without a
+// second pull_request workflow. Acceptance dispatch still owns the manual suite.
+export const fisherGlobs = Object.freeze([
+  'apps/paper-agent/**',
+  'packages/app-sdk/**',
+  'packages/source-extraction/**',
+  'scripts/build/source-parsers.mjs',
+  'tests/e2e/paper-fisher-*.mjs',
+  '.github/workflows/acceptance.yml',
+  'scripts/ci/acceptance-scope.mjs',
+  'scripts/ci/workflow-scope.mjs',
+]);
+
+export function fisherSelected(input) {
+  if (input.unknown || (input.labels || []).includes('ci:full')) return true;
+  return (input.files || []).some(file => fisherGlobs.some(pattern => matchesPath(pattern, file)));
+}
+
 const sharedAppInputs = [
   '.github/workflows/ci*.yml', 'scripts/ci/workflow-scope*.mjs', 'scripts/ci/gate.mjs',
   'package.json', 'package-lock.json', 'packages/app-sdk/**', 'packages/pero-design/**',
@@ -86,7 +104,10 @@ function main() {
   const labels = (process.env.SCOPE_LABELS || '').split(',').map(label => label.trim()).filter(Boolean);
   const files = readFileSync(0, 'utf8').split('\n').map(file => file.trim()).filter(Boolean);
   if (kind === 'ci') {
-    const scopes = ciScope({ event: process.env.SCOPE_EVENT || '', labels, files, unknown: process.env.SCOPE_UNKNOWN === 'true' });
+    const event = process.env.SCOPE_EVENT || '';
+    const unknown = process.env.SCOPE_UNKNOWN === 'true';
+    const scopes = ciScope({ event, labels, files, unknown });
+    scopes.fisher = fisherSelected({ event, labels, files, unknown });
     if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `scopes=${JSON.stringify(scopes)}\n`);
     console.log(JSON.stringify(scopes));
     return;

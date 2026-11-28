@@ -197,8 +197,7 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   const release = YAML.parse(readFileSync('.github/workflows/release.yml', 'utf8'));
   assert.equal(release.on.push.branches, undefined);
   assert.deepEqual(release.on.push.tags, ['v*']);
-  assert.deepEqual(release.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
-  assert.equal(release.on.pull_request.paths, undefined);
+  assert.equal(release.on.pull_request, undefined);
   assert.equal(release.on.schedule[0].cron, '0 20 * * *');
   assert.equal(release.on.workflow_dispatch.inputs.tag.required, true);
   assert.equal(release.on.workflow_dispatch.inputs.sha.required, false);
@@ -217,7 +216,8 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.equal(release.jobs.gate.permissions.actions, 'read');
   assert.equal(release.jobs.gate.permissions.contents, 'read');
   assert.match(release.jobs.build.if, /needs.gate.result == 'success'/);
-  assert.match(release.jobs.build.if, /github.event_name == 'pull_request'/);
+  assert.doesNotMatch(release.jobs.build.if, /pull_request/);
+  assert.match(release.jobs.build.if, /github.event_name == 'schedule'/);
   assert.match(release.jobs.build.if, /needs.scope.outputs.run == 'true'/);
   const download = release.jobs.publish.steps.find(step => step.uses?.startsWith('actions/download-artifact'));
   assert.equal(download.with['if-no-files-found'], undefined);

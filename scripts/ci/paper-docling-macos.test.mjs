@@ -6,10 +6,10 @@ import { acceptancePaths } from './acceptance-scope.mjs';
 
 test('real Mac Docling verification is scoped, opt-in, read-only and exact-head', () => {
   const workflow = YAML.parse(readFileSync('.github/workflows/acceptance.yml', 'utf8'));
-  assert.deepEqual(Object.keys(workflow.on).sort(), ['pull_request', 'workflow_dispatch']);
+  assert.deepEqual(Object.keys(workflow.on).sort(), ['workflow_dispatch']);
   assert.deepEqual(workflow.permissions, { contents: 'read' });
   assert.equal(workflow.on.workflow_dispatch.inputs.allow_official_downloads.default, false);
-  assert.deepEqual(workflow.on.pull_request.types, ['opened', 'reopened', 'synchronize', 'labeled']);
+  assert.equal(workflow.on.pull_request, undefined);
   const paths = acceptancePaths.docling;
   assert.ok(paths.length > 0 && paths.every(path =>
     path === '.github/workflows/acceptance.yml' ||
@@ -18,10 +18,8 @@ test('real Mac Docling verification is scoped, opt-in, read-only and exact-head'
   const job = workflow.jobs.docling;
   assert.equal(job['runs-on'], 'macos-26');
   assert.equal(job['timeout-minutes'], 60);
-  assert.match(job.if, /workflow_dispatch.*inputs.allow_official_downloads/);
-  assert.match(job.if, /head.repo.full_name == github.repository/);
-  assert.match(job.if, /contains\(github.event.pull_request.labels.\*.name, 'ci:full'\)/);
-  assert.match(job.if, /github.event.action != 'labeled' \|\| github.event.label.name == 'ci:full'/);
+  assert.equal(job.if, "github.event_name == 'workflow_dispatch' && inputs.suite == 'paper-docling-macos' && inputs.allow_official_downloads");
+  assert.doesNotMatch(job.if, /pull_request/);
   const checkout = job.steps.find(step => step.uses?.startsWith('actions/checkout@'));
   assert.equal(checkout.with.ref, '${{ github.event.pull_request.head.sha || github.sha }}');
   assert.equal(checkout.with['persist-credentials'], false);
