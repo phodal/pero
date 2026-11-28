@@ -253,8 +253,7 @@ impl Workbench {
             self.remote.target_worker = None;
         }
         let account_changed = self.remote.data["connection"]["url"] != event.data["connection"]["url"]
-            || self.remote.data["identity"]["id"] != event.data["identity"]["id"]
-            || self.remote.data["identity"]["role"] != event.data["identity"]["role"]
+            || self.remote.data["identity"] != event.data["identity"]
             || self.remote.data["configured"] != event.data["configured"];
         if account_changed {
             self.reset_project_deliveries();
