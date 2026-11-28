@@ -35,18 +35,43 @@ execution and evidence references.
 
 ## Acceptance
 
-- [ ] Losing the start acknowledgement and retrying returns one campaign and
+- [x] Losing the start acknowledgement and retrying returns one campaign and
   one Workflow execution for the same request. A start intent saved before an
   unavailable Temporal Service can be resumed without changing its identity.
-- [ ] Restarting the orchestrator while the execution is active keeps the
+- [x] Restarting the orchestrator while the execution is active keeps the
   same Campaign, plan revision and Run. It resumes observation without
   dispatching another computation.
-- [ ] A campaign with an unresolved Run can be retrieved with explicit pending
+- [x] A campaign with an unresolved Run can be retrieved with explicit pending
   reconciliation and its responsible operation and Run references.
-- [ ] On a deterministic test case, the Workflow preserves concurrency and trial
+- [x] On a deterministic test case, the Workflow preserves concurrency and trial
   limits across restart and stops at the frozen plan's terminal condition.
-- [ ] Once the Workflow closes, the campaign and its evidence references remain
+- [x] Once the Workflow closes, the campaign and its exact Run references remain
   retrievable under the original project's permissions.
+
+## First integration — 2026-11-28
+
+The opt-in Go orchestrator handles one frozen round, up to eight sequential
+trials and one in-flight trial. PostgreSQL owns the start and cancellation
+intents and the final receipt. Activities use a logical Client scoped to the
+Campaign project. Workflow history contains plan digests, operation identities
+and exact execution references. The first version advances on observed
+execution and records skipped trials after a stop.
+
+The automated acceptance uses a real local Temporal server and PostgreSQL with
+a fixture driver for the existing Worker protocol. It drops a successful start
+reply and a committed dispatch reply, restarts the orchestrator Worker with an
+empty cache, cancels while a dispatch reply is held, and resolves an original
+Run awaiting reconciliation. It also checks that Pero can still read the result
+after deleting closed Temporal history. A captured cancellation history
+provides a replay check on ordinary Go test runs. The CI recovery job runs the
+live gate with a disposable database and pinned Temporal CLI.
+
+The built control-plane and `pero-campaign` binaries also passed a loopback
+smoke run. Restarting the orchestrator process during a claimed trial
+preserved the original plan and Run, and the final project receipt persisted.
+
+Authenticated review and independent evidence belong to [#253](2026-11-27-campaign-review-evidence.md).
+Two reviewed rounds with real PyBaMM execution belong to [#254](2026-11-27-temporal-pybamm-acceptance.md).
 
 Requires [exact Run control and retry-safe campaign submission](2026-11-27-campaign-run-control.md).
 See

@@ -356,7 +356,7 @@ Swift / Rust 只在确有原生能力需求时引入。列入按需语言不代�
 
 ## Daemon、环境与首版服务拓扑
 
-首版按 **Cloud 协调 → Host 执行 → 环境绑定 → 产物验证与复核** 组合。Go 服务负责共享执行协调，daemon 部署在执行机器上。环境和验证适配器先作为模块接入。下图为目标接线，虚线标记后续扩展。Temporal 研究流程已确定架构，处于实施前阶段。
+首版按 **Cloud 协调 → Host 执行 → 环境绑定 → 产物验证与复核** 组合。Go 服务负责共享执行协调，daemon 部署在执行机器上。环境和验证适配器先作为模块接入。下图为目标接线，虚线标记后续扩展。Temporal 单轮试验编排已可选择启用。
 
 ```mermaid
 flowchart TB
@@ -373,10 +373,10 @@ flowchart TB
         REVIEW --> DB
     end
 
-    subgraph Campaign["共享研究流程（ADR 0037，待实现）"]
+    subgraph Campaign["共享研究流程（ADR 0037）"]
         TEMPORAL["Temporal Service：流程历史 / 计时 / 重放"]
         ORCHESTRATOR["Go 编排进程：ResearchCampaign Workflow / Activity"]
-        TEMPORAL <-.-> ORCHESTRATOR
+        TEMPORAL <-->|"Workflow / Activity 任务"| ORCHESTRATOR
     end
 
     subgraph Host["执行机器：本机 / 实验室 / 云端"]
@@ -405,8 +405,10 @@ flowchart TB
 
     UI <-->|"HTTP / SSE"| API
     GH <-->|"获准的事件与状态同步"| API
-    API -.->|"共享项目：启动 / 审批 / 取消"| TEMPORAL
-    ORCHESTRATOR -.->|"项目授权：幂等提交 / 精确 Run 观察和取消 / 验证"| API
+    API -->|"共享项目：启动 / 观察 / 取消"| TEMPORAL
+    API -.->|"认证审批"| TEMPORAL
+    ORCHESTRATOR -->|"项目授权：幂等提交 / 精确 Run 观察和取消"| API
+    ORCHESTRATOR -.->|"独立验证"| API
     PR <-->|"认证执行通道：请求 / 事件 / 原 ID 对账"| ENTRY
     BACKEND -->|"产物与执行回执"| ART
     ART -->|"精确候选引用"| VERIFY
@@ -421,14 +423,16 @@ flowchart TB
 Go 控制面记录冻结计划、审批、精确 Run 与证据引用。启动和审批通过 Pero 鉴权。
 计算继续由现有 Rust Worker、Host 和获准环境执行。本地 Project 和 Automation
 沿 [ADR 0028](adr/0028-local-research-projects.md) 与 [ADR 0024](adr/0024-event-driven-automation.md)
-运行。首个用例和验收任务见 [Compute Epic #249](https://github.com/phodal/pero/issues/249)。
+运行。已接入的首版支持一次冻结轮次，按顺序运行最多八个试验，并在结果未知时等待原
+Run 对账。独立验证、审批和跨轮次推进由后续任务接入。首个用例和验收任务见
+[Compute Epic #249](https://github.com/phodal/pero/issues/249)。
 
 ### 状态与权限归属
 
 | 模块 | 拥有的状态和职责 | 接线约束 |
 | --- | --- | --- |
 | **Cloud 协调** | Project 权限、Task、冻结输入、Run、目标 Host 绑定、产物登记与接受决定 | 只分派获准任务；节点在线和容量报告不等于执行授权 |
-| **Temporal 研究流程（待实现）** | Campaign 步骤、等待、分支及轮次预算 | Activity 经 Go 控制面操作原 Run，执行不确定时保留原身份并等待对账 |
+| **Temporal 研究流程** | Campaign 步骤、等待及冻结的试验预算 | Activity 经 Go 控制面操作原 Run，执行不确定时保留原身份并等待对账 |
 | **Host / daemon** | 本机配置、允许的工作区、凭据引用、执行准入与进程装配 | daemon 是 Host 的常驻部署入口；本机控制令牌不能直接用作远程团队授权 |
 | **受管执行** | 会话身份、消息、事件、续接记录、并发、取消和恢复 | 复用一个执行状态所有者；后续消息保持原工作区与后端绑定 |
 | **environments** | Template、Instance、Binding、Use、不可变快照与生命周期协调 | 调用实际 Resource / Use Owner；不调度 Agent，也不决定任务是否接受 |

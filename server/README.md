@@ -207,6 +207,64 @@ keeps the quarantine. A managed runtime must reach its own released phase before
 the operator can resolve its Run. If the Worker exited for review, restart that
 same enrolled Worker after settlement.
 
+### Shared research Campaigns with Temporal
+
+The opt-in first version executes one frozen round of one to eight manual trials
+in order. A completed trial allows the next one to start. Failure or confirmed
+cancellation stops the round and records the remaining positions as skipped.
+An unresolved exact Run parks the Campaign until the original owner supplies
+reconciliation. The result records execution and exact Run references.
+
+Provision a dedicated existing Client with the Projects it may run. Use its
+logical Client ID on the control plane and its token only on the orchestrator.
+Both processes connect to the same private Temporal endpoint and namespace.
+The production task queue is `pero-research-campaigns-v1`.
+
+| Process | Environment |
+| --- | --- |
+| Go control plane | `PERO_TEMPORAL_ADDRESS`, `PERO_CAMPAIGN_RUNNER_CLIENT_ID`, optional `PERO_TEMPORAL_NAMESPACE` (default `default`) |
+| `pero-campaign` | `PERO_TEMPORAL_ADDRESS`, the same namespace, `PERO_CLOUD_URL`, `PERO_CAMPAIGN_RUNNER_TOKEN` |
+
+Start the control plane normally. Run the orchestrator with
+`go run ./cmd/pero-campaign` from the server module, or build
+`//server/cmd/pero-campaign` with Bazel. A loopback Temporal CLI dev server can
+run both processes locally. Keep the runner Client ID stable across token
+rotation. Only that Client can deliver Activity operations and final receipts
+for Campaigns bound to it.
+
+```text
+POST /api/client/v1/projects/{project}/campaigns
+Idempotency-Key: <stable client request key>
+{"trials":[{"task": <manual TaskSpec>, "worker_id":"<optional Worker ID>"}]}
+
+GET  /api/client/v1/projects/{project}/campaigns/{campaign}
+POST /api/client/v1/projects/{project}/campaigns/{campaign}/cancel
+```
+
+Start returns the frozen plan reference and the recorded Temporal Run ID when
+available. If start could not be acknowledged, it returns `202` and the saved
+Campaign ID. Repeat the same POST with the same key and plan to recover it.
+Changing the payload for that key returns `409`. Project Clients can read the
+Campaign. The creator can request cancellation with an empty JSON object. The
+control plane saves the request before waking the Workflow. Cancellation waits
+for its original trial receipt and confirmation from the execution owner.
+
+The Workflow definition name is versioned. Preserve the current definition and
+run the committed history replay before replacing workers that may receive
+in-flight Campaigns. Plan content and runner credentials stay in Pero and the
+orchestrator process. Temporal stores the bounded plan and trial references it
+needs to advance.
+
+Automated acceptance uses a disposable PostgreSQL database and a pinned Temporal
+CLI dev server. Set `PERO_TEST_TEMPORAL_CLI` to an installed CLI binary for an
+offline run.
+
+```sh
+PERO_TEST_TEMPORAL=1 PERO_TEST_DATABASE_URL='<disposable PostgreSQL URL>' \
+  go -C server test -race -count=1 -v ./internal/httpapi -run '^TestResearchCampaignTemporal$'
+go -C server test ./internal/campaignruntime -run '^TestReplayCampaignV1$'
+```
+
 ## Local device enrollment
 
 A signed-in Desktop can explicitly enable a local Worker within the Client's
