@@ -123,7 +123,7 @@ jobs:
     name: Research Campaign recovery and reviewed PyBaMM rounds
     # setup-python publishes the locked 3.12.11 interpreter for this image.
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:17.11-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
@@ -147,7 +147,7 @@ jobs:
           PERO_REQUIRE_TEST_DATABASE: '1'
           PERO_TEST_DATABASE_URL: postgresql://campaign_fixture:campaign-fixture-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/campaign_fixture?sslmode=disable
           TMPDIR: ${{ runner.temp }}
-        run: go -C server test -race -count=1 -v ./internal/httpapi -run '^(TestResearchCampaignTemporal|TestProductionServerKeepsAPaperAndARunReceipt)$'
+        run: go -C server test -race -count=1 -v ./internal/httpapi -run '^(TestResearchCampaignTemporal|TestReviewedCampaignInventory|TestProductionServerKeepsAPaperAndARunReceipt)$'
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
@@ -165,18 +165,33 @@ jobs:
           node scripts/cargo.mjs build --locked -p pero-worker
           go -C server build -o "$RUNNER_TEMP/pero-server" ./cmd/server
           go -C server build -o "$RUNNER_TEMP/pero-campaign" ./cmd/pero-campaign
-      - name: Execute two locked PyBaMM rounds and replay the reviewed Workflow
+      - name: Build the real Desktop Workbench
+        run: |
+          export PERO_GPUI_KIT_PATH="$RUNNER_TEMP/gpui-kit"
+          sudo apt-get update
+          sudo apt-get install -y xvfb pkg-config libfontconfig1-dev
+          npm ci
+          npm ci --prefix packages/connectors --ignore-scripts
+          node scripts/cargo.mjs build --locked -p pero-host
+          node scripts/build/wasm.mjs
+          npm run build --workspace @pero/web
+          node scripts/build/desktop.mjs
+          npx playwright install --with-deps chromium
+      - name: Approve the second PyBaMM round in Desktop and replay the Workflow
         env:
           PERO_TEST_DATABASE_URL: postgresql://campaign_fixture:campaign-fixture-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/campaign_fixture?sslmode=disable
+          PERO_TEST_HEADED: '1'
+          PERO_TEST_SOFTWARE_GL: '1'
         run: |
           command -v psql >/dev/null || (sudo apt-get update && sudo apt-get install -y postgresql-client)
           python -m venv "$RUNNER_TEMP/pybamm"
           "$RUNNER_TEMP/pybamm/bin/python" -m pip install --only-binary=:all: --no-deps -r scripts/science/pybamm-sweep/requirements.lock
-          python scripts/science/pybamm-sweep/campaign_acceptance.py \
+          xvfb-run -a python scripts/science/pybamm-sweep/campaign_acceptance.py \
             --database "$PERO_TEST_DATABASE_URL" --server "$RUNNER_TEMP/pero-server" \
             --orchestrator "$RUNNER_TEMP/pero-campaign" --worker "$PWD/target/debug/pero-worker" \
             --temporal "$RUNNER_TEMP/temporal-cli-v1.10.1" --python "$RUNNER_TEMP/pybamm/bin/python" \
-            --checker-python "$(command -v python)" --output "$RUNNER_TEMP/reviewed-pybamm"
+            --checker-python "$(command -v python)" --output "$RUNNER_TEMP/reviewed-pybamm" \
+            --desktop-review "$PWD/tests/e2e/campaign-review.mjs"
           PERO_TEST_REVIEW_HISTORY="$RUNNER_TEMP/reviewed-pybamm/history.json" \
             go -C server test ./internal/campaignruntime -run '^TestReplayCampaignV2$'
       - name: Retain exact Run and verification receipts
@@ -187,6 +202,8 @@ jobs:
           path: |
             ${{ runner.temp }}/reviewed-pybamm/receipt.json
             ${{ runner.temp }}/reviewed-pybamm/history.json
+            ${{ runner.temp }}/reviewed-pybamm/*.png
+            ${{ runner.temp }}/reviewed-pybamm/desktop-review.log
           if-no-files-found: ignore
 
   core:
