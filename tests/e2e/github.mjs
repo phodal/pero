@@ -12,7 +12,7 @@ const tokens = Object.fromEntries(['OPERATOR', 'ALICE', 'BOB', 'WORKER'].map(key
 const out = resolve(root, 'test-results/github'); await mkdir(out, { recursive: true });
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-github-desktop-'));
 const agents = resolve(temp, 'agents.json');
-await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'ACP test fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs')] }]));
+await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'ACP test fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs')], supervision: 'gate' }]));
 await writeFile(resolve(temp, 'worker.json'), JSON.stringify({ workspaces: { default: temp }, agents_file: agents }));
 const apps = [];
 let worker;

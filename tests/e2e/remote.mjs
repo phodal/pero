@@ -28,7 +28,7 @@ const operator = randomUUID();
 const serverBin = resolve(temp, 'pero-server');
 execFileSync('go', ['build', '-o', serverBin, './cmd/server'], { cwd: resolve(root, 'server'), stdio: 'pipe' });
 const agents = resolve(temp, 'agents.json');
-await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'ACP test fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/remote-env-agent.mjs')] }]));
+await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'ACP test fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/remote-env-agent.mjs')], supervision: 'gate' }]));
 await writeFile(resolve(temp, 'worker.json'), JSON.stringify({ workspaces: { default: temp }, agents_file: agents }));
 const ajv = new Ajv2020({ strict: false }); ajv.addSchema(schema);
 const validate = (name, value) => {
