@@ -568,9 +568,7 @@ async fn run(
                     &mut commands, &mut deferred, &tx, &thread, "Inherited session permission",
                 ).await? else {return Ok(());};
                 configuration.lock().unwrap().acknowledged(&mut session_data, response, &selection)?;
-                if !configuration.lock().unwrap().settings.options.iter().any(|option| option.id == inherited.id && option.current == inherited.value) {
-                    return Err(failure("Agent did not acknowledge the inherited permission; no prompt was started"));
-                }
+                configuration.lock().unwrap().retain(&inherited.id, &inherited.value).map_err(|message| failure(message))?;
             }
             session_data["peroSettings"] = serde_json::to_value(&configuration.lock().unwrap().settings).unwrap_or_default();
             *model_api.lock().unwrap() = ModelApi::from_session(&session_data);
@@ -586,6 +584,7 @@ async fn run(
                 configuration.lock().unwrap().refresh(&session_data)?;
                 session_data["peroSettings"] = serde_json::to_value(&configuration.lock().unwrap().settings).unwrap_or_default();
             }
+            configuration.lock().unwrap().retained().map_err(|message| failure(message))?;
             event(&tx, &thread, "session_ready", "会话已就绪", session_data.clone());
             let mut needs_authentication = false;
             loop {
@@ -597,6 +596,7 @@ async fn run(
                             SessionCommand::PromptWithContext { text, context } => (text, context),
                             _ => unreachable!("matched prompt command"),
                         };
+                        if let Err(message) = configuration.lock().unwrap().retained() { event(&tx, &thread, "session_error", message, Value::Null); continue; }
                         if needs_authentication {
                             event(&tx, &thread, "session_auth_required", "Provider authentication required", json!({ "authMethods": auth_methods }));
                             continue;

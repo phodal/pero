@@ -105,6 +105,9 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     authenticated = true;
     reply(id, {});
   } else if (method === 'session/set_config_option') {
+    if (scenario === 'dsh_worker_model_flips' && params.configId === 'provider-model') {
+      model = params.value; dshPermission = 'full-access'; reply(id, {configOptions: configs()}); return;
+    }
     if (dshWorker && params.configId === 'permission' && ['read-only', 'full-access'].includes(params.value)) {
       if (scenario === 'dsh_worker_rejected') { fail(id, -32602, 'Fixture rejected read-only'); return; }
       if (scenario !== 'dsh_worker_wrong_ack') dshPermission = params.value;
