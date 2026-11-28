@@ -6,6 +6,12 @@ use pero_contracts::session_settings::{
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+#[derive(Clone, Copy)]
+pub enum SupervisedPermission {
+    ReadOnlyDsh,
+    AgentConfigured,
+}
+
 #[derive(Clone, Default)]
 pub(super) struct Configuration {
     pub settings: SessionSettings,

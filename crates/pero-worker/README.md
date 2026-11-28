@@ -59,8 +59,11 @@ monotonic watchdog stops execution when its lease expires. The Worker first
 requests ACP cancellation, then enforces bounded cleanup of its executor and
 the Agent's separate SDK process group. The executor also detects supervisor
 death. Failure to confirm cleanup produces `reconcile` and stops task intake.
-Unattended permission requests are denied by default (see the opt-in native shell
-policy below). All `PERO_*` environment variables are
+Unattended permission requests are denied by default. For DSH Go, the Worker
+also requires an acknowledged `read-only` session setting before the first
+prompt. This blocks DSH's file writes, edits, and shell calls at the tool
+policy boundary. The opt-in native shell policy below retains its explicit
+admission path. All `PERO_*` environment variables are
 removed from the executor and Agent configuration; provider credentials should
 use the provider's own variable names.
 

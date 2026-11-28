@@ -90,7 +90,7 @@ fn launch_with_access(
             endpoint,
         )
     } else if supervised {
-        start_supervised(config, workspace.0.clone(), "fixture-thread".into(), tx)
+        start_supervised(config, workspace.0.clone(), "fixture-thread".into(), tx, SupervisedPermission::ReadOnlyDsh)
     } else if scenario == "load_replay" {
         resume_app(config, workspace.0.clone(), "fixture-thread".into(), tx, None, "fixture-session".into())
     } else {

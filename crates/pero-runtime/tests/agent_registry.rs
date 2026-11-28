@@ -1,6 +1,6 @@
 //! Exercise the built-in registry through real ACP processes, without provider I/O.
 use pero_contracts::HostEvent;
-use pero_runtime::acp::{self, SessionCommand};
+use pero_runtime::acp::{self, SessionCommand, SupervisedPermission};
 use std::{path::PathBuf, process::Command, sync::mpsc, time::Duration};
 
 struct FixtureRoot(PathBuf);
@@ -130,6 +130,7 @@ fn adapter_registry_child() {
                 workspace.clone(),
                 format!("{id}-{attempt}"),
                 tx,
+                SupervisedPermission::ReadOnlyDsh,
             );
             wait_for(&rx, "session_ready");
             handle.tx.send(SessionCommand::Close).unwrap();
@@ -146,5 +147,55 @@ fn wait_for(events: &mpsc::Receiver<HostEvent>, kind: &str) {
             return;
         }
         assert_ne!(event.kind, "session_closed", "closed before {kind}");
+    }
+}
+
+#[test]
+fn supervised_dsh_requires_read_only_acknowledgement_before_prompt() {
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/runtime/lifecycle-agent.mjs");
+    let root = FixtureRoot(std::env::temp_dir().join(format!("pero dsh worker {}", uuid::Uuid::new_v4())));
+    std::fs::create_dir(&root.0).unwrap();
+    for (scenario, permission, expected_mode, expected_error) in [
+        ("dsh_worker_ready", SupervisedPermission::ReadOnlyDsh, Some("read-only"), None),
+        ("dsh_worker_no_selector", SupervisedPermission::ReadOnlyDsh, None, Some("not advertised")),
+        ("dsh_worker_rejected", SupervisedPermission::ReadOnlyDsh, None, Some("Fixture rejected read-only")),
+        ("dsh_worker_wrong_ack", SupervisedPermission::ReadOnlyDsh, None, Some("did not acknowledge")),
+        ("dsh_worker_wrong_ack", SupervisedPermission::AgentConfigured, Some("auto-review"), None),
+    ] {
+        let config = serde_json::from_value(serde_json::json!({
+            "id": "dsh-alias", "name": "Worker Agent", "command": "node",
+            "args": [&fixture], "env": {"PERO_FIXTURE_SCENARIO": scenario}
+        })).unwrap();
+        let (tx, rx) = mpsc::channel();
+        let handle = acp::start_supervised(config, root.0.clone(), scenario.into(), tx, permission);
+        handle.tx.send(SessionCommand::Prompt("queued before setup".into())).unwrap();
+        let (mut ready, mut prompted, mut error) = (false, false, false);
+        loop {
+            let event = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+            match event.kind.as_str() {
+                "session_ready" => {
+                    assert!(expected_mode.is_some(), "{scenario} exposed readiness");
+                    let options = event.data["peroSettings"]["options"].as_array().unwrap();
+                    let setting = options.iter().find(|option| option["id"] == "permission").unwrap();
+                    assert_eq!(setting["current"].as_str(), expected_mode, "{scenario}");
+                    ready = true;
+                }
+                "turn_started" => assert!(ready, "{scenario} prompted before readiness"),
+                "session_update" if event.data["sessionUpdate"] == "agent_message_chunk" => {
+                    assert_eq!(event.data["content"]["text"].as_str(), expected_mode, "{scenario}");
+                    prompted = true;
+                }
+                "turn_finished" => handle.tx.send(SessionCommand::Close).unwrap(),
+                "session_error" => {
+                    assert!(expected_error.is_some_and(|detail| event.text.contains(detail)), "{scenario}: {}", event.text);
+                    error = true;
+                }
+                "session_closed" => break,
+                _ => {}
+            }
+        }
+        assert_eq!(ready && prompted, expected_mode.is_some(), "{scenario}");
+        assert_eq!(error, expected_error.is_some(), "{scenario}");
     }
 }

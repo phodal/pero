@@ -1,5 +1,5 @@
 use super::app_use::APP_TOOL_LOADING_CAPABILITY;
-use super::configuration::Configuration;
+use super::configuration::{Configuration, SupervisedPermission};
 use super::prompt::{
     project_prompt_blocks, prompt_blocks, PromptLayers, ReceiptMode, APP_USE_CONTEXT_CAPABILITY,
     TURN_RECEIPT_CAPABILITY,
@@ -63,6 +63,7 @@ pub struct SessionStartOptions {
     pub initial_settings: Vec<SettingSelection>,
     pub project_prompt: Option<ProjectAgentPrompt>,
     pub app_tool_loading: Option<AppToolLoading>,
+    pub supervised_permission: Option<SupervisedPermission>,
 }
 
 pub struct SessionHandle {
@@ -116,8 +117,10 @@ pub fn start_supervised(
     cwd: PathBuf,
     thread: String,
     tx: Sender<HostEvent>,
+    permission: SupervisedPermission,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, false, None, None, false, SessionStartOptions::default())
+    let options = SessionStartOptions { supervised_permission: Some(permission), ..Default::default() };
+    start_with_workspace_access(config, cwd, thread, tx, false, None, None, false, options)
 }
 
 /// Explicitly resume an existing ACP Session; never fall back to session/new.
@@ -293,7 +296,7 @@ async fn run(
     options: SessionStartOptions,
 ) -> Result<(), String> {
     config.validate_mcp()?;
-    let SessionStartOptions { initial_settings, project_prompt, app_tool_loading } = options;
+    let SessionStartOptions { mut initial_settings, project_prompt, app_tool_loading, supervised_permission } = options;
     let project_prompt = project_prompt.as_ref().map(project_prompt_blocks).transpose()
         .map_err(|error| error.to_string())?;
     event(
@@ -453,6 +456,10 @@ async fn run(
                 (true, false) => ReceiptMode::Record,
             };
             let initialized: InitializeResponse = serde_json::from_value(initialized).map_err(agent_client_protocol::Error::into_internal_error)?;
+            let dsh = initialized.agent_info.as_ref().is_some_and(|info| info.name == "pero-agent-acp");
+            if dsh && matches!(supervised_permission, Some(SupervisedPermission::ReadOnlyDsh)) {
+                initial_settings.push(SettingSelection { id: "permission".into(), value: "read-only".into() });
+            }
             // Never start a session under a protocol version this client does not implement.
             if initialized.protocol_version != ProtocolVersion::V1 {
                 return Err(failure("Agent negotiated an unsupported ACP protocol version"));
