@@ -81,7 +81,8 @@ func run() error {
 		runtime = profile.Runtime
 		runtime.Start(ctx)
 	}
-	options := httpapi.ServerOptions{Runtime: runtime, GitHub: sources}
+	papers := &httpapi.PersistedPaper{DB: db}
+	options := httpapi.ServerOptions{Runtime: runtime, GitHub: sources, Paper: papers, Importer: papers, ProtocolRoot: os.Getenv("PERO_PROTOCOL_ROOT")}
 	if profile != nil && profile.Gateway != nil {
 		options.Gateway, options.Reviewer, options.Objects = profile.Gateway, profile.Reviewer, profile.Objects
 	}

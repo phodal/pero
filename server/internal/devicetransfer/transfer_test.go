@@ -63,6 +63,20 @@ func TestImportCommitsOneRevision(t *testing.T) {
 	if _, err = Finalize(true, "lab", bad, pdf, true, false, nil, "doc-1", transfer.Digest); err != DigestMismatch {
 		t.Fatal(err)
 	}
+	replay := transfer
+	replay.Size = 0
+	if _, err = Finalize(true, "lab", replay, nil, true, false, &first, "doc-1", first.Revision); err != Interrupted {
+		t.Fatal(err)
+	}
+	replay = transfer
+	replay.Size = MaxBytes + 1
+	if _, err = Finalize(true, "lab", replay, nil, true, false, &first, "doc-1", first.Revision); err != OverLimit {
+		t.Fatal(err)
+	}
+	againEmpty, err := Finalize(true, "lab", transfer, nil, true, false, &first, "doc-1", first.Revision)
+	if err != "" || againEmpty.Created || againEmpty.Revision != first.Revision {
+		t.Fatalf("released body %+v %s", againEmpty, err)
+	}
 	walked := transfer
 	walked.HandleID = "../secret"
 	if _, err = Finalize(true, "lab", walked, pdf, true, false, nil, "doc-1", transfer.Digest); err != Traversal {

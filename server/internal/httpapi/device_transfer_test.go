@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/phodal/pero/server/internal/devicetransfer"
 	"github.com/phodal/pero/server/internal/store"
@@ -25,7 +27,7 @@ type countingImport struct {
 	revision string
 }
 
-func (c *countingImport) ImportPDF(string, []byte, string) (string, string, bool) {
+func (c *countingImport) ImportPDF(context.Context, string, []byte, string) (string, string, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.n++
@@ -48,9 +50,17 @@ func TestPaperPDFImportIsIdempotent(t *testing.T) {
 	if first["created"] != true || second["created"] != false || first["paperId"] != "doc-1" || first["paperId"] == "paper-"+digest[:12] || second["paperId"] != first["paperId"] || importer.n != 1 {
 		t.Fatalf("first %#v second %#v imports %d", first, second, importer.n)
 	}
+	kept, _, remembered, ok := desk.Get("lab", "upload-1")
+	if !ok || len(kept) != 0 || remembered == nil || remembered.PaperID != "doc-1" {
+		t.Fatalf("retained %d %#v", len(kept), remembered)
+	}
 	code, body := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", "ab", uint64(len(samplePDF)))
-	if code != 409 || body["error"] != "digest_mismatch" {
+	if code != 409 || body["error"] != "conflict" {
 		t.Fatalf("digest %d %#v", code, body)
+	}
+	code, body = postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", digest, 0)
+	if code != 409 || body["error"] != "interrupted" {
+		t.Fatalf("replay size %d %#v", code, body)
 	}
 	code, _ = postBytes(t, api, "lab", []string{"lab"}, "partial", "handle-1", samplePDF[:4])
 	if code != 202 {
@@ -206,9 +216,219 @@ func postFinalizeStatus(t *testing.T, api *API, project string, projects []strin
 	api.finalizeDeviceTransfer(rec, req)
 	var payload map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
-		t.Fatal(rec.Body.String())
+		return rec.Code, map[string]any{"error": rec.Body.String()}
 	}
 	return rec.Code, payload
+}
+
+type gateImport struct {
+	mu       sync.Mutex
+	n        int
+	id       string
+	revision string
+	entered  chan struct{}
+	release  chan struct{}
+	once     sync.Once
+	fail     bool
+}
+
+func (g *gateImport) ImportPDF(context.Context, string, []byte, string) (string, string, bool) {
+	g.mu.Lock()
+	g.n++
+	g.mu.Unlock()
+	g.once.Do(func() { close(g.entered) })
+	<-g.release
+	if g.fail {
+		return "", "", false
+	}
+	return g.id, g.revision, true
+}
+
+func TestConcurrentFinalizeImportsOnceAndCancelDoesNotWin(t *testing.T) {
+	sum := sha256.Sum256(samplePDF)
+	digest := hex.EncodeToString(sum[:])
+	gate := &gateImport{id: "rev_gate", revision: digest, entered: make(chan struct{}), release: make(chan struct{})}
+	desk := newImportingDesk(gate)
+	desk.Register("lab", devicetransfer.Handle{ID: "handle-1", Provider: "browser", MediaType: "application/pdf", Size: uint64(len(samplePDF)), Name: "note.pdf"})
+	api := &API{files: desk}
+	if code, _ := postBytes(t, api, "lab", []string{"lab"}, "upload-1", "handle-1", samplePDF); code != 202 {
+		t.Fatal(code)
+	}
+	type finish struct {
+		code int
+		body map[string]any
+	}
+	done := make(chan finish, 2)
+	go func() {
+		code, body := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", digest, uint64(len(samplePDF)))
+		done <- finish{code, body}
+	}()
+	select {
+	case <-gate.entered:
+	case early := <-done:
+		t.Fatalf("finalize finished before the importer %#v", early)
+	case <-time.After(2 * time.Second):
+		t.Fatal("importer was not entered")
+	}
+	go func() {
+		code, body := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", digest, uint64(len(samplePDF)))
+		done <- finish{code, body}
+	}()
+	cancelCode := make(chan int, 1)
+	go func() {
+		req := httptest.NewRequest(http.MethodPost, "/api/client/v1/projects/lab/device-transfers/upload-1/cancel", strings.NewReader("{}"))
+		req.SetPathValue("project", "lab")
+		req.SetPathValue("upload", "upload-1")
+		req = req.WithContext(context.WithValue(req.Context(), clientContextKey{}, &store.Client{Projects: []string{"lab"}, Role: "client"}))
+		rec := httptest.NewRecorder()
+		api.cancelDeviceTransfer(rec, req)
+		cancelCode <- rec.Code
+	}()
+	deadline := time.After(2 * time.Second)
+	for desk.waitingCount() < 2 {
+		select {
+		case early := <-done:
+			t.Fatalf("finalize finished before both waiters %#v", early)
+		case <-deadline:
+			t.Fatalf("waiters %d", desk.waitingCount())
+		default:
+			runtime.Gosched()
+		}
+	}
+	close(gate.release)
+	first, second := <-done, <-done
+	if cancel := <-cancelCode; cancel == 200 {
+		t.Fatalf("cancel won %d", cancel)
+	}
+	if first.code != 200 || second.code != 200 || gate.n != 1 || first.body["paperId"] != "rev_gate" || second.body["paperId"] != "rev_gate" {
+		t.Fatalf("imports %d %#v %#v", gate.n, first, second)
+	}
+	created := 0
+	if first.body["created"] == true {
+		created++
+	}
+	if second.body["created"] == true {
+		created++
+	}
+	if created != 1 {
+		t.Fatalf("created %#v %#v", first, second)
+	}
+	kept, _, _, ok := desk.Get("lab", "upload-1")
+	if !ok || len(kept) != 0 {
+		t.Fatalf("bytes %d", len(kept))
+	}
+}
+
+func TestFailedFinalizeRacingPutDoesNotLeakBytes(t *testing.T) {
+	body := bytes.Repeat([]byte("p"), 4096)
+	sum := sha256.Sum256(body)
+	digest := hex.EncodeToString(sum[:])
+	gate := &gateImport{fail: true, entered: make(chan struct{}), release: make(chan struct{})}
+	desk := newImportingDesk(gate)
+	desk.Register("lab", devicetransfer.Handle{ID: "handle-1", Provider: "browser", MediaType: "application/pdf", Size: uint64(len(body)), Name: "note.pdf"})
+	api := &API{files: desk}
+	if code, _ := postBytes(t, api, "lab", []string{"lab"}, "upload-1", "handle-1", body); code != 202 {
+		t.Fatal(code)
+	}
+	done := make(chan int, 3)
+	go func() {
+		code, _ := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", digest, uint64(len(body)))
+		done <- code
+	}()
+	select {
+	case <-gate.entered:
+	case code := <-done:
+		t.Fatalf("finalize finished before the importer %d", code)
+	case <-time.After(2 * time.Second):
+		t.Fatal("importer was not entered")
+	}
+	go func() {
+		code, _ := postBytes(t, api, "lab", []string{"lab"}, "upload-1", "handle-1", body)
+		done <- code
+	}()
+	go func() {
+		code, _ := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", digest, uint64(len(body)))
+		done <- code
+	}()
+	deadline := time.After(2 * time.Second)
+	for desk.waitingCount() < 2 {
+		select {
+		case code := <-done:
+			t.Fatalf("finished before both followers were waiting %d", code)
+		case <-deadline:
+			t.Fatalf("waiters %d", desk.waitingCount())
+		default:
+			runtime.Gosched()
+		}
+	}
+	close(gate.release)
+	for range 3 {
+		<-done
+	}
+	desk.mu.Lock()
+	slot := desk.uploads["lab"]["upload-1"]
+	projectBytes, globalBytes := desk.projectBytes["lab"], desk.globalBytes
+	var accounted uint64
+	if slot != nil {
+		accounted = slot.accounted
+	}
+	desk.mu.Unlock()
+	if slot == nil && (projectBytes != 0 || globalBytes != 0) {
+		t.Fatalf("orphan bytes project %d global %d", projectBytes, globalBytes)
+	}
+	if slot != nil && (projectBytes != accounted || globalBytes != accounted) {
+		t.Fatalf("accounted %d project %d global %d", accounted, projectBytes, globalBytes)
+	}
+	if slot != nil {
+		postCancel(t, api, "lab", "upload-1")
+	}
+	desk.mu.Lock()
+	defer desk.mu.Unlock()
+	if desk.projectBytes["lab"] != 0 || desk.globalBytes != 0 {
+		t.Fatalf("left project %d global %d", desk.projectBytes["lab"], desk.globalBytes)
+	}
+}
+
+func TestUploadCapAndExpiry(t *testing.T) {
+	importer := &countingImport{id: "rev_cap", revision: "abc"}
+	desk := newImportingDesk(importer)
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	current := base
+	desk.now = func() time.Time { return current }
+	handle := devicetransfer.Handle{ID: "handle-1", Provider: "browser", MediaType: "application/pdf", Size: uint64(len(samplePDF)), Name: "note.pdf"}
+	if code := desk.Register("lab", handle); code != "" {
+		t.Fatal(code)
+	}
+	for i := 0; i < maxHandlesPerProject; i++ {
+		if code := desk.Register("handles", devicetransfer.Handle{ID: string(rune('a' + i)), Provider: "browser", MediaType: "application/pdf", Size: 1, Name: "n"}); code != "" {
+			t.Fatal(code)
+		}
+	}
+	if code := desk.Register("handles", devicetransfer.Handle{ID: "overflow", Provider: "browser", MediaType: "application/pdf", Size: 1, Name: "n"}); code != devicetransfer.OverLimit {
+		t.Fatalf("handles %s", code)
+	}
+	api := &API{files: desk}
+	for i := 0; i < maxUploadsPerProject; i++ {
+		code, _ := postBytes(t, api, "lab", []string{"lab"}, string(rune('a'+i)), "handle-1", samplePDF)
+		if code != 202 {
+			t.Fatalf("upload %d %d", i, code)
+		}
+	}
+	code, payload := postBytes(t, api, "lab", []string{"lab"}, "extra", "handle-1", samplePDF)
+	if code != 413 || payload["error"] != devicetransfer.OverLimit {
+		t.Fatalf("cap %d %#v", code, payload)
+	}
+	current = base.Add(uploadTTL + time.Second)
+	if _, known, _ := desk.Lookup("lab", "handle-1"); known {
+		t.Fatal("handle lived past the ttl")
+	}
+	if code := desk.Register("lab", handle); code != "" {
+		t.Fatal(code)
+	}
+	code, _ = postBytes(t, api, "lab", []string{"lab"}, "later", "handle-1", samplePDF)
+	if code != 202 {
+		t.Fatalf("expired %d", code)
+	}
 }
 
 func postCancel(t *testing.T, api *API, project, upload string) {

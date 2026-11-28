@@ -39,19 +39,26 @@ test('version negotiation fails closed before a transport call', () => {
 
 test('local-only operations are not remote grants', () => {
   const local = new Set();
+  const dotted = new Set();
   for (const family of inventory.families) {
     for (const operation of family.operations ?? []) {
       if (operation.exposure === 'local_only' || operation.exposure === 'privileged') {
-        local.add(`${family.id}/${operation.name}`);
+        const slash = `${family.id}/${operation.name}`;
+        local.add(slash);
+        dotted.add(slash.replace('/', '.'));
       }
     }
   }
   for (const name of corpus.notRemote) {
     assert.equal(local.has(name), true, name);
     assert.equal(corpus.remoteAllow.includes(name), false, name);
+    assert.equal(corpus.remoteAllow.includes(name.replace('/', '.')), false, name);
   }
+  assert.equal(dotted.has('agent.start'), true);
+  assert.equal(corpus.remoteAllow.includes('paper.read'), true);
   for (const grant of corpus.remoteAllow) {
-    assert.equal(local.has(grant), false, grant);
+    assert.equal(dotted.has(grant), false, grant);
+    assert.equal(local.has(grant.replaceAll('.', '/')), false, grant);
   }
   const clients = readFileSync(new URL('server/internal/httpapi/clients.go', root), 'utf8');
   assert.match(clients, /app-resources\/paper/);
