@@ -19,6 +19,7 @@ export {
 } from './capability-client.mjs';
 export { readPaperResource } from './resource-read.mjs';
 export { observeRun } from './run-lifecycle.mjs';
+export { createBrowserFileProvider, createDesktopFileProvider, interpretDevicePick, planDeviceTransfer } from './device-files.mjs';
 import { mountAppConversation } from './chat-slot';
 import { AppApiProvider } from './host';
 import { subscribeAppEvent, navigateApp, notifyApp, setAppBadge, launchAppChat, callAppHost } from './iframe-host';

@@ -12,6 +12,7 @@ go_library(
         "runtime_channel.go",
         "contributions.go",
         "github.go",
+        "device_transfer.go",
         "resource_read.go",
         "run_observe.go",
         "routes.go",
@@ -32,6 +33,7 @@ go_library(
         "//server/internal/sandbox",
         "//server/internal/runtimebinding",
         "//server/internal/artifacts",
+        "//server/internal/devicetransfer",
         "//server/internal/resourceref",
         "//server/internal/runlifecycle",
         "//server/internal/runtimeauth",
@@ -48,6 +50,16 @@ go_test(
     embed = [":httpapi"],
     deps = [
         "//server/internal/runlifecycle",
+        "//server/internal/store",
+    ],
+)
+
+go_test(
+    name = "httpapi_device_test",
+    srcs = ["device_transfer_test.go"],
+    embed = [":httpapi"],
+    deps = [
+        "//server/internal/devicetransfer",
         "//server/internal/store",
     ],
 )

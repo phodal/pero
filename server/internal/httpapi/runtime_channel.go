@@ -17,7 +17,7 @@ import (
 // HandlerWithIsolatedRuntime keeps streaming transports outside the ordinary
 // 10-second JSON middleware. Each transport owns its own narrow auth and limits.
 func HandlerWithIsolatedRuntime(db *store.Store, token string, runtime *sandbox.Runtime, gateway *runtimegateway.Gateway, reviewer *runtimeauth.Reviewer, objects ArtifactObjectStore, services ...*gh.Service) http.Handler {
-	ordinary := configuredHandler(db, token, runtime, objects, gateway, nil, nil, services...)
+	ordinary := configuredHandler(db, token, runtime, objects, gateway, nil, nil, nil, services...)
 	return isolatedTransports(db, ordinary, reviewer, objects)
 }
 
