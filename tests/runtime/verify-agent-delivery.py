@@ -78,7 +78,8 @@ def check_inbox(worktree, scratch):
         assert request(origin, "/tasks?view=all", 200)["tasks"] == [archived, new]
         for route in ("/tasks?view=bad", "/tasks?view=", "/tasks?view=active&view=active"):
             request(origin, route, 400)
-        for route in ("/tasks/999/archive", "/tasks/999/restore", "/tasks/no/archive", "/tasks/0/restore"):
+        for route in ("/tasks/999/archive", "/tasks/999/restore", "/tasks/no/archive", "/tasks/0/restore",
+                      "/tasks/9223372036854775808/archive"):
             request(origin, route, 404, method="POST")
     with inbox(worktree, dbfile) as origin:
         assert request(origin, "/tasks?view=archived", 200)["tasks"] == [archived]
