@@ -190,6 +190,16 @@ loopback model requests.
 
 The follow-ups below the original issue (model-context updates, Task/Run/Artifact,
 author tools, panel/fullscreen, distribution) are still not closing conditions.
+
+## 2026-11-28 Linux conversation gate
+
+The default-branch run and PR #264 both failed while sending the Notebook
+follow-up after returning the Inspector inline. The PR failure capture shows
+the attached reference still in the draft and the model fixture had only two
+requests. The test now waits for the Composer to be reachable and focused,
+then verifies that the question entered the draft before submitting it.
+The fixture still checks that one follow-up reaches the model with the pinned
+Notebook context.
 This record stays open with GitHub #218.
 
 ## 2026-11-13 implementation and CI receipt follow-up

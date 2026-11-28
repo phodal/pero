@@ -189,10 +189,25 @@ try {
   await expect(outer).toHaveAttribute('data-retained', 'yes');
   await expect(app.locator('body')).toHaveAttribute('data-retained', 'yes');
   assert.equal(await writes(), 3, 'changing the Inspector placement called Notebook');
-  const composer = (await state()).composerBounds.input;
-  await page.mouse.click(composer.x + composer.width - 15, composer.y + composer.height / 2);
+  // The inline iframe moves when the Inspector returns to the conversation.
+  // Wait until the painted Composer is outside that iframe before typing.
+  let input;
+  await expect.poll(async () => {
+    const bounds = (await state()).composerBounds.input;
+    if (!bounds?.width || !bounds.height) return false;
+    const point = {x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2};
+    const reachable = await page.evaluate(({x, y}) => {
+      const target = document.elementFromPoint(x, y);
+      return !!target && target.tagName !== 'IFRAME';
+    }, point);
+    if (reachable) input = point;
+    return reachable;
+  }).toBe(true);
+  await page.mouse.click(input.x, input.y);
+  await expect.poll(async () => (await state()).composerFocused).toBe(true);
   await page.keyboard.press('End');
-  await page.keyboard.insertText(notebookContextPrompt);
+  await page.keyboard.insertText(' ' + notebookContextPrompt);
+  await expect.poll(async () => (await state()).composer).toContain(notebookContextPrompt);
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await conversation()).messages.some(message => message.text.includes(notebookContextAnswer)), {timeout: 30000}).toBe(true);
   await inline.getByRole('button', {name: 'Close view', exact: true}).click();
