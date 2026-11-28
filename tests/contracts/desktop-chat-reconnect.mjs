@@ -87,34 +87,47 @@ async function desktopReconnect(inherited, originalId) {
     args: [...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []), join(root, 'desktop')],
     cwd: root, env,
   });
+  const out = join(root, 'test-results/desktop-chat-reconnect');
+  let page, snapshot, phase = 'open saved conversation';
+  const captured = [];
   try {
-    const page = await app.firstWindow();
-    const captured = [];
+    await mkdir(out, {recursive: true});
+    page = await app.firstWindow();
     page.on('pageerror', error => captured.push(error.message));
     await page.waitForFunction(() => !document.getElementById('loading') && window.peroDiagnostics);
-    const snapshot = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
+    snapshot = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
     const chat = async () => (await snapshot()).chats.find(row => row.id === thread);
+    const frame = () => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
     const click = async locate => {
+      await frame();
       let bounds;
       await expect.poll(async () => {
         bounds = locate(await snapshot());
-        return !!bounds && bounds.width > 0 && bounds.height > 0;
+        return !!bounds && [bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)
+          && bounds.width > 0 && bounds.height > 0;
       }, {timeout: 30_000}).toBe(true);
       await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
     };
     await click(state => state.sidebarButtonBounds?.sessions);
     await click(state => state.sessionRowBounds?.[thread]);
+    await expect.poll(async () => (await snapshot()).activeContent, {timeout: 30_000})
+      .toEqual({kind: 'conversation', value: thread});
     await expect.poll(async () => (await chat())?.messages.map(message => message.text), {timeout: 30_000})
       .toEqual([knownPrompt, 'Answer 1.']);
+    await expect.poll(async () => (await chat())?.state).toBe('closed');
+    assert.equal((await chat()).session_id, originalId);
+    assert.deepEqual(calls.map(call => call.model), [modelB]);
+
+    phase = 'type into closed conversation';
     await click(state => state.composerBounds?.input);
-    const cdp = await page.context().newCDPSession(page);
-    await cdp.send('Input.insertText', {text: nextPrompt});
-    await cdp.detach();
+    await expect.poll(async () => (await snapshot()).composerFocused).toBe(true);
+    // Exercise the same keyboard path as a user typing an ASCII draft. A bulk
+    // CDP IME commit is not required for this reconnect contract.
+    await page.keyboard.type(nextPrompt);
     await expect.poll(async () => (await snapshot()).composer).toBe(nextPrompt);
-    const out = join(root, 'test-results/desktop-chat-reconnect');
-    await mkdir(out, {recursive: true});
     await page.screenshot({path: join(out, 'closed-with-draft.png')});
 
+    phase = 'click Reconnect without submitting draft';
     await click(state => state.retryButtonBounds);
     await expect.poll(async () => (await chat())?.state, {timeout: 30_000}).toBe('idle');
     assert.equal((await chat()).session_id, originalId);
@@ -123,12 +136,27 @@ async function desktopReconnect(inherited, originalId) {
     assert.deepEqual(calls.map(call => call.model), [modelB]);
     await page.screenshot({path: join(out, 'reconnected.png')});
 
+    phase = 'send explicit follow-up';
     await click(state => state.composerBounds?.input);
+    await expect.poll(async () => (await snapshot()).composerFocused).toBe(true);
     await page.keyboard.press('Enter');
     await expect.poll(async () => (await chat())?.messages.map(message => message.text), {timeout: 30_000})
       .toEqual([knownPrompt, 'Answer 1.', nextPrompt, 'Answer 2.']);
     assert.deepEqual(calls.map(call => call.model), [modelB, modelB]);
     assert.deepEqual(captured, []);
+  } catch (error) {
+    const state = await snapshot?.().catch(() => null);
+    await Promise.allSettled([
+      writeFile(join(out, 'failure.json'), JSON.stringify({
+        phase, activeContent: state?.activeContent, activeChat: state?.activeChat,
+        state: state?.chats.find(row => row.id === thread)?.state,
+        composerFocused: state?.composerFocused, composerLength: state?.composer.length,
+        inputBounds: state?.composerBounds?.input, reconnectBounds: state?.retryButtonBounds,
+        modelCalls: calls.map(call => call.model), rendererErrors: captured, error: error.message,
+      }, null, 2)),
+      page?.screenshot({path: join(out, 'failure.png'), timeout: 5_000}),
+    ]);
+    throw error;
   } finally { await app.close(); }
 }
 
