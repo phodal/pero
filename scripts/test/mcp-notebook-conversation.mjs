@@ -306,6 +306,7 @@ try {
     composerFocused: JSON.parse(window.peroDiagnostics?.snapshot() || '{}').composerFocused,
     activeElement: document.activeElement?.tagName,
     inputConduit: document.activeElement?.getAttribute('data-gpui-input'),
+    title: document.activeElement?.getAttribute?.('title') ?? null,
   })).catch(() => null);
   await writeFile(join(evidence, 'failure-log.json'), JSON.stringify({
     error: String(error), modelRequests: provider.calls.length, providerErrors: provider.errors, errors, logs, seedError, focus,

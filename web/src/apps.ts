@@ -303,14 +303,27 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   };
   window.addEventListener('blur',()=>queueMicrotask(focus));
   window.addEventListener('focus',focus);
-  // GPUI can paint a composer caret from its own hit test while a retained App
-  // or MCP iframe still owns DOM focus, so the next keys never reach the canvas.
+  // GPUI reports composer focus from its own hit test. A retained cross-origin
+  // tool iframe takes document.activeElement after pointerup, so keys miss
+  // the canvas input. Reclaim that input across the frames that follow.
+  const reclaimCanvasInput = (target: HTMLCanvasElement) => {
+    let frames = 0;
+    const focusInput = () => {
+      const input = document.querySelector<HTMLElement>('[data-gpui-input]');
+      if (!input || document.activeElement?.tagName === 'IFRAME' || document.activeElement === target) {
+        (input ?? target).focus({ preventScroll: true });
+      }
+      if (frames++ < 6) requestAnimationFrame(focusInput);
+    };
+    focusInput();
+  };
+  const paintCanvas = (target: EventTarget | null): target is HTMLCanvasElement =>
+    target instanceof HTMLCanvasElement && !target.hasAttribute('data-gpui-input');
   document.addEventListener('pointerdown', event => {
-    const target = event.target;
-    if (!(target instanceof HTMLCanvasElement) || target.hasAttribute('data-gpui-input')) return;
-    if (document.activeElement?.tagName !== 'IFRAME') return;
-    const input = document.querySelector<HTMLElement>('[data-gpui-input]');
-    (input ?? target).focus({ preventScroll: true });
+    if (paintCanvas(event.target)) reclaimCanvasInput(event.target);
+  }, true);
+  document.addEventListener('pointerup', event => {
+    if (paintCanvas(event.target)) reclaimCanvasInput(event.target);
   }, true);
   window.addEventListener('message', event => {
     const frame = [...frames.values()].find(frame => frame.element.contentWindow === event.source);
