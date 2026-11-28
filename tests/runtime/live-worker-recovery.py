@@ -138,7 +138,11 @@ class ProviderProxy(Proxy):
                 if first and which != 'CASE_CODE_PLAN':
                     ready, release = cases[which]
                     ready.set()
-                    if not release.wait(40):
+                    # Held until release.set. The bound is the sum of the waits that
+                    # run first: ACP session 12s, process stop 8s, replacement
+                    # readiness 25s, and progress 35s. Partition's 65s reconcile
+                    # wait is inside that sum. Cleanup also sets release.
+                    if not release.wait(12 + 8 + 25 + 35):
                         return
                 self.relay(response.status,response.headers.get('Content-Type','text/event-stream'),response.read())
         except OSError:
@@ -265,8 +269,13 @@ os.execve(str(root/'pero-worker'),[str(root/'pero-worker')],env)
     remote_sha = subprocess.check_output([*ssh,host,f"/usr/bin/shasum -a 256 {remote}/pero-worker"],text=True,timeout=12).split()[0]
     assert remote_sha == hashlib.sha256(args.worker.read_bytes()).hexdigest(), "Workers must use the same build"
     receipt["worker_sha256"] = remote_sha
+    source_root = Path(__file__).resolve().parents[2]
+    dirty = subprocess.check_output(
+        ["git","-C",str(source_root),"status","--porcelain","--untracked-files=all"],text=True)
+    if dirty.strip():
+        raise SystemExit("source checkout is not clean; refusing to record source_revision")
     receipt["source_revision"] = subprocess.check_output(
-        ["git","-C",str(Path(__file__).resolve().parents[2]),"rev-parse","HEAD"],text=True).strip()
+        ["git","-C",str(source_root),"rev-parse","HEAD"],text=True).strip()
     receipt["mbp_versions"] = versions
     receipt['mbp']={'hostname':mbp_identity[0],'hardware':mbp_identity[1],
                     'endpoint':'isolated reverse SSH loopback'}
