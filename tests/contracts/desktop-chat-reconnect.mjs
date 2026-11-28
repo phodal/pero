@@ -90,11 +90,33 @@ async function desktopReconnect(inherited, originalId) {
   const out = join(root, 'test-results/desktop-chat-reconnect');
   let page, snapshot, phase = 'open saved conversation';
   const captured = [];
+  const replayReceipts = [];
+  let stopObserving;
   try {
     await mkdir(out, {recursive: true});
     page = await app.firstWindow();
     page.on('pageerror', error => captured.push(error.message));
     await page.waitForFunction(() => !document.getElementById('loading') && window.peroDiagnostics);
+    // Observe receipts without replacing the real renderer's IPC subscription.
+    // Record only eligibility metadata, never the saved transcript or paths.
+    await page.exposeFunction('captureReconnectHistory', receipt => replayReceipts.push(receipt));
+    await page.evaluate(id => {
+      window.removeReconnectHistoryObserver = window.pero.onEvent(event => {
+        if (event.kind !== 'thread_history' || event.thread_id !== id) return;
+        const created = event.data.events.findLast(row => row.kind === 'session_created');
+        const ready = event.data.events.findLast(row => row.kind === 'session_ready');
+        void window.captureReconnectHistory({
+          hasCreated: !!created,
+          hasAgent: !!created?.data.agent,
+          hasWorkspace: !!created?.data.workspace,
+          scopeKeys: ['scope', 'projectAgent', 'appBinding', 'appPlugin', 'agentPlugins', 'skillSelections', 'automation']
+            .filter(key => created?.data[key] != null),
+          quietLoadSupported: ready?.data.peroQuietLoad ?? null,
+          hasSessionId: !!ready?.data.sessionId,
+        });
+      });
+    }, thread);
+    stopObserving = () => page.evaluate(() => window.removeReconnectHistoryObserver?.());
     snapshot = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
     const chat = async () => (await snapshot()).chats.find(row => row.id === thread);
     const frame = () => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
@@ -152,12 +174,16 @@ async function desktopReconnect(inherited, originalId) {
         state: state?.chats.find(row => row.id === thread)?.state,
         composerFocused: state?.composerFocused, composerLength: state?.composer.length,
         inputBounds: state?.composerBounds?.input, reconnectBounds: state?.retryButtonBounds,
-        modelCalls: calls.map(call => call.model), rendererErrors: captured, error: error.message,
+        reconnectEligibility: state?.reconnectEligibility ?? null,
+        replayReceipts, modelCalls: calls.map(call => call.model), rendererErrors: captured, error: error.message,
       }, null, 2)),
       page?.screenshot({path: join(out, 'failure.png'), timeout: 5_000}),
     ]);
     throw error;
-  } finally { await app.close(); }
+  } finally {
+    await stopObserving?.().catch(() => {});
+    await app.close();
+  }
 }
 
 const modelOf = data => data.configOptions?.find(option => option.id === 'model')?.currentValue ?? data.models?.currentModelId;
