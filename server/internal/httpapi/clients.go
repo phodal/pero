@@ -33,6 +33,7 @@ func (a *API) registerClients(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/client/v1/tasks/{id}/dispatch", a.clientDispatch)
 	mux.HandleFunc("POST /api/client/v1/tasks/{id}/cancel", a.clientCancel)
 	mux.HandleFunc("POST /api/client/v1/projects/{project}/app-resources/paper", a.readPaperResource)
+	mux.HandleFunc("POST /api/client/v1/projects/{project}/runs/observe", a.observeRun)
 }
 
 func (a *API) clientWorkers(w http.ResponseWriter, r *http.Request) {

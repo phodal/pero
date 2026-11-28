@@ -13,6 +13,7 @@ go_library(
         "contributions.go",
         "github.go",
         "resource_read.go",
+        "run_observe.go",
         "routes.go",
         "run_desktop.go",
         "run_operations.go",
@@ -32,11 +33,22 @@ go_library(
         "//server/internal/runtimebinding",
         "//server/internal/artifacts",
         "//server/internal/resourceref",
+        "//server/internal/runlifecycle",
         "//server/internal/runtimeauth",
         "//server/internal/runtimechannel",
         "//server/internal/environments/model",
         "//server/internal/runtimegateway",
         "@com_github_jackc_pgx_v5//pgconn",
+    ],
+)
+
+go_test(
+    name = "httpapi_run_test",
+    srcs = ["run_observe_test.go"],
+    embed = [":httpapi"],
+    deps = [
+        "//server/internal/runlifecycle",
+        "//server/internal/store",
     ],
 )
 
@@ -67,6 +79,7 @@ go_test(
         "desktop_connector_test.go",
         "github_test.go",
         "integration_test.go",
+        "run_observe_store_test.go",
         "runtime_browser_test.go",
     ],
     env = {"PERO_REQUIRE_TEST_DATABASE": "1"},

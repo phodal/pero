@@ -17,6 +17,15 @@ func (s *Store) ClientRun(ctx context.Context, client *Client, ref RunRef) (*Run
 	return readRun(s.pool.QueryRow(ctx, exactClientRun, ref.RunID, ref.TaskID, ref.Generation, client.Projects))
 }
 
+// ClientProjectRun reads one Run only when its persisted project is the URL project
+// and that project is in the caller credential. The run id alone is not a grant.
+func (s *Store) ClientProjectRun(ctx context.Context, client *Client, project, runID string) (*Run, error) {
+	const query = `SELECT ` + runColumns + ` FROM runs
+		WHERE id=$1 AND spec->>'project_id'=$2 AND spec->>'project_id'=ANY($3)
+		AND EXISTS (SELECT 1 FROM tasks WHERE tasks.id=runs.task_id AND tasks.spec->>'project_id'=$2 AND tasks.spec->>'project_id'=ANY($3))`
+	return readRun(s.pool.QueryRow(ctx, query, runID, project, client.Projects))
+}
+
 const exactClientRun = `SELECT ` + runColumns + ` FROM runs
 	WHERE id=$1 AND task_id=$2 AND generation=$3 AND spec->>'project_id'=ANY($4)
 	AND EXISTS (SELECT 1 FROM tasks WHERE tasks.id=$2 AND tasks.spec->>'project_id'=ANY($4))`

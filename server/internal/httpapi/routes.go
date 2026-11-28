@@ -17,6 +17,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	gh "github.com/phodal/pero/server/internal/github"
+	"github.com/phodal/pero/server/internal/runlifecycle"
 	"github.com/phodal/pero/server/internal/runtimeauth"
 	"github.com/phodal/pero/server/internal/runtimegateway"
 	"github.com/phodal/pero/server/internal/sandbox"
@@ -32,6 +33,7 @@ type API struct {
 	runDesktops  runDesktopBroker
 	campaigns    *ResearchCampaigns
 	paper        PaperDomain
+	runs         RunSource
 }
 type contextKey struct{}
 
@@ -66,7 +68,7 @@ func handler(db *store.Store, operatorToken string, runtime *sandbox.Runtime, ar
 	return configuredHandler(db, operatorToken, runtime, artifactReader, nil, nil, nil, services...)
 }
 func configuredHandler(db *store.Store, operatorToken string, runtime *sandbox.Runtime, artifactReader ArtifactReader, gateway *runtimegateway.Gateway, campaigns *ResearchCampaigns, paper PaperDomain, services ...*gh.Service) http.Handler {
-	a := &API{db: db, operatorHash: sha256.Sum256([]byte(operatorToken)), sandbox: runtime, gateway: gateway, campaigns: campaigns, paper: paper}
+	a := &API{db: db, operatorHash: sha256.Sum256([]byte(operatorToken)), sandbox: runtime, gateway: gateway, campaigns: campaigns, paper: paper, runs: &persistedRuns{db: db, ledger: map[string][]runlifecycle.Receipt{}}}
 	if len(services) > 0 {
 		a.github = services[0]
 	}
