@@ -303,6 +303,15 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   };
   window.addEventListener('blur',()=>queueMicrotask(focus));
   window.addEventListener('focus',focus);
+  // GPUI can paint a composer caret from its own hit test while a retained App
+  // or MCP iframe still owns DOM focus, so the next keys never reach the canvas.
+  document.addEventListener('pointerdown', event => {
+    const target = event.target;
+    if (!(target instanceof HTMLCanvasElement) || target.hasAttribute('data-gpui-input')) return;
+    if (document.activeElement?.tagName !== 'IFRAME') return;
+    const input = document.querySelector<HTMLElement>('[data-gpui-input]');
+    (input ?? target).focus({ preventScroll: true });
+  }, true);
   window.addEventListener('message', event => {
     const frame = [...frames.values()].find(frame => frame.element.contentWindow === event.source);
     if (!frame) return;

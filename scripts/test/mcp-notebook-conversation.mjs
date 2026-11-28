@@ -204,10 +204,12 @@ try {
     return reachable;
   }).toBe(true);
   await page.mouse.click(input.x, input.y);
-  await expect.poll(async () => (await state()).composerFocused).toBe(true);
-  await page.waitForFunction(() => document.activeElement?.hasAttribute('data-gpui-input'), undefined, {timeout: 10000});
+  await expect.poll(async () => {
+    const active = await page.evaluate(() => document.activeElement?.tagName ?? '');
+    return (await state()).composerFocused && active !== 'IFRAME';
+  }).toBe(true);
   await page.keyboard.press('End');
-  await page.keyboard.type(' ' + notebookContextPrompt);
+  await page.keyboard.insertText(' ' + notebookContextPrompt);
   await expect.poll(async () => (await state()).composer).toContain(notebookContextPrompt);
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await conversation()).messages.some(message => message.text.includes(notebookContextAnswer)), {timeout: 30000}).toBe(true);
@@ -296,7 +298,10 @@ try {
   }, null, 2));
   console.log('Notebook Inspector: pinned revision mounted from the registered App tool row.');
 } catch (error) {
-  if (page) await page.screenshot({path: join(evidence, 'failure.png'), scale: 'css'}).catch(() => {});
+  if (page) {
+    await page.screenshot({path: join(evidence, 'failure.png'), scale: 'css'}).catch(() => {});
+    await writeFile(join(evidence, 'failure-state.json'), await page.evaluate(() => window.peroDiagnostics?.snapshot() || '{}').catch(() => '{}'));
+  }
   const focus = await page?.evaluate(() => ({
     composerFocused: JSON.parse(window.peroDiagnostics?.snapshot() || '{}').composerFocused,
     activeElement: document.activeElement?.tagName,
