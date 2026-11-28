@@ -53,11 +53,19 @@ impl Drop for StateLock {
 }
 
 impl Journal {
-    // A terminal Cloud Run cannot accept late events. Keep their original local
-    // evidence before clearing intake state; this receipt never authorizes replay.
-    pub fn retain_unuploaded(&self) -> Result<(), String> {
+    // Keep unacknowledged events and the local record needed to review uncertain
+    // execution even when Cloud already received every event.
+    pub fn retain_for_review(&self, cloud_requires_review: bool) -> Result<(), String> {
         let Some(active) = &self.state.active else { return Ok(()) };
-        if active.events.last().is_none_or(|event| event.seq <= active.acknowledged) {
+        let all_acknowledged = active
+            .events
+            .last()
+            .is_none_or(|event| event.seq <= active.acknowledged);
+        let local_requires_review = active
+            .result
+            .as_ref()
+            .is_some_and(|result| result.outcome == "reconcile" || result.needs_attention);
+        if !cloud_requires_review && !local_requires_review && all_acknowledged {
             return Ok(());
         }
         let directory = self.path.with_extension("retained");
