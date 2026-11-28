@@ -1,6 +1,6 @@
 # Optional in-process delegation
 
-`--enable-subagents` installs `spawn_agent`, `fork_agent`, `wait_agent` and `list_agents`. Default: disabled. `--max-active-subagents=4` bounds active children per live root (accepted range 1–32). Delegation depth is one; child tools cannot create grandchildren.
+`--enable-subagents` installs `spawn_agent`, `fork_agent`, `wait_agent` and `list_agents`. Default: disabled. `--max-active-subagents=4` bounds active children per live root (accepted range 1–32). These one-shot tools have a depth limit of one.
 
 Both delegation tools accept only `description` and `prompt`. They wait for a child result, then return it to the parent; cancelling the parent tool requests native child disposal. No independent background scheduler or model-selectable child configuration is exposed. Fork seeds only completed parent turns, excluding the currently running parent turn.
 
@@ -8,7 +8,7 @@ Children use the same adapter, process request cap, selected model route and val
 
 **Children are restrictive:** approval is pinned to `never`, so operations requiring approval are rejected even if the parent can request permission. This is not a promise of autonomous child coding. Children inherit operator-granted MCP capabilities visible in the parent scope. MCP tools that do not require approval can execute, including tools with side effects; `never` is not a read-only guarantee. Child tool restrictions and parent-scope lifetime still apply, and delegation grants no capabilities beyond that inherited scope.
 
-Existing AgentManager/SessionStore own identities and cleanup; native activation capacity, retirement and drain receipts own lifecycle. There are no external child processes, cold continuation provider, or distributed Projects/jobs/scheduler/plugin-host features. The trusted Go API exposes native activation handles for host-owned waiting/disposal, not model authority.
+Existing AgentManager/SessionStore own identities and cleanup; native activation capacity, retirement and drain receipts own lifecycle. This mode does not mount external child processes, a continuable provider, or a distributed scheduler. The trusted Go API exposes native activation handles for host-owned waiting/disposal, not model authority.
 
 `wait_agent` observes only the caller's next-step input (including steering
 and active-turn notices); it does not claim input or wait for a child to
@@ -34,3 +34,17 @@ after settlement and restart. This changes neither existing single-use
 `spawn_agent` / `fork_agent` nor Team owner selectors. The read-only `list_agents` tool shows the root,
 continuable members and branch diagnostics; it does not make a child
 continuable or authorize a later action.
+
+## Optional DSH continuations
+
+Pass `--enable-dsh-continuations` alongside `--enable-subagents` in ACP mode.
+This adds `subagent` and `subagent_fork` with `description`, `prompt` and
+optional sibling `name`. They return Session and initial message IDs without
+awaiting the child. The root prompt stays open until the progressing tree
+settles and any final root turn caused by a child notice has reached the ACP
+client. Unrelated roots and parked, non-progressing input do not block it.
+The continuable depth limit is two; the existing one-shot tools keep their
+limits and permissions. A managed native child keeps its journal and can
+resume through the existing exact-parent service when the saved route and
+current parent policy still agree. Cross-level cold resume and model-facing
+message/interrupt tools are not part of this switch.

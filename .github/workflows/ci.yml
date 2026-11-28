@@ -285,6 +285,10 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         timeout-minutes: 2
         run: node tests/contracts/dsh-goal-delegation.mjs "$PWD/harness/go/pero-agent-acp"
+      - name: Verify asynchronous DSH subagents through real ACP processes
+        if: matrix.os == 'ubuntu-latest'
+        timeout-minutes: 2
+        run: node tests/contracts/dsh-native-continuations.mjs "$PWD/harness/go/pero-agent-acp"
       - name: Compare published DSH alpha.2 and the built ACP agent
         if: matrix.os == 'ubuntu-latest' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full'))
         timeout-minutes: 6
