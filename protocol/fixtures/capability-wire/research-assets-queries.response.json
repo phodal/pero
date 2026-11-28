@@ -32,7 +32,8 @@
     "missing": "exclude null n",
     "seedPolicy": "not applicable",
     "reviewer": "local reviewer",
-    "reviewed": true
+    "reviewed": true,
+    "check": null
   },
   "acceptance": "needs_review"
 }
