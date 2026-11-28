@@ -171,7 +171,28 @@ def control_proxy(stack, origin, partition):
         do_POST=do_GET=send
     return f'http://127.0.0.1:{listen(stack, Link)}'
 
+def require_clean_source():
+    root = Path(__file__).resolve().parents[2]
+    dirty = subprocess.check_output(
+        ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=all"], text=True)
+    if dirty.strip():
+        raise SystemExit("source checkout is not clean; refusing to record source_revision")
+    output = args.output.resolve()
+    inside = False
+    try:
+        output.relative_to(root)
+        inside = True
+    except ValueError:
+        inside = False
+    if inside and subprocess.run(
+        ["git", "-C", str(root), "check-ignore", "-q", "--", str(output)], check=False
+    ).returncode != 0:
+        raise SystemExit("receipt output must be outside the source checkout or ignored by git")
+    receipt["source_revision"] = subprocess.check_output(
+        ["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+
 def probe():
+    require_clean_source()
     model_url=f'http://127.0.0.1:{listen(stack, ProviderProxy)}/v1'
     for _, release in cases.values():
         stack.callback(release.set)
@@ -269,13 +290,6 @@ os.execve(str(root/'pero-worker'),[str(root/'pero-worker')],env)
     remote_sha = subprocess.check_output([*ssh,host,f"/usr/bin/shasum -a 256 {remote}/pero-worker"],text=True,timeout=12).split()[0]
     assert remote_sha == hashlib.sha256(args.worker.read_bytes()).hexdigest(), "Workers must use the same build"
     receipt["worker_sha256"] = remote_sha
-    source_root = Path(__file__).resolve().parents[2]
-    dirty = subprocess.check_output(
-        ["git","-C",str(source_root),"status","--porcelain","--untracked-files=all"],text=True)
-    if dirty.strip():
-        raise SystemExit("source checkout is not clean; refusing to record source_revision")
-    receipt["source_revision"] = subprocess.check_output(
-        ["git","-C",str(source_root),"rev-parse","HEAD"],text=True).strip()
     receipt["mbp_versions"] = versions
     receipt['mbp']={'hostname':mbp_identity[0],'hardware':mbp_identity[1],
                     'endpoint':'isolated reverse SSH loopback'}

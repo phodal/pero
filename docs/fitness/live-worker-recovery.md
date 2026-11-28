@@ -59,6 +59,12 @@ proposal, candidate patch and receipt remain available for inspection. The
 two-machine receipt from the previous head does not cover this admission rule
 and has to be run again on the current head before it counts as acceptance.
 
+Run the runner from a clean source checkout. `git status --porcelain
+--untracked-files=all` must be empty, including untracked files. Put `--output`
+outside that checkout, or on a path Git ignores, so the receipt itself does not
+dirty the tree. The runner checks both before it starts Workers or proxies and
+refuses to record `source_revision` otherwise.
+
 ```sh
 python3 tests/runtime/live-worker-recovery.py \
   --server "$PERO_SERVER_BIN" --orchestrator "$PERO_CAMPAIGN_BIN" \
