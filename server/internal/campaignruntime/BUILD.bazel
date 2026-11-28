@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "campaignruntime",
-    srcs = ["activities.go", "temporal.go", "workflow.go"],
+    srcs = ["activities.go", "review.go", "temporal.go", "workflow.go"],
     importpath = "github.com/phodal/pero/server/internal/campaignruntime",
     visibility = ["//server:__subpackages__"],
     deps = [
@@ -21,7 +21,8 @@ go_test(
     name = "campaignruntime_test",
     srcs = ["replay_test.go"],
     embed = [":campaignruntime"],
-    embedsrcs = ["testdata/cancel-in-flight-v1.json"],
+    embedsrcs = ["testdata/cancel-in-flight-v1.json", "testdata/reviewed-pybamm-v2.json"],
+    env_inherit = ["PERO_TEST_REVIEW_HISTORY"],
     deps = [
         "@io_temporal_go_api//history/v1:history",
         "@io_temporal_go_sdk//worker",

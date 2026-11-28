@@ -15,6 +15,7 @@ type PlanRef struct {
 	Project    string `json:"project_id"`
 	Digest     string `json:"plan_digest"`
 	TrialCount int    `json:"trial_count"`
+	Mode       string `json:"mode,omitempty"`
 }
 
 type Action string
@@ -84,12 +85,15 @@ const (
 )
 
 type Progress struct {
-	Plan            PlanRef `json:"plan"`
-	Phase           Phase   `json:"phase"`
-	Outcome         Outcome `json:"outcome,omitempty"`
-	Trials          []Trial `json:"trials"`
-	Current         int     `json:"current"`
-	CancelRequested bool    `json:"cancel_requested"`
+	Plan            PlanRef     `json:"plan"`
+	Phase           Phase       `json:"phase"`
+	Outcome         Outcome     `json:"outcome,omitempty"`
+	Trials          []Trial     `json:"trials"`
+	Current         int         `json:"current"`
+	CancelRequested bool        `json:"cancel_requested"`
+	Evidence        []Evidence  `json:"evidence,omitempty"`
+	Gate            *ReviewGate `json:"review_gate,omitempty"`
+	Decision        *Decision   `json:"decision,omitempty"`
 }
 
 func Start(plan PlanRef) Progress {
@@ -114,7 +118,7 @@ func (p Progress) Command() TrialCommand {
 func (p *Progress) RequestCancel() {
 	if p.Phase != Done {
 		p.CancelRequested = true
-		if p.Phase != PendingReconciliation {
+		if p.Phase != PendingReconciliation && p.Phase != AwaitingReview && p.Phase != Verifying {
 			p.Phase = Cancelling
 		}
 	}
@@ -133,6 +137,10 @@ func (p *Progress) Record(trial Trial) {
 			p.Phase = Cancelling
 		}
 	case Succeeded, Failed, Cancelled, Reconciled, Rejected:
+		if p.Plan.Mode == ReviewedPyBaMM && trial.Status == Succeeded && !p.CancelRequested {
+			p.Phase = Verifying
+			return
+		}
 		p.Current++
 		switch {
 		case p.CancelRequested:

@@ -33,5 +33,11 @@ func run() error {
 	defer c.Close()
 	w := worker.New(c, campaignruntime.TaskQueue, worker.Options{})
 	activities.Register(w)
+	review := worker.New(c, campaignruntime.ReviewTaskQueue, worker.Options{})
+	activities.Register(review)
+	if err := review.Start(); err != nil {
+		return err
+	}
+	defer review.Stop()
 	return w.Run(worker.InterruptCh())
 }

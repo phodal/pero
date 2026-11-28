@@ -96,6 +96,13 @@ func run() error {
 		}
 		defer temporalClient.Close()
 		options.Campaigns = &httpapi.ResearchCampaigns{Temporal: campaignruntime.Temporal{Client: temporalClient}, RunnerClientID: runner}
+		if root := os.Getenv("PERO_PYBAMM_METHOD_DIR"); root != "" {
+			verifier, err := httpapi.NewPyBaMMVerifier(os.Getenv("PERO_PYBAMM_CHECKER_PYTHON"), root)
+			if err != nil {
+				return err
+			}
+			options.Campaigns.Verifier = verifier
+		}
 	}
 	api := httpapi.ServerHandler(db, token, options)
 	handler, err := community.Handler(db, token, community.FromEnv(), api)

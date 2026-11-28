@@ -19,15 +19,17 @@ type CampaignRecord struct {
 	WorkflowRunID   string             `json:"workflow_run_id,omitempty"`
 	CancelRequested bool               `json:"cancel_requested"`
 	Result          *campaign.Progress `json:"result,omitempty"`
+	Decision        *campaign.Decision `json:"decision,omitempty"`
 	trials          []TrialInput
+	checkerDigest   string
 }
 
-const campaignColumns = `id,project_id,plan_digest,plan,COALESCE(workflow_run_id,''),cancel_requested,result`
+const campaignColumns = `id,project_id,plan_digest,plan,COALESCE(workflow_run_id,''),cancel_requested,result,mode,checker_digest,decision`
 
 func scanCampaign(row pgx.Row) (CampaignRecord, error) {
 	var c CampaignRecord
-	var plan, result []byte
-	if err := row.Scan(&c.Plan.ID, &c.Plan.Project, &c.Plan.Digest, &plan, &c.WorkflowRunID, &c.CancelRequested, &result); err != nil {
+	var plan, result, decision []byte
+	if err := row.Scan(&c.Plan.ID, &c.Plan.Project, &c.Plan.Digest, &plan, &c.WorkflowRunID, &c.CancelRequested, &result, &c.Plan.Mode, &c.checkerDigest, &decision); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return c, ErrNotFound
 		}
@@ -37,6 +39,11 @@ func scanCampaign(row pgx.Row) (CampaignRecord, error) {
 		return c, err
 	}
 	c.Plan.TrialCount = len(c.trials)
+	if decision != nil {
+		if err := json.Unmarshal(decision, &c.Decision); err != nil {
+			return c, err
+		}
+	}
 	if result != nil {
 		return c, json.Unmarshal(result, &c.Result)
 	}
@@ -44,17 +51,23 @@ func scanCampaign(row pgx.Row) (CampaignRecord, error) {
 }
 
 // AdmitCampaign freezes the plan before the caller attempts the Temporal RPC.
-func (s *Store) AdmitCampaign(ctx context.Context, caller *Client, project, request, runner string, trials []TrialInput) (CampaignRecord, error) {
+func (s *Store) AdmitCampaign(ctx context.Context, caller *Client, project, request, runner string, trials []TrialInput, mode, checker string) (CampaignRecord, error) {
 	if !slices.Contains(caller.Projects, project) {
 		return CampaignRecord{}, ErrNotFound
 	}
 	if len(trials) == 0 || len(trials) > campaign.MaxTrials {
 		return CampaignRecord{}, ErrCampaignInput
 	}
+	if mode != "" && (mode != campaign.ReviewedPyBaMM || len(trials) != 2 || checker == "") {
+		return CampaignRecord{}, ErrCampaignInput
+	}
 	for _, trial := range trials {
 		if trial.Task.ProjectID != project || trial.Task.validateManual() != nil ||
 			(trial.WorkerID != "" && strings.TrimSpace(trial.WorkerID) == "") ||
 			strings.ContainsRune(trial.WorkerID, 0) || utf8.RuneCountInString(trial.WorkerID) > 128 {
+			return CampaignRecord{}, ErrCampaignInput
+		}
+		if mode == campaign.ReviewedPyBaMM && (trial.Task.AgentID != "pybamm-sweep-v1" || trial.WorkerID == "") {
 			return CampaignRecord{}, ErrCampaignInput
 		}
 	}
@@ -66,9 +79,9 @@ func (s *Store) AdmitCampaign(ctx context.Context, caller *Client, project, requ
 	if err != nil {
 		return CampaignRecord{}, err
 	}
-	_, err = s.pool.Exec(ctx, `INSERT INTO research_campaigns(id,project_id,owner_id,request_id,runner_id,plan_digest,plan)
-		SELECT $1,$2,$3,$4,id,$6,$7 FROM clients WHERE id=$5 AND $2=ANY(projects)
-		ON CONFLICT (project_id,owner_id,request_id) DO NOTHING`, newID("campaign"), project, caller.ID, request, runner, digest, plan)
+	_, err = s.pool.Exec(ctx, `INSERT INTO research_campaigns(id,project_id,owner_id,request_id,runner_id,plan_digest,plan,mode,checker_digest)
+		SELECT $1,$2,$3,$4,id,$6,$7,$8,$9 FROM clients WHERE id=$5 AND $2=ANY(projects)
+		ON CONFLICT (project_id,owner_id,request_id) DO NOTHING`, newID("campaign"), project, caller.ID, request, runner, digest, plan, mode, checker)
 	if err != nil {
 		return CampaignRecord{}, err
 	}
@@ -76,7 +89,7 @@ func (s *Store) AdmitCampaign(ctx context.Context, caller *Client, project, requ
 	if errors.Is(err, ErrNotFound) {
 		return CampaignRecord{}, ErrForbidden
 	}
-	if err == nil && c.Plan.Digest != digest {
+	if err == nil && (c.Plan.Digest != digest || c.Plan.Mode != mode) {
 		return CampaignRecord{}, ErrConflict
 	}
 	return c, err
@@ -117,6 +130,10 @@ func (s *Store) CampaignTrial(ctx context.Context, runner *Client, cmd campaign.
 	}
 	if c.CancelRequested {
 		cmd.Action = campaign.Cancel
+	}
+	if c.Plan.Mode == campaign.ReviewedPyBaMM && cmd.Index == 1 && cmd.Action == campaign.Ensure &&
+		(c.Decision == nil || c.Decision.Choice != "approve") {
+		return observation, ErrConflict
 	}
 	op, err := runner.TrialOperation(c.Plan.Project, cmd.OperationID())
 	if err != nil {

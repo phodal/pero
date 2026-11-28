@@ -14,6 +14,7 @@ import (
 type ResearchCampaigns struct {
 	Temporal       campaignruntime.Temporal
 	RunnerClientID string
+	Verifier       *PyBaMMVerifier
 }
 
 type campaignView struct {
@@ -30,9 +31,13 @@ func (a *API) registerCampaigns(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+base, a.startCampaign)
 	mux.HandleFunc("GET "+base+"/{campaign}", a.readCampaign)
 	mux.HandleFunc("POST "+base+"/{campaign}/cancel", a.cancelCampaign)
+	mux.HandleFunc("POST "+base+"/{campaign}/review", a.reviewCampaign)
+	mux.HandleFunc("GET "+base+"/{campaign}/evidence/{index}", a.readCampaignEvidence)
 	const runner = "/api/client/v1/campaign-runtime/{campaign}"
 	mux.HandleFunc("POST "+runner+"/trials/{index}/{action}", a.campaignTrial)
 	mux.HandleFunc("PUT "+runner+"/result", a.campaignResult)
+	mux.HandleFunc("POST "+runner+"/verification/{index}", a.verifyCampaign)
+	mux.HandleFunc("PUT "+runner+"/decision", a.recordCampaignDecision)
 }
 
 func (a *API) startCampaign(w http.ResponseWriter, r *http.Request) {
@@ -44,12 +49,17 @@ func (a *API) startCampaign(w http.ResponseWriter, r *http.Request) {
 	}
 	var input struct {
 		Trials []store.TrialInput `json:"trials"`
+		Mode   string             `json:"mode,omitempty"`
 	}
 	if !decode(w, r, &input) {
 		return
 	}
 	ctx := r.Context()
-	record, err := a.db.AdmitCampaign(ctx, clientIdentity(r), project, request, a.campaigns.RunnerClientID, input.Trials)
+	var checker string
+	if a.campaigns.Verifier != nil && input.Mode == campaign.ReviewedPyBaMM {
+		checker = a.campaigns.Verifier.digest
+	}
+	record, err := a.db.AdmitCampaign(ctx, clientIdentity(r), project, request, a.campaigns.RunnerClientID, input.Trials, input.Mode, checker)
 	if err != nil {
 		failure(w, err)
 		return

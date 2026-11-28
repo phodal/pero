@@ -13,6 +13,7 @@ import (
 
 	"github.com/phodal/pero/server/internal/campaign"
 	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/worker"
 	"go.temporal.io/sdk/workflow"
 )
@@ -37,8 +38,41 @@ func NewActivities(base, token string) (Activities, error) {
 
 func (a Activities) Register(w worker.Worker) {
 	w.RegisterWorkflowWithOptions(Workflow, workflow.RegisterOptions{Name: WorkflowName})
+	w.RegisterWorkflowWithOptions(Workflow, workflow.RegisterOptions{Name: ReviewWorkflowName})
 	w.RegisterActivityWithOptions(a.Trial, activity.RegisterOptions{Name: trialActivity})
 	w.RegisterActivityWithOptions(a.Finish, activity.RegisterOptions{Name: finishActivity})
+	w.RegisterActivityWithOptions(a.Verify, activity.RegisterOptions{Name: verifyActivity})
+	w.RegisterActivityWithOptions(a.RecordDecision, activity.RegisterOptions{Name: decisionActivity})
+}
+
+func (a Activities) Verify(ctx context.Context, cmd campaign.TrialCommand) (campaign.ReviewedEvidence, error) {
+	var result campaign.ReviewedEvidence
+	endpoint := a.base.JoinPath("api", "client", "v1", "campaign-runtime", cmd.CampaignID, "verification", strconv.Itoa(cmd.Index))
+	err := a.call(ctx, http.MethodPost, endpoint, nil, &result)
+	return result, err
+}
+
+func (a Activities) RecordDecision(ctx context.Context, id string, value campaign.Decision) error {
+	body, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	endpoint := a.base.JoinPath("api", "client", "v1", "campaign-runtime", id, "decision")
+	if err := a.call(ctx, http.MethodPut, endpoint, body, nil); err == responseError(http.StatusConflict) {
+		return rejectReview("review gate is no longer active")
+	} else {
+		return err
+	}
+}
+
+type responseError int
+
+func (e responseError) Error() string {
+	return fmt.Sprintf("Pero campaign operation returned HTTP %d", e)
+}
+
+func rejectReview(reason string) error {
+	return temporal.NewNonRetryableApplicationError(reason, "ReviewRejected", nil)
 }
 
 func (a Activities) Trial(ctx context.Context, cmd campaign.TrialCommand) (campaign.Observation, error) {
@@ -70,7 +104,7 @@ func (a Activities) call(ctx context.Context, method string, endpoint *url.URL, 
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("Pero campaign operation returned HTTP %d", res.StatusCode)
+		return responseError(res.StatusCode)
 	}
 	if target != nil {
 		return json.NewDecoder(res.Body).Decode(target)

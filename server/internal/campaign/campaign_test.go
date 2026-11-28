@@ -2,6 +2,7 @@ package campaign
 
 import (
 	"testing"
+	"time"
 
 	"github.com/phodal/pero/server/internal/runref"
 )
@@ -62,6 +63,48 @@ func TestCampaignProgress(t *testing.T) {
 			}
 			if state.Outcome != scenario.outcome || state.Trials[1].Status != scenario.last {
 				t.Fatalf("unexpected outcome or trial denominator: %+v", state)
+			}
+		})
+	}
+}
+
+func TestReviewedCampaignGate(t *testing.T) {
+	now := time.Date(2026, 11, 28, 0, 0, 0, 0, time.UTC)
+	ref := runref.Ref{TaskID: "task", RunID: "run", Generation: 1}
+	for _, scenario := range []struct {
+		name, verdict, choice string
+		at                    time.Time
+		stale                 bool
+		want                  Phase
+		outcome               Outcome
+	}{
+		{"verify and approve", "consistent", "approve", now, false, Dispatching, ""},
+		{"verify and reject", "consistent", "reject", now, false, Done, ReviewRejected},
+		{"ignore stale evidence", "consistent", "approve", now, true, AwaitingReview, ""},
+		{"expire on the deadline", "consistent", "approve", now.Add(ReviewWindow), false, Done, ReviewExpired},
+		{"missing output blocks review", "missing", "approve", now, false, Done, VerificationFailed},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			state := Start(PlanRef{ID: "campaign", Digest: "plan", TrialCount: 2, Mode: ReviewedPyBaMM})
+			state.Record(Trial{OperationID: "first", Run: &ref, Status: Succeeded})
+			if state.Phase != Verifying {
+				t.Fatalf("execution bypassed verification: %+v", state)
+			}
+			gate := ReviewGate{ID: "gate", PlanDigest: "plan", EvidenceDigest: "observed", ExpiresAt: now.Add(ReviewWindow)}
+			state.RecordVerification(ReviewedEvidence{Gate: &gate, Evidence: Evidence{Verification: Verification{Status: scenario.verdict}, Run: ref}})
+			if state.Phase == AwaitingReview {
+				req := DecisionInput{GateID: gate.ID, PlanDigest: gate.PlanDigest, EvidenceDigest: gate.EvidenceDigest, Choice: scenario.choice}
+				if scenario.stale {
+					req.EvidenceDigest = "older"
+				}
+				if err := state.CheckDecision(req, scenario.at); err == nil {
+					state.Decision = &Decision{DecisionInput: req}
+				}
+				state.CloseReview(scenario.at)
+			}
+			if state.Phase != scenario.want || state.Outcome != scenario.outcome || state.Trials[0].Status != Succeeded ||
+				(state.Phase == Done && state.Trials[1].Status != Skipped) {
+				t.Fatalf("unexpected reviewed outcome: %+v", state)
 			}
 		})
 	}
