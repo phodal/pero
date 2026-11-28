@@ -157,6 +157,7 @@ pub(crate) enum ProjectTab {
     Overview,
     ResearchResources,
     Tasks,
+    Campaigns,
     Sources,
     Execution,
     Settings,
@@ -172,6 +173,7 @@ impl ProjectTab {
             Self::Overview => "project.overview",
             Self::ResearchResources => "research.linked",
             Self::Tasks => "nav.tasks",
+            Self::Campaigns => "campaign.title",
             Self::Sources => "project.sources",
             Self::Execution => "project.execution",
             Self::Settings => "settings.title",
@@ -187,18 +189,16 @@ impl ProjectTab {
         }
     }
 
-    pub fn inspector_tabs(
-        self, widths: [f32; Self::ALL.len()], available: f32, gap: f32,
-    ) -> [bool; Self::ALL.len()] {
-        let current = Self::ALL.iter().position(|&tab| tab == self).unwrap();
-        let mut visible = [false; Self::ALL.len()];
+    pub fn inspector_tabs(self, tabs: &[(Self, f32)], available: f32, gap: f32) -> Vec<bool> {
+        let current = tabs.iter().position(|&(tab, _)| tab == self);
+        let mut visible = vec![false; tabs.len()];
         let mut remaining = available;
-        if widths[current] <= remaining {
+        if let Some(current) = current.filter(|&index| tabs[index].1 <= remaining) {
             visible[current] = true;
-            remaining -= widths[current] + gap;
+            remaining -= tabs[current].1 + gap;
         }
-        for (index, width) in widths.into_iter().enumerate() {
-            if index == current {
+        for (index, &(_, width)) in tabs.iter().enumerate() {
+            if Some(index) == current {
                 continue;
             }
             if width > remaining {

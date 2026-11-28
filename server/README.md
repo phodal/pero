@@ -269,6 +269,12 @@ with a zero-based trial index. The response includes the exact Run reference,
 method, checker, result and observed environment digests, and bounded Run
 events. Execution status and numerical consistency are separate.
 
+In Desktop, open the shared Project and select **Campaigns** to see both rounds,
+expand the independent evidence and reopen the recorded approval. The tab uses
+`GET /api/client/v1/projects/{project}/campaigns` to discover up to 50 of the
+project's latest reviewed Campaigns. The control plane decides whether the
+signed-in Client can approve the displayed gate.
+
 A project Client sends the decision using its own bearer credential and a
 stable Idempotency-Key. The runner Client cannot submit a human decision.
 

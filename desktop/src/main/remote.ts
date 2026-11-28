@@ -29,6 +29,16 @@ const sharedSourceRead = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('read'), target: sourceTarget,
     id: z.string().regex(/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/) }),
 ]);
+const campaignID = z.string().regex(/^[A-Za-z0-9_-]{1,96}$/);
+const campaignDigest = z.string().regex(/^[a-f0-9]{64}$/);
+const campaignRequest = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('list'), target: sourceTarget }),
+  z.strictObject({ kind: z.literal('read'), target: sourceTarget, id: campaignID }),
+  z.strictObject({ kind: z.literal('review'), target: sourceTarget, id: campaignID, decision: z.strictObject({
+    gate_id: campaignID, plan_digest: campaignDigest, evidence_digest: campaignDigest,
+    choice: z.enum(['approve', 'reject']),
+  }) }),
+]);
 const ajv = new Ajv2020({ strict: false, allErrors: true });
 ajv.addSchema(schema);
 function checked<T>(name: string, value: unknown): T {
@@ -210,14 +220,24 @@ export class RemoteAdapter {
   get contributionIdentity() { return this.state.identity; }
   async sharedWebSource(input: unknown): Promise<unknown> {
     const request = sharedSourceRead.parse(input);
+    const path = await this.sharedProjectRoute(request.target) + '/web-sources';
+    return this.request(request.kind === 'read' ? `${path}/${request.id}` : path);
+  }
+  async sharedCampaign(input: unknown): Promise<unknown> {
+    const request = campaignRequest.parse(input);
+    const path = await this.sharedProjectRoute(request.target) + '/campaigns';
+    if (request.kind === 'list') return this.request(path);
+    if (request.kind === 'read') return this.request(`${path}/${request.id}`);
+    const { decision } = request;
+    return this.request(`${path}/${request.id}/review`, 'POST', decision, `desktop-${decision.gate_id}-${decision.choice}`);
+  }
+  private async sharedProjectRoute(target: z.infer<typeof sourceTarget>) {
     await this.initialize();
-    const { target } = request;
     const identity = this.state.identity;
     if (this.closed || !this.clientMode || !this.token || this.base !== target.origin ||
         identity?.role !== 'client' || identity.id !== target.accountId || !identity.projects.includes(target.projectId))
       throw new Error('The shared Project or Cloud account changed. Select the destination again.');
-    const path = `/api/client/v1/projects/${target.projectId}/web-sources`;
-    return this.request(request.kind === 'read' ? `${path}/${request.id}` : path);
+    return `/api/client/v1/projects/${target.projectId}`;
   }
   async contributionRequest(path: string, method = 'GET', body?: unknown): Promise<unknown> {
     await this.initialize();

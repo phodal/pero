@@ -78,7 +78,7 @@ pub(crate) fn session_command(json: &str) -> Result<(), String> {
             return Ok(());
         }
     }
-    let controller = value["method"] == "shared_project_sources"
+    let controller = value["method"] == "shared_project_sources" || value["method"] == "shared_project_campaigns"
         || action.starts_with("remote_")
         || action.starts_with("local_worker_")
         || action.starts_with("choose_")
@@ -403,7 +403,9 @@ pub fn run() -> anyhow::Result<()> {
                 }
                 continue;
             }
-            if value["method"] == "shared_project_sources" {
+            if value["method"] == "shared_project_campaigns" {
+                let _ = events.send_blocking(cloud.shared_campaigns(&value));
+            } else if value["method"] == "shared_project_sources" {
                 let event = cloud.shared_web_sources(&value);
                 if !cloud_replies.accept(&event) {
                     let _ = events.send_blocking(event);

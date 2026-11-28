@@ -3,6 +3,8 @@
 mod storage;
 #[path = "native_cloud_sources.rs"]
 mod project_sources;
+#[path = "native_cloud_campaigns.rs"]
+mod project_campaigns;
 #[cfg(target_os = "macos")]
 #[path = "native_cloud_browser.rs"]
 pub(crate) mod browser;
