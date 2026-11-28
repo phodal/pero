@@ -549,11 +549,6 @@ impl ChatPanel {
             "stopButtonBounds":self.stop_button_bounds.snapshot(),
             "composerBounds":self.composer_bounds.snapshot(),
             "retryButtonBounds":self.composer_bounds.reconnect.snapshot(),
-            "reconnectEligibility":self.active_chat.and_then(|index| self.chats.get(index)).map(|chat| json!({
-                "allowed":chat.can_reconnect(),"historyComplete":chat.history.complete(),
-                "ordinaryOrigin":chat.ordinary_origin,"quietLoadSupported":chat.acp_load_supported,
-                "hasSessionId":!chat.session_id.is_empty(),"hasQueuedPrompt":chat.queued.is_some(),
-            })),
             "completion":{"open":self.composer_state.open,"loading":self.composer_state.loading_choices(),"error":self.composer_state.error,
                 "selected":self.composer_state.selected,"items":self.composer_picker_items().iter().map(|i|&i.label).collect::<Vec<_>>()},
             "contextPreviewBounds":self.attachments.iter().map(|reference|json!({"id":reference.id,"image":matches!(reference.content, pero_contracts::context::ContextContent::Image{..}),"bounds":self.context_preview_bounds.get(&reference.id).map(|bounds|bounds.snapshot())})).collect::<Vec<_>>(),
@@ -572,6 +567,16 @@ impl ChatPanel {
             "renderStats":self.chats.iter().map(|c|c.messages.iter().map(|m|m.view.read(cx).stats()).collect::<Vec<_>>()).collect::<Vec<_>>(),
             "renderedBytes":self.chats.iter().map(|c|c.messages.iter().map(|m|m.view.read(cx).rendered_bytes(cx)).collect::<Vec<_>>()).collect::<Vec<_>>()});
         value["mcpHistory"] = Value::Array(mcp_history);
+        if let Some(chat) = self.active_chat.and_then(|index| self.chats.get(index)) {
+            value["reconnectEligibility"] = json!({
+                "allowed": chat.can_reconnect(),
+                "historyComplete": chat.history.complete(),
+                "ordinaryOrigin": chat.ordinary_origin,
+                "quietLoadSupported": chat.acp_load_supported,
+                "hasSessionId": !chat.session_id.is_empty(),
+                "hasQueuedPrompt": chat.queued.is_some(),
+            });
+        }
         value
     }
 }
