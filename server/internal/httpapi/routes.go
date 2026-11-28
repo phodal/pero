@@ -34,6 +34,7 @@ type API struct {
 	campaigns    *ResearchCampaigns
 	paper        PaperDomain
 	runs         RunSource
+	files        DeviceDesk
 }
 type contextKey struct{}
 

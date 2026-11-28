@@ -34,6 +34,9 @@ func (a *API) registerClients(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/client/v1/tasks/{id}/cancel", a.clientCancel)
 	mux.HandleFunc("POST /api/client/v1/projects/{project}/app-resources/paper", a.readPaperResource)
 	mux.HandleFunc("POST /api/client/v1/projects/{project}/runs/observe", a.observeRun)
+	mux.HandleFunc("POST /api/client/v1/projects/{project}/device-transfers/{upload}", a.acceptDeviceBytes)
+	mux.HandleFunc("POST /api/client/v1/projects/{project}/device-transfers/{upload}/finalize", a.finalizeDeviceTransfer)
+	mux.HandleFunc("POST /api/client/v1/projects/{project}/device-transfers/{upload}/cancel", a.cancelDeviceTransfer)
 }
 
 func (a *API) clientWorkers(w http.ResponseWriter, r *http.Request) {
