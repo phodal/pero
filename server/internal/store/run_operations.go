@@ -4,14 +4,10 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/phodal/pero/server/internal/runref"
 )
 
-// RunRef pins an execution even when the Task advances to a new generation.
-type RunRef struct {
-	TaskID     string `json:"task_id"`
-	RunID      string `json:"run_id"`
-	Generation int64  `json:"generation"`
-}
+type RunRef = runref.Ref
 
 func (r Run) Ref() RunRef {
 	return RunRef{TaskID: r.TaskID, RunID: r.ID, Generation: r.Generation}

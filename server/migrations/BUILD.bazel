@@ -22,6 +22,7 @@ go_library(
         "021_run_desktop_handoff.sql",
         "022_trial_submissions.sql",
         "023_run_reconciliation.sql",
+        "024_research_campaigns.sql",
     ],
     importpath = "github.com/phodal/pero/server/migrations",
     visibility = ["//server:__subpackages__"],
