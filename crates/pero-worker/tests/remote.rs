@@ -436,8 +436,13 @@ fn interrupted_claim_is_reconciled_without_replaying_prompt() {
 }
 
 #[test]
-fn terminal_recovery_retains_only_unuploaded_evidence_without_replay() {
-    for (status, acknowledged) in [("reconcile", 0), ("succeeded", 0), ("reconcile", 1)] {
+fn terminal_recovery_retains_review_evidence_without_replay() {
+    for (status, acknowledged, retain) in [
+        ("reconcile", 0, true),
+        ("succeeded", 0, true),
+        ("reconcile", 1, true),
+        ("succeeded", 1, false),
+    ] {
         let fixture = Fixture::new("hello", false, false);
         fixture.state.lock().unwrap().run["status"] = json!(status);
         let run = fixture.state.lock().unwrap().run.clone();
@@ -449,12 +454,12 @@ fn terminal_recovery_retains_only_unuploaded_evidence_without_replay() {
         assert!(!fixture.root.join("marker").exists());
         assert!(fixture.state.lock().unwrap().claim_keys.is_empty());
         let directory = fixture.root.join("state.retained");
-        if acknowledged == 0 {
+        if retain {
             let path = std::fs::read_dir(directory).unwrap().next().unwrap().unwrap().path();
             let receipt: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
             assert_eq!(receipt["run"]["id"], "run_1");
             assert_eq!(receipt["events"], events);
-            assert_eq!(receipt["acknowledged"], 0);
+            assert_eq!(receipt["acknowledged"], acknowledged);
         } else {
             assert!(!directory.exists());
         }

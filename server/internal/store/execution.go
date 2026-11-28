@@ -20,14 +20,11 @@ func (s *Store) Claim(ctx context.Context, worker, instance, request string, run
 	}
 	defer tx.Rollback(ctx)
 	// The Worker row is its single slot and serializes duplicate claim requests.
-	var projects []string
-	var capabilities []byte
-	var enabled, runtimeOnly bool
-	var runtimeProfile string
-	if err = tx.QueryRow(ctx, `SELECT CASE WHEN d.worker_id IS NOT NULL AND d.owner_id<>'operator' THEN ARRAY(SELECT unnest(w.projects) INTERSECT SELECT unnest(COALESCE(c.projects,'{}'::text[]))) ELSE w.projects END,d.capabilities,COALESCE(d.enabled,true),w.runtime_only,w.runtime_profile FROM workers w LEFT JOIN worker_devices d ON d.worker_id=w.id LEFT JOIN clients c ON c.id=d.owner_id WHERE w.id=$1 FOR UPDATE OF w`, worker).Scan(&projects, &capabilities, &enabled, &runtimeOnly, &runtimeProfile); err != nil {
+	a, err := readWorkerAdmission(ctx, tx, worker, true)
+	if err != nil {
 		return nil, err
 	}
-	if !enabled {
+	if !a.enabled {
 		return nil, ErrForbidden
 	}
 	var previous *string
@@ -41,7 +38,7 @@ func (s *Store) Claim(ctx context.Context, worker, instance, request string, run
 			return nil, nil
 		}
 		run, err := readRun(tx.QueryRow(ctx, `SELECT `+runColumns+` FROM runs WHERE id=$1`, *previous))
-		if err == nil && runtimeProfile == "isolated-agent-v1" {
+		if err == nil && a.runtimeProfile == "isolated-agent-v1" {
 			run.RemoteExecution = &RemoteExecution{SessionID: run.ID, WorkingDirectory: "/workspace/repo"}
 		}
 		return run, err
@@ -49,29 +46,34 @@ func (s *Store) Claim(ctx context.Context, worker, instance, request string, run
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
-	if (!runtimeOnly && podUID != "") || (runtimeOnly && runtimeProfile == "isolated-agent-v1" && podUID != "") || (runtimeOnly && runtimeProfile != "isolated-agent-v1" && podUID == "") {
+	if (!a.runtimeOnly && podUID != "") || (a.runtimeOnly && a.runtimeProfile == "isolated-agent-v1" && podUID != "") || (a.runtimeOnly && a.runtimeProfile != "isolated-agent-v1" && podUID == "") {
 		return nil, ErrForbidden
 	}
 	if err = reap(ctx, tx); err != nil {
 		return nil, err
 	}
 	var occupied bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM runs WHERE worker_id=$1 AND status IN ('running','cancel_requested','reconcile'))`, worker).Scan(&occupied); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM runs WHERE worker_id=$1 AND `+holdsWorkerSlot+`)`, worker).Scan(&occupied); err != nil {
 		return nil, err
 	}
 	var r *Run
 	if !occupied {
 		var runID string
-		err = tx.QueryRow(ctx, `SELECT id FROM runs WHERE status='queued' AND spec->>'project_id'=ANY($1) AND (target_worker_id IS NULL OR target_worker_id=$2) AND ($3::jsonb IS NULL OR EXISTS(SELECT 1 FROM jsonb_array_elements($3::jsonb) cap WHERE cap->>'project_id'=spec->>'project_id' AND cap->>'workspace_key'=spec->>'workspace_key' AND cap->>'agent_id'=spec->>'agent_id')) AND (($4=false AND NOT EXISTS(SELECT 1 FROM runtime_bindings b WHERE b.run_id=runs.id)) OR ($4=true AND EXISTS(SELECT 1 FROM runtime_bindings b WHERE b.run_id=runs.id AND b.worker_id=$2 AND b.phase='ready' AND ($6='isolated-agent-v1' OR b.pod_uid=$5) AND b.valid_until>clock_timestamp()))) ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1`, projects, worker, capabilities, runtimeOnly, podUID, runtimeProfile).Scan(&runID)
+		err = tx.QueryRow(ctx, `SELECT id FROM runs WHERE status='queued' AND `+workerMatchesSpec+`
+			AND (target_worker_id IS NULL OR target_worker_id=$3)
+			AND (($4=false AND NOT EXISTS(SELECT 1 FROM runtime_bindings b WHERE b.run_id=runs.id)) OR ($4=true AND EXISTS(
+			SELECT 1 FROM runtime_bindings b WHERE b.run_id=runs.id AND b.worker_id=$3 AND b.phase='ready'
+			AND ($6='isolated-agent-v1' OR b.pod_uid=$5) AND b.valid_until>clock_timestamp())))
+			ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1`, a.projects, a.capabilities, worker, a.runtimeOnly, podUID, a.runtimeProfile).Scan(&runID)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
 		}
 		if err == nil {
 			// Re-read after taking the Run lock: an observation may have changed
 			// while the candidate SELECT waited for that lock.
-			if runtimeOnly {
+			if a.runtimeOnly {
 				var ready bool
-				if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM runtime_bindings WHERE run_id=$1 AND worker_id=$2 AND phase='ready' AND ($4='isolated-agent-v1' OR pod_uid=$3) AND valid_until>clock_timestamp())`, runID, worker, podUID, runtimeProfile).Scan(&ready); err != nil {
+				if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM runtime_bindings WHERE run_id=$1 AND worker_id=$2 AND phase='ready' AND ($4='isolated-agent-v1' OR pod_uid=$3) AND valid_until>clock_timestamp())`, runID, worker, podUID, a.runtimeProfile).Scan(&ready); err != nil {
 					return nil, err
 				}
 				if !ready {
@@ -86,7 +88,7 @@ func (s *Store) Claim(ctx context.Context, worker, instance, request string, run
 	}
 	var runID *string
 	if r != nil {
-		if runtimeProfile == "isolated-agent-v1" {
+		if a.runtimeProfile == "isolated-agent-v1" {
 			r.RemoteExecution = &RemoteExecution{SessionID: r.ID, WorkingDirectory: "/workspace/repo"}
 		}
 		runID = &r.ID

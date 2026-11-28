@@ -155,7 +155,7 @@ func (s *Store) SyncGitHubIssue(ctx context.Context, config GitHubRepository, is
 		}
 	}
 	if eligible && label {
-		if _, err = dispatchTx(ctx, tx, id, config.WorkerID, "github-auto:"+id); err != nil {
+		if _, err = dispatchTx(ctx, tx, id, config.WorkerID, "github-auto:"+id, ordinaryDispatch); err != nil {
 			return change, err
 		}
 		change.Dispatched = true

@@ -76,6 +76,9 @@ func TestRuntimeDispatchReservationAndQueueFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := s.Dispatch(ctx, task.ID, worker.ID, "ordinary-to-managed"); !errors.Is(err, ErrWorkerIneligible) {
+		t.Fatalf("ordinary dispatch accepted a managed-only Worker: %v", err)
+	}
 	// Concurrent retried dispatches reserve one Run and one external create only.
 	type outcome struct {
 		run     *Run
@@ -204,6 +207,14 @@ func TestRuntimeReadinessLossNeverReplaysExecution(t *testing.T) {
 			recovered, err := s.Claim(ctx, worker.ID, "original", "claim", "pod-a")
 			if err != nil || recovered == nil || recovered.ID != run.ID {
 				t.Fatalf("lost claim could not reconcile original: %#v %v", recovered, err)
+			}
+			if mode == "observation_failure" {
+				if recovered.Status != "reconcile" {
+					t.Fatalf("provider failure did not mark the original Run for review: %+v", recovered)
+				}
+				if _, err = s.ResolveRun(ctx, run.Ref(), RunReconciliationDecision{Disposition: RunConfirmedStopped, Evidence: "worker process stopped"}); !errors.Is(err, ErrConflict) {
+					t.Fatalf("operator evidence bypassed managed resource cleanup: %v", err)
+				}
 			}
 		})
 	}

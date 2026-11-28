@@ -33,16 +33,23 @@ type ClientTaskDraft struct {
 }
 
 func (spec Spec) ForClient(client *Client) (ClientTaskDraft, error) {
-	if err := spec.Validate(); err != nil {
+	if err := spec.validateManual(); err != nil {
 		return ClientTaskDraft{}, err
-	}
-	if spec.Source != nil || spec.ParentTaskID != "" {
-		return ClientTaskDraft{}, ErrTaskInput
 	}
 	if !slices.Contains(client.Projects, spec.ProjectID) {
 		return ClientTaskDraft{}, ErrForbidden
 	}
 	return ClientTaskDraft{spec: spec, creator: TaskClaimant{ID: client.ID, Name: client.Name}}, nil
+}
+
+func (spec Spec) validateManual() error {
+	if err := spec.Validate(); err != nil {
+		return err
+	}
+	if spec.Source != nil || spec.ParentTaskID != "" {
+		return ErrTaskInput
+	}
+	return nil
 }
 
 func (s *Store) ClientCreateTask(ctx context.Context, draft ClientTaskDraft, key string) (*Task, error) {
