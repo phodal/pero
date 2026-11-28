@@ -27,6 +27,9 @@ type Result struct {
 	Meta               json.RawMessage                `json:"meta,omitempty"`
 	AdditionalContexts []harnessmodel.DeferredContext `json:"additionalContexts,omitempty"`
 	ConcludesTurn      bool                           `json:"concludesTurn,omitempty"`
+	// FinalReply allows one final model step without advertising or executing
+	// tools, then ends this same turn. An explicit batch interruption wins.
+	FinalReply bool `json:"-"`
 }
 
 // Restriction is a scoped mask over inherited tools. Allow keeps only named

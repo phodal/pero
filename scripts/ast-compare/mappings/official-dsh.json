@@ -16,7 +16,7 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "ba917cebf63c39c60f58a85d28b9421dd70d2fc4682bb1dfb9717eb399ec1f2c"
+        "sha256": "272645676e32d7e69e092abb4dfe694b3d7972fbc93fb24f69a57e2edcf0204b"
       },
       "notes": "Shared stop contract. Different loop decomposition: an official step maps to part of the Go whole-turn method. Tree structure is evidence for review, never semantic equivalence. Go turn entry separately rejects already canceled contexts and retired scopes before claiming queued input; native lifecycle tests validate that local admission rule. The follow-up applies opt-in historical clearing before PreStep and permits stop continuation for explicit unlimited steps; native behavior tests cover these separately from the output-limit landmarks.",
       "landmarks": [
@@ -55,7 +55,7 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "ba917cebf63c39c60f58a85d28b9421dd70d2fc4682bb1dfb9717eb399ec1f2c"
+        "sha256": "272645676e32d7e69e092abb4dfe694b3d7972fbc93fb24f69a57e2edcf0204b"
       },
       "notes": "Once any step reaches output limit, a later normal follow-up cannot downgrade the turn result. Error/cancel precedence must still be checked by tests. The follow-up applies opt-in historical clearing before PreStep and permits stop continuation for explicit unlimited steps; native behavior tests cover these separately from the output-limit landmarks.",
       "landmarks": [

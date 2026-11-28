@@ -292,6 +292,12 @@ func (s *Server) runGoalRounds(ctx context.Context, record *activeSession, state
 			// above joins it before ACP releases this session's prompt slot.
 			return harness.FinishAborted, err
 		}
+		// An accepted terminal update remains terminal even if its one
+		// closing reply is truncated or the provider fails after the receipt.
+		if decision := control.settledDecision(session.Events()); decision.Wrapup && ctx.Err() == nil {
+			stopErr := s.stopGoal(ctx, record, state.ref(), goalStop{Reason: string(decision.Outcome), By: goalStopModel, Detail: decision.BlockedReason})
+			return outcome.Turn.Reason, errors.Join(outcome.Err, stopErr)
+		}
 		if outcome.Err != nil {
 			if ctx.Err() != nil {
 				return harness.FinishAborted, ctx.Err()

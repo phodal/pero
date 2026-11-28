@@ -18,16 +18,17 @@ const {server, url} = await listenJson((request, response, body) => {
   assert.equal(request.headers.authorization, 'Bearer goal-fixture');
   const script = scripts.shift();
   assert.ok(script, 'unexpected model request');
-  const names = body.tools.map(tool => tool.function.name);
+  const names = (body.tools ?? []).map(tool => tool.function.name);
   const last = body.messages.at(-1);
-  assert.ok(names.includes('get_goal'));
+  if (script.final) assert.deepEqual(names, [], 'closing reply must not have tools');
+  else assert.ok(names.includes('get_goal'));
   assert.equal(names.includes('create_goal'), script.create ?? false, 'create_goal request '+count+' '+JSON.stringify(last));
   assert.equal(names.includes('update_goal'), script.update ?? false, 'update_goal request '+count+' '+JSON.stringify(last));
   if (script.text) assert.match(last.content, script.text);
   const command = script.call?.(last);
   const finish = command ? 'tool_calls' : (script.finish ?? 'stop');
   const delta = command ? {tool_calls: [{index: 0, id: 'call-'+count, type: 'function',
-    function: {name: command[0], arguments: JSON.stringify(command[1])}}]} : {content: 'Checked current Goal.'};
+    function: {name: command[0], arguments: JSON.stringify(command[1])}}]} : {content: script.reply ?? 'Checked current Goal.'};
   streamCompletion(response, {id:'goal-'+ ++count, model:body.model, delta, finish});
 }, errors);
 
@@ -39,9 +40,12 @@ async function acp(run) {
   const done = once(child, 'close');
   let id = 0;
   const waiters = new Map();
+  const replies = [];
   const lines = createInterface({input:child.stdout});
   lines.on('line', line => {
     const message = JSON.parse(line);
+    if (message.method === 'session/update' && message.params.update.sessionUpdate === 'agent_message_chunk')
+      replies.push(message.params.update.content.text);
     waiters.get(message.id)?.(message);
   });
   const rpc = (method, params) => new Promise((ok, fail) => {
@@ -57,7 +61,7 @@ async function acp(run) {
   });
   try {
     await rpc('initialize',{protocolVersion:1, clientCapabilities:{}});
-    await run({rpc, prompt:async (sessionId, text, ...steps) => {
+    await run({rpc, replies, prompt:async (sessionId, text, ...steps) => {
       scripts.push(...steps);
       assert.equal((await rpc('session/prompt',{sessionId, prompt:[{type:'text',text}]})).stopReason, 'end_turn');
       assert.deepEqual(errors, []);
@@ -104,7 +108,7 @@ try {
       {create:true,update:true,call:() => mutation('edit',{objective:'Verify the revised experiment',max_goal_rounds:3})});
   });
   const before = count;
-  await acp(async ({rpc,prompt}) => {
+  await acp(async ({rpc,prompt,replies}) => {
     await rpc('session/load',{...options,sessionId});
     assert.equal(count,before,'opening a saved Goal did not start it');
     await prompt(sessionId,'Read the retained Goal without mutating.',
@@ -120,12 +124,33 @@ try {
       }},
       {create:true,update:true,call:last => assert.match(last.content,/only the operator can resume/)});
     await prompt(sessionId,'/goal resume',
-      {update:true,text:/Goal round 2\/3/,call:() => mutation('complete',{revision:2})});
+      {update:true,text:/Goal round 2\/3/,call:() => mutation('complete',{revision:2})},
+      {final:true,text:/write a closing response/i, reply:'Verification closing receipt.'});
+    assert.ok(replies.join('').includes('Verification closing receipt.'));
     await prompt(sessionId,'Read final Goal.',
       ...read(({goal,activation}) => assert.deepEqual([goal.id,goal.revision,goal.roundsStarted,goal.phase,activation],
         [currentGoal.id,2,2,'complete','disarmed'])));
     const other = (await rpc('session/new',options)).sessionId;
     await prompt(other,'Read Goal from an unrelated root.', ...read(value => assert.deepEqual(value, {goal:null})));
+    await prompt(other,'/goal start 1 Verify the cap-one closing response',
+      {update:true,text:/Goal round 1\/1/,call:() => ['get_goal',{}]},
+      {update:true,call:last => {
+        currentGoal = JSON.parse(last.content).goal;
+        return mutation('complete');
+      }},
+      {final:true,text:/cap-one closing response.*write a closing response/i,
+        call:() => mutation('blocked',{blocked_reason:'Closing step cannot act'})});
+    await prompt(other,'Read the cap-one result.',
+      ...read(({goal}) => assert.deepEqual([goal.id,goal.roundsStarted,goal.phase],[currentGoal.id,1,'complete'])));
+    await prompt(other,'/goal delegate Mark the current Goal complete directly.',
+      {create:true,update:true,call:() => ['create_goal',{objective:'Direct-control setup',max_goal_rounds:2}]},
+      {update:true,text:/Goal round 1\/2/,call:() => ['get_goal',{}]},
+      {update:true,call:last => {
+        currentGoal = JSON.parse(last.content).goal;
+        return ['pero_goal_stop',{outcome:'paused'}];
+      }});
+    await prompt(other,'/goal delegate Complete the paused Goal with no autonomous wrap-up.',
+      {create:true,update:true,call:() => mutation('complete')});
   });
   assert.deepEqual(errors,[]);
   console.log('DSH Goal delegation passed through two real ACP processes: exact tool authority, no synthetic replay mutations, revision and pause preserved, explicit resume and model completion.');

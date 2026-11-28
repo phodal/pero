@@ -30,6 +30,7 @@ const (
 type goalDecisionArgs struct {
 	Outcome       goalDecision `json:"outcome"`
 	BlockedReason string       `json:"blocked_reason,omitempty"`
+	Wrapup        bool         `json:"-"`
 }
 
 // goalRoundControl stages a proposal until that exact tool result and turn
@@ -158,6 +159,24 @@ func (s *Server) registerGoalTool(run *point.Run, agent *harness.Agent) error {
 		}
 		return round
 	}
+	propose := func(round *goalRoundControl, call harness.ToolCallID, args goalDecisionArgs) (harness.ToolResult, error) {
+		id, err := randomSessionID()
+		if err != nil {
+			return harness.ToolResult{}, err
+		}
+		receipt, _ := json.Marshal(struct {
+			GoalReceipt harness.SessionID `json:"peroGoalReceipt"`
+		}{id})
+		if err := round.propose(call, receipt, args, s.goalBlockAfterRounds); err != nil {
+			return harness.ToolResult{}, err
+		}
+		return harness.ToolResult{
+			ConcludesTurn: !args.Wrapup,
+			FinalReply:    args.Wrapup,
+			Meta:          receipt,
+			Content:       []harness.ContentBlock{{Type: harness.BlockText, Text: "Goal stop proposed: " + string(args.Outcome)}},
+		}, nil
+	}
 	tool := harness.Tool{
 		Schema: harness.ToolSchema{
 			Name: goalStopTool,
@@ -177,21 +196,7 @@ func (s *Server) registerGoalTool(run *point.Run, agent *harness.Agent) error {
 			if err := json.Unmarshal(request.Arguments, &args); err != nil {
 				return harness.ToolResult{}, err
 			}
-			id, err := randomSessionID()
-			if err != nil {
-				return harness.ToolResult{}, err
-			}
-			receipt, _ := json.Marshal(struct {
-				GoalReceipt harness.SessionID `json:"peroGoalReceipt"`
-			}{id})
-			if err := round.propose(request.CallID, receipt, args, s.goalBlockAfterRounds); err != nil {
-				return harness.ToolResult{}, err
-			}
-			return harness.ToolResult{
-				ConcludesTurn: true,
-				Meta:          receipt,
-				Content:       []harness.ContentBlock{{Type: harness.BlockText, Text: "Goal stop proposed: " + string(args.Outcome)}},
-			}, nil
+			return propose(round, request.CallID, args)
 		},
 	}
 	read := harness.Tool{
@@ -294,11 +299,20 @@ func (s *Server) registerGoalTool(run *point.Run, agent *harness.Agent) error {
 			if err != nil {
 				return harness.ToolResult{}, err
 			}
-			request.Arguments, err = json.Marshal(decision)
+			decision.Wrapup = true
+			result, err := propose(round, request.CallID, decision)
 			if err != nil {
 				return harness.ToolResult{}, err
 			}
-			return tool.ExecuteRequest(ctx, request)
+			instruction := fmt.Sprintf("Goal %s. Objective: %q.", decision.Outcome, state.Objective)
+			if decision.Outcome == goalBlocked {
+				instruction += fmt.Sprintf(" Recorded blocker: %q.", decision.BlockedReason)
+			}
+			instruction += " Write a closing response to the user based only on evidence and tool results already in this conversation. Describe what was achieved or blocked, how it was verified, and any next step requiring the user. Do not do new work or call tools."
+			result.AdditionalContexts = []harness.DeferredContext{{Role: harness.RoleUser,
+				Content: []harness.ContentBlock{{Type: harness.BlockText, Text: instruction}},
+				Source:  json.RawMessage(`{"kind":"tool-goal","form":"notice"}`)}}
+			return result, nil
 		},
 	}
 	_, err := s.h.Tools().RegisterCatalogProvider(run, "pero-goal", harness.ToolCatalogProvider{

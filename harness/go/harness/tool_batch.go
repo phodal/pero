@@ -10,7 +10,7 @@ import (
 	"github.com/phodal/pero/harness/go/tool"
 )
 
-func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []ContentBlock) (bool, error) {
+func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []ContentBlock) (bool, bool, error) {
 	outcomes := make([]ToolOutcome, len(calls))
 	toolCtx, cancelTools := context.WithCancel(ctx)
 	defer cancelTools()
@@ -23,7 +23,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 			Name      string          `json:"name"`
 			Arguments json.RawMessage `json:"arguments"`
 		}{turn, step, call.ToolCallID, call.Name, call.Arguments}); err != nil {
-			return false, err
+			return false, false, err
 		}
 	}
 	for start := 0; start < len(calls); {
@@ -72,13 +72,13 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 		}
 		start = next
 	}
-	concluded := false
+	concluded, finalReply := false, false
 	blocks := make([]ContentBlock, len(outcomes))
 	deferred := make([]DeferredContext, 0)
 	for index, outcome := range outcomes {
 		content, attachmentErr := materializeContentImages(ctx, a.attachments, outcome.Result.Content)
 		if attachmentErr != nil {
-			return false, fmt.Errorf("harness: admit tool-result attachments: %w", attachmentErr)
+			return false, false, fmt.Errorf("harness: admit tool-result attachments: %w", attachmentErr)
 		}
 		blocks[index] = ContentBlock{
 			Type: BlockToolResult, ToolCallID: outcome.Request.CallID,
@@ -87,19 +87,20 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 		}
 		for _, additional := range outcome.Result.AdditionalContexts {
 			if additional.Role != RoleUser {
-				return false, fmt.Errorf("harness: tool %q deferred non-user context role %q", outcome.Request.Name, additional.Role)
+				return false, false, fmt.Errorf("harness: tool %q deferred non-user context role %q", outcome.Request.Name, additional.Role)
 			}
 			if len(additional.Content) == 0 {
-				return false, fmt.Errorf("harness: tool %q deferred empty user context", outcome.Request.Name)
+				return false, false, fmt.Errorf("harness: tool %q deferred empty user context", outcome.Request.Name)
 			}
 			additional.Content, attachmentErr = materializeContentImages(ctx, a.attachments, additional.Content)
 			if attachmentErr != nil {
-				return false, fmt.Errorf("harness: admit deferred-context attachments: %w", attachmentErr)
+				return false, false, fmt.Errorf("harness: admit deferred-context attachments: %w", attachmentErr)
 			}
 			additional.Source = append(json.RawMessage(nil), additional.Source...)
 			deferred = append(deferred, additional)
 		}
 		concluded = concluded || outcome.Request.EndTurn || outcome.Result.ConcludesTurn
+		finalReply = finalReply || (!outcome.Result.IsError && outcome.Result.FinalReply)
 		if reminder := a.toolProgress.observe(turn, calls[index], outcome.Result); reminder != nil {
 			deferred = append(deferred, *reminder)
 		}
@@ -114,7 +115,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 		}
 		batch, err := a.hooks.PostToolBatch.Run(ctx, batch, func(_ context.Context, value ToolBatchInput) (ToolBatchInput, error) { return value, nil })
 		if err != nil {
-			return false, err
+			return false, false, err
 		}
 		notice := strings.TrimSpace(batch.Reason + "\n" + batch.Context)
 		if notice != "" {
@@ -123,7 +124,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 				Event string `json:"event"`
 			}{"post-tool-batch", "PostToolBatch"})
 			if err != nil {
-				return false, err
+				return false, false, err
 			}
 			deferred = append(deferred, DeferredContext{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: notice}}, Source: source})
 		}
@@ -132,14 +133,14 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 		}
 	}
 	if err := a.projectToolBatch(ctx, outcomes, blocks); err != nil {
-		return false, err
+		return false, false, err
 	}
 	// OpenAI-compatible histories require every result for one assistant tool
 	// batch to remain contiguous. Deferred user context is therefore committed
 	// only after all results, while preserving call and context order.
 	for i, block := range blocks {
 		if _, err := a.session.Append("tool/result", block); err != nil {
-			return false, err
+			return false, false, err
 		}
 		d := tool.ObserveDiagnostic(calls[i].Name, calls[i].Arguments, outcomes[i].Result.Content, outcomes[i].Result.IsError)
 		if d.Failed || d.ValidationSignal != "" {
@@ -149,19 +150,19 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 				CallID     ToolCallID      `json:"callId"`
 				Diagnostic tool.Diagnostic `json:"diagnostic"`
 			}{turn, step, calls[i].ToolCallID, d}); err != nil {
-				return false, err
+				return false, false, err
 			}
 		}
 	}
 	for _, additional := range deferred {
 		if _, err := a.session.Append("user/message", additional); err != nil {
-			return false, err
+			return false, false, err
 		}
 	}
 	if interrupted {
-		return true, &ToolInterruptError{Reason: "tool batch stopped"}
+		return true, false, &ToolInterruptError{Reason: "tool batch stopped"}
 	}
-	return concluded, nil
+	return concluded, finalReply && !concluded, nil
 }
 
 func serializedToolResponse(blocks []ContentBlock) json.RawMessage {

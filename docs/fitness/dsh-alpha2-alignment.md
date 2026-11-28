@@ -98,7 +98,7 @@ use a real provider key, user profile, or private research data.
 | Native ACP lifecycle | New/list/close/resume, canonical workspace, cancellation without replay; Pero `session/load` also restores the saved model and effort through the Host runtime. The ordinary Desktop composer explicitly reconnects through the original Host thread. | App/Project/Automation retain their own lifecycles; signed-package and Native UI acceptance are separate. DSH does not advertise Pero's ACP load capability. |
 | Messages and Files | Text/tool SSE, signed replay at the same credential and route, explicit image upload/reuse, fallback and stale-ID handling; Rust Host restart and Paper source-provenance contracts. | Live DeepSeek round trip, broader DSH Files file lifecycle/quota/budget behavior, and real Desktop Paper link navigation remain open. Pero deliberately avoids widening uploads or retrying ambiguous stale IDs. |
 | Compaction, Skills and policy | Latest-request pressure, explicit summary override, frozen source identity; existing Skill catalog/permission tests and separately pinned AST comparison. | Pero intentionally does not choose a last-answered model implicitly or adopt DSH's dynamic filesystem Skill roots. Source/AST extraction is not whole-runtime execution. |
-| Goal | Explicit ACP start/status/edit/resume/complete, durable admission, cancellation, scoped descendant waits, and model stop with configurable blocker threshold. One-shot `/goal delegate` enables the model to create, edit, pause, complete or block the exact Goal; it can resume only an active checkpoint. | Pero requires explicit delegation instead of inferring permission from ordinary chat. Upstream's separate model wrap-up is not ported. Shipped Electron/Native controls and live-model acceptance remain open. |
+| Goal | Explicit ACP start/status/edit/resume/complete, durable admission, cancellation, scoped descendant waits, and model stop with configurable blocker threshold. One-shot `/goal delegate` enables the model to create, edit, pause, complete or block the exact Goal; it can resume only an active checkpoint. | Pero requires explicit delegation instead of inferring permission from ordinary chat. Autonomous terminal updates have a same-turn closing reply; legacy hard-stop and operator actions do not request one. Shipped Electron/Native controls and live-model acceptance remain open. |
 | Team / subagents | Root mode, exact-ID board reads and unique saved-label assignment/filtering, optimistic claims/reassignment, dependencies and advisory scopes. Model guidance follows the effective Board tools. | DSH's hierarchical name registry and subagent control tool family are not equivalent, and there is no shipped Desktop Team panel. Existing delegation and board state do not imply those features. |
 | DSH product/runtime distribution | Go has its own composition; Pero already owns permissions, Host/Project research workflows and Task/Run. | DSH Web/live settings, compatible Cordis plugin loading/hot reload, SDK distribution and PTC execution are not supplied by this PR. Do not claim parity for them based on the ACP wire suite. |
 
@@ -554,3 +554,11 @@ Run `node tests/contracts/dsh-goal-delegation.mjs <pero-agent-acp>` for a
 two-process loopback acceptance: unauthorized ordinary and recovery turns,
 create, early-block rejection, pause, revision edit and stale-ref rejection,
 quiet load, model resume rejection, explicit resume and model completion.
+
+
+An owned automatic round's `update_goal` completion or blockage adds grounded
+closing context after the tool results and permits one final model step without
+tools. It does not admit another Goal round, claim queued input into the
+closing step, or restore Goal mutation access. A terminal receipt is retained
+if the closing reply truncates while the operator request remains active.
+The older `pero_goal_stop` and directly delegated mutations do not use this step.

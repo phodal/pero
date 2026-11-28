@@ -160,7 +160,7 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 	} else if closeClaimBoundary != nil {
 		closeClaimBoundary(nil)
 	}
-	continuation := false
+	continuation, finalReply := false, false
 	if a.externalTurn != nil {
 		if _, err = a.session.Append("step/start", struct{ Turn, Step int }{turn, 1}); err != nil {
 			return result, err
@@ -189,17 +189,19 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 			checkpointFailed = ctx.Err() == nil || err != ctx.Err()
 			return result, err
 		}
-		a.inboxClaimMu.Lock()
-		claimed, claimErr := a.claimDurableInbox(ctx, InboxNextStep, turn, a.inboxClaimUnlock)
-		pending = append(claimed, pending...)
-		uncommitted = cloneMessages(pending)
-		if claimErr != nil {
-			checkpointFailed = ctx.Err() == nil || claimErr != ctx.Err()
-			return result, claimErr
-		}
-		if injected := a.takeInjected(ctx, turn); len(injected) != 0 {
-			pending = append(injected, pending...)
+		if !finalReply {
+			a.inboxClaimMu.Lock()
+			claimed, claimErr := a.claimDurableInbox(ctx, InboxNextStep, turn, a.inboxClaimUnlock)
+			pending = append(claimed, pending...)
 			uncommitted = cloneMessages(pending)
+			if claimErr != nil {
+				checkpointFailed = ctx.Err() == nil || claimErr != ctx.Err()
+				return result, claimErr
+			}
+			if injected := a.takeInjected(ctx, turn); len(injected) != 0 {
+				pending = append(injected, pending...)
+				uncommitted = cloneMessages(pending)
+			}
 		}
 		pending = a.filterFollowupAdmissions(ctx, pending, false)
 		uncommitted = cloneMessages(pending)
@@ -253,9 +255,12 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 		if err != nil {
 			return result, err
 		}
-		tools, err := a.tools.SchemasForAgent(ctx, a)
-		if err != nil {
-			return result, joinPresentationRelease(err, presentation.Release, ctx)
+		var tools []ToolSchema
+		if !finalReply {
+			tools, err = a.tools.SchemasForAgent(ctx, a)
+			if err != nil {
+				return result, joinPresentationRelease(err, presentation.Release, ctx)
+			}
 		}
 		// Transfer recovery ownership exactly once. generateStep preserves this
 		// batch on its own pre-admission errors; runTurn must never duplicate it.
@@ -272,10 +277,10 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 		if completion.Message.Role == "" {
 			completion.Message.Role = RoleAssistant
 		}
-		if completion.Finish == FinishMaxTokens {
-			maxTokens = true
-			// Enforce the stop contract independently of the provider adapter.
-			// Unfinished calls must neither execute nor enter committed history.
+		if completion.Finish == FinishMaxTokens || finalReply {
+			maxTokens = completion.Finish == FinishMaxTokens
+			// Neither a truncated step nor the closing reply can execute
+			// tool calls or leave unmatched calls in committed history.
 			safe := make([]ContentBlock, 0, len(completion.Message.Content))
 			for _, block := range completion.Message.Content {
 				if block.Type != BlockToolCall {
@@ -301,10 +306,10 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 		}
 		result.Usage = completion.Usage
 		calls := toolCalls(completion.Message)
-		concluded := false
+		concluded, requestFinalReply := false, false
 		var interruption *ToolInterruptError
 		if len(calls) > 0 {
-			if concluded, err = a.executeToolCalls(ctx, turn, step, calls); err != nil && !errors.As(err, &interruption) {
+			if concluded, requestFinalReply, err = a.executeToolCalls(ctx, turn, step, calls); err != nil && !errors.As(err, &interruption) {
 				return result, err
 			}
 		}
@@ -313,6 +318,22 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 		}
 		openStep = 0
 		if interruption != nil {
+			reason = FinishStop
+			return result, nil
+		}
+		if finalReply {
+			reason = completion.Finish
+			if reason == "" || reason == FinishToolCalls {
+				reason = FinishStop
+			}
+			return result, nil
+		}
+		if requestFinalReply {
+			if a.maxSteps == UnlimitedMaxSteps || step < a.maxSteps {
+				finalReply, continuation = true, true
+				pending = nil
+				continue
+			}
 			reason = FinishStop
 			return result, nil
 		}
