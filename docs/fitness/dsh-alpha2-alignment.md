@@ -83,23 +83,28 @@ checks, syntax check and Go `acp`, `cmd/pero-agent-acp`, and `nativetools`
 tests passed on Linux. This is a clean stop and restart, not a power-loss,
 queued-inbox, live-model, macOS or Windows verification.
 
-## Remaining implementation order
+## Release acceptance matrix
 
-1. Pin restart behavior separately for a cancelled turn and an intentionally
-   queued inbox item. Do not suppress legitimate queued work to make a
-   cancellation test pass.
-2. Keep the latest durable request as the default summary recipient. Use the
-   explicit summary route when an operator wants another model. The persisted
-   routing contract below deliberately does not implement DSH's implicit
-   last-answered recipient.
-3. Compare the DeepSeek Messages stream, model/reasoning options and file
-   behavior against the pinned release. Keep Chat Completions available for
-   existing deployments. Treat new remote file uploads as an explicit policy
-   decision, not an automatic consequence of compatibility.
-4. Evaluate bounded Goal continuation and plugin/skill behavior against
-   existing Go Workflow and Host controls. Close the alignment with a Host
-   test that reopens the same research evidence after restart. Track any
-   unported scope explicitly rather than changing defaults to imitate it.
+Use the published alpha.2 package and a separately built Pero binary. The
+reproduction above runs the empty lane; replace its final command with
+`bash scripts/harness/check-dsh-alpha2.sh "$scratch/node_modules/@deepseek-ai/dsh/package.json" "$scratch/pero-agent-acp"`
+to run every loopback lane. The Linux scheduled/full CI lane uses this same
+runner. It fails for a wrong package version, extra inference, repeated file
+effects, or any required scenario that does not pass. It intentionally does not
+use a real provider key, user profile, or private research data.
+
+| Surface | Covered by this branch or existing behavior | Still open / deliberate difference |
+| --- | --- | --- |
+| Native ACP lifecycle | New/list/close/resume, canonical workspace, cancellation without replay; Pero `session/load` also restores the saved model and effort through the Host runtime. | Ordinary Desktop history reconnect and packaged platform acceptance are open. DSH does not advertise Pero's ACP load capability. |
+| Messages and Files | Text/tool SSE, signed replay at the same credential and route, explicit image upload/reuse, fallback and stale-ID handling; Rust Host restart and Paper source-provenance contracts. | Live DeepSeek round trip, broader DSH Files file lifecycle/quota/budget behavior, and real Desktop Paper link navigation remain open. Pero deliberately avoids widening uploads or retrying ambiguous stale IDs. |
+| Compaction, Skills and policy | Latest-request pressure, explicit summary override, frozen source identity; existing Skill catalog/permission tests and separately pinned AST comparison. | Pero intentionally does not choose a last-answered model implicitly or adopt DSH's dynamic filesystem Skill roots. Source/AST extraction is not whole-runtime execution. |
+| Goal | Explicit ACP start/status/edit/resume/complete, durable admission, cancellation, scoped descendant waits, and model stop with configurable blocker threshold. | DSH's model-mediated create/edit/resume under direct human authority and model wrap-up are not ported. Shipped Electron/Native controls and live-model acceptance remain open. |
+| Team / subagents | Root mode and exact-ID board reads, optimistic claims/reassignment, dependencies and advisory scopes. Model guidance follows the effective Board tools. | Named member routing and the DSH subagent control tool family are not equivalent, and there is no shipped Desktop Team panel. Existing delegation and board state do not imply those features. |
+| DSH product/runtime distribution | Go has its own composition; Pero already owns permissions, Host/Project research workflows and Task/Run. | DSH Web/live settings, compatible Cordis plugin loading/hot reload, SDK distribution and PTC execution are not supplied by this PR. Do not claim parity for them based on the ACP wire suite. |
+
+Treat “implemented,” “verified locally,” and “verified on a shipped surface”
+separately. Keep actual package/environment/Run receipts for each acceptance
+lane. Do not mark the whole release aligned while any intended row remains open.
 
 ## Goal restart boundary
 
@@ -150,18 +155,20 @@ assessment from operator completion; it is not independent scientific
 review. Only the operator can resume a blocked/paused goal, within the
 original cap. Completed goals cannot resume.
 
-A model can complete or pause on round one, but `blocked` requires at least
-three admitted rounds and a nonblank `blocked_reason`. This is the default
-threshold of the pinned DSH version; the model is still responsible for judging
-whether the blocker persisted. Below that threshold, an operator decision can
+A model can complete or pause on round one. `blocked` requires a nonblank
+`blocked_reason` and at least three admitted rounds by default, matching the
+pinned DSH version. With `--enable-goal`, supply
+`--goal-block-after-rounds N` to set a different positive floor. The prompt,
+tool description, and stop validation use the same value; the round cap is
+independent. This is a trusted process-launch setting, not a per-goal journal
+field. The model remains responsible for judging whether the blocker persisted. Below that threshold, an operator decision can
 be requested via `paused`. Pero saves the accepted reason and displays it in
 the closing status and after restart, without another inference. DSH instead
 asks the model for a closing explanation.
 
 Unlike DSH's editable live service, Pero only accepts edits as explicit ACP
 commands outside an active prompt. An old revision's delayed admission or
-stop does not apply to an edited goal. The model cannot make edits. A
-configurable blocker threshold is not included. When subagents are enabled,
+stop does not apply to an edited goal. The model cannot make edits. When subagents are enabled,
 Goal joins its own progressing descendants before reserving the next round.
 Idle descendants with parked input and other sessions do not block it.
 Cancelling while waiting disarms the Goal without consuming another round.
@@ -213,6 +220,12 @@ model (B), then verifies that the first explicit follow-up still uses B.
 An ordinary Desktop history row does not yet start this reconnect.
 
 
+
+One stable system prompt section explains claiming, revision checks,
+disjoint scopes, and coordination without granting workspace access or promising
+a message/wake. It is rendered only when all four Team tools are admitted for the
+current model request. Mode off, unrelated roots, or masked tools do not advertise
+it. The prepared tool policy remains separate from prompt text.
 
 - The live root and its owned children see `team_task_create`, `team_task_list`,
   `team_task_get` and `team_task_update` only while opted in. Unrelated roots
