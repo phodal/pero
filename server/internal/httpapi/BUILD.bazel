@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "httpapi",
     srcs = [
+        "campaigns.go",
         "clients.go",
         "project_sources.go",
         "artifacts.go",
@@ -20,6 +21,8 @@ go_library(
     importpath = "github.com/phodal/pero/server/internal/httpapi",
     visibility = ["//server:__subpackages__"],
     deps = [
+        "//server/internal/campaign",
+        "//server/internal/campaignruntime",
         "//server/internal/github",
         "//server/internal/store",
         "//server/internal/projectsource",
@@ -37,6 +40,7 @@ go_library(
 go_test(
     name = "httpapi_test",
     srcs = [
+        "campaigns_test.go",
         "clients_test.go",
         "run_desktop_test.go",
         "project_sources_test.go",
@@ -53,7 +57,7 @@ go_test(
         "runtime_browser_test.go",
     ],
     env = {"PERO_REQUIRE_TEST_DATABASE": "1"},
-    env_inherit = ["PERO_TEST_DATABASE_URL", "PERO_ISOLATED_PROCESS_E2E", "PERO_SANDBOX_WORKER_BINARY", "PERO_REMOTE_BRIDGE_BINARY", "PERO_REMOTE_CONNECT_BINARY", "PERO_TEST_CLOUD_BROWSER_ELECTRON", "PERO_TEST_SHARED_SOURCES_NATIVE", "PERO_TEST_SHARED_SOURCES_APP"],
+    env_inherit = ["PERO_TEST_DATABASE_URL", "PERO_TEST_TEMPORAL", "PERO_TEST_TEMPORAL_CLI", "PERO_TEST_TEMPORAL_HISTORY", "PERO_ISOLATED_PROCESS_E2E", "PERO_SANDBOX_WORKER_BINARY", "PERO_REMOTE_BRIDGE_BINARY", "PERO_REMOTE_CONNECT_BINARY", "PERO_TEST_CLOUD_BROWSER_ELECTRON", "PERO_TEST_SHARED_SOURCES_NATIVE", "PERO_TEST_SHARED_SOURCES_APP"],
     tags = [
         "external",  # Always rerun against the current database, including locally.
         "local",
@@ -64,6 +68,8 @@ go_test(
     visibility = ["//server:__pkg__"],
     deps = [
         ":httpapi",
+        "//server/internal/campaign",
+        "//server/internal/campaignruntime",
         "//server/internal/github",
         "//server/internal/store",
         "//server/internal/sandbox",
@@ -75,5 +81,15 @@ go_test(
         "//server/internal/runtimegateway",
         "@com_github_jackc_pgx_v5//:pgx",
         "@com_github_jackc_pgx_v5//pgxpool",
+        "@io_temporal_go_api//common/v1:common",
+        "@io_temporal_go_api//enums/v1:enums",
+        "@io_temporal_go_api//history/v1:history",
+        "@io_temporal_go_api//serviceerror",
+        "@io_temporal_go_api//workflowservice/v1:workflowservice",
+        "@io_temporal_go_sdk//client",
+        "@io_temporal_go_sdk//testsuite",
+        "@io_temporal_go_sdk//worker",
+        "@io_temporal_go_sdk//workflow",
+        "@org_golang_google_protobuf//encoding/protojson",
     ],
 )
