@@ -559,6 +559,19 @@ func (i *Instance) Restart(ctx context.Context) error {
 	return i.send(ctx, instanceCommand{kind: commandRestart, ack: make(chan error, 1)})
 }
 
+// Dispose asks the actor to shut down and waits for it.
+//
+// A canceled or expired caller context is returned even when shutdown itself
+// succeeded. select can observe both the finished command and ctx.Done, and
+// the caller must see that they left. This is not a failed dispose and not a
+// signal to start the instance again: Runtime.Dispose cancels the runtime
+// before this wait, so shutdown continues after the return.
+//
+// Callers that surface the error:
+//   - Application reconcile (application.go) stops the pass and does not retry.
+//   - workflow.App.Dispose / Close returns it from a fresh timeout and does not retry.
+//   - ToolContribution.Dispose returns it to the composition root; a canceled
+//     caller is cancellation, not a reason to mount the tool again.
 func (i *Instance) Dispose(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()

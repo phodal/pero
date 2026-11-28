@@ -102,6 +102,8 @@ func (a *Application) Apply(ctx context.Context, specs []EntrySpec) error {
 		mustStop := !exists || !next.spec.IsEnabled() || current.spec.Definition != next.spec.Definition || scopeChanged
 		if current.instance != nil && mustStop {
 			if err := current.instance.Dispose(ctx); err != nil {
+				// Includes context.Canceled after a dispose that already finished.
+				// Stop this pass; do not start the entry again.
 				return fmt.Errorf("runtime: dispose entry %q: %w", id, err)
 			}
 			current.instance = nil
