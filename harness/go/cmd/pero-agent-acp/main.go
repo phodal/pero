@@ -135,6 +135,9 @@ func run() (resultErr error) {
 	if *outputLimitRecoveries < 0 || *printMode && *outputLimitRecoveries != 0 {
 		return errors.New("--output-limit-recoveries must be nonnegative and is only supported in ACP mode")
 	}
+	if delegation.Continuations && (*printMode || *initOnly || *maintenance) {
+		return errors.New("--enable-dsh-continuations requires ACP mode")
+	}
 	if *enableTeam && (!delegation.Enabled || *printMode || *initOnly || *maintenance) {
 		return errors.New("--enable-team requires --enable-subagents and ACP mode")
 	}
@@ -605,7 +608,7 @@ func run() (resultErr error) {
 	if *printMode {
 		return runPrintPrepared(ctx, h, pluginHooks, *model, *workspace, printPrompt, harness.AgentOptions{MaxSteps: *maxTurnSteps, Compaction: compactionConfig}, engineering.preparePrompt(engineeringApp))
 	}
-	serverOptions := acp.Options{SessionTitles: *sessionTitles, UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
+	serverOptions := acp.Options{WaitForSubagentTree: delegation.Continuations, SessionTitles: *sessionTitles, UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
 	serverOptions.OutputLimitRecoveries = *outputLimitRecoveries
 	serverOptions.Goal = *enableGoal
 	serverOptions.GoalBlockAfterRounds = *goalBlockAfterRounds

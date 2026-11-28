@@ -25,6 +25,9 @@ import (
 )
 
 type Options struct {
+	// WaitForSubagentTree holds a native prompt through its asynchronous tree
+	// completion and any final turn driven by a child notice.
+	WaitForSubagentTree bool
 	// SessionTitles enables one auxiliary title call after the first completed
 	// turn. The native composition opts in; protocol-only embeddings stay inert.
 	SessionTitles bool
@@ -81,6 +84,7 @@ type Options struct {
 }
 
 type Server struct {
+	waitForSubagentTree      bool
 	sessionTitles            bool
 	goal                     bool
 	goalBlockAfterRounds     int
@@ -207,10 +211,11 @@ func NewServer(options Options) (*Server, error) {
 		outputLimitRecoveries: options.OutputLimitRecoveries, omitToolImages: options.OmitToolImages,
 		name: options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
 		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText, preparePrompt: options.PreparePrompt,
-		science:            options.Science,
-		scientificReviewer: options.ScientificReviewer,
-		teamBoard:          options.TeamBoard,
-		sessions:           make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
+		science:             options.Science,
+		scientificReviewer:  options.ScientificReviewer,
+		waitForSubagentTree: options.WaitForSubagentTree,
+		teamBoard:           options.TeamBoard,
+		sessions:            make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
 		pending: make(map[string]chan clientResponse), retiring: make(map[*harness.Agent]*activeSession), closedSessions: make(map[harness.SessionID]*activeSession),
 	}, nil
 }

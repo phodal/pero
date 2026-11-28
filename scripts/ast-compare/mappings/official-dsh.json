@@ -239,7 +239,7 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "8e780a40b0da472b52c4cbe77d51160e489302d03ab0de88d148645d16ab4eb7"
+        "sha256": "f63cc937f4a1f0249dced6352f26a6475cecf83afd8c8f7ae998d5f386e80b94"
       },
       "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement. ACP may explicitly enable bounded output-limit follow-up turns. Each uses a plugin source and the same prompt lifetime; default zero retains the single-prompt contract. The core sticky max-token outcome is unchanged. Recovery, exhausted budgets and cancellation are pinned by native tests. PR #225 adds explicit /review handling and optional bounded post-turn review under the same promptCtx/inflight admission. Manual review reads retained evidence instead of submitting another ordinary model prompt. ACP admission, review cancellation and output-limit regression tests cover this intentional local composition; the refreshed receipt does not assert cross-language equivalence. The opt-in native /goal command also owns this slot through all bounded rounds; each round uses a context-bound guarded follow-up. It does not alter default admission.",
       "landmarks": [
@@ -278,9 +278,9 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.handleNotification",
-        "sha256": "bbbd5cc5ef51a6aace49e887c224ddce8da21bfcb939f9dd6550b5e3e9fa9ce1"
+        "sha256": "2b99ad23148017fd9e32ab3cf0097d3b722993d2ee8544151e05a4c2c949f145"
       },
-      "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity. Issue #50 also cancels outstanding same-session MCP App operations before Agent cancellation; the existing prompt admission and active-turn cancellation remain intact. PR #225 adds the shared science-session request and Reviewer setup elsewhere in this file. The selected Server.handleNotification cancellation handler is unchanged from master 60c800888; its file receipt is refreshed after reviewing the added composition and existing ACP cancellation tests, not to claim new upstream parity. The opt-in Goal option and shared session menu change composition elsewhere in server.go; the selected cancellation handler remains unchanged and cancels the Goal command through the existing promptCancel path.",
+      "notes": "Default Go composition retains its synchronous subset. Opt-in native continuations now join tree work and root output on normal completion; this cancellation extraction still compares the existing handler. Compare actual cancellation wiring, not full ACP feature parity. Issue #50 also cancels outstanding same-session MCP App operations before Agent cancellation; the existing prompt admission and active-turn cancellation remain intact. PR #225 adds the shared science-session request and Reviewer setup elsewhere in this file. The selected Server.handleNotification cancellation handler is unchanged from master 60c800888; its file receipt is refreshed after reviewing the added composition and existing ACP cancellation tests, not to claim new upstream parity. The opt-in Goal option and shared session menu change composition elsewhere in server.go; the selected cancellation handler remains unchanged and cancels the Goal command through the existing promptCancel path.",
       "landmarks": [
         {
           "id": "cancel-admission",
@@ -307,9 +307,9 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "8e780a40b0da472b52c4cbe77d51160e489302d03ab0de88d148645d16ab4eb7"
+        "sha256": "f63cc937f4a1f0249dced6352f26a6475cecf83afd8c8f7ae998d5f386e80b94"
       },
-      "notes": "Go waits for the active Agent to become idle before releasing its ACP slot after cancellation; official also drains descendants/output updates. PR #225 settles optional bounded review within the admitted prompt lifetime before the existing WhenIdle and inflight-slot release. Manual /review uses the same cancellable prompt slot without starting the ordinary parent turn. Review and prompt-termination regressions cover the local paths; extraction remains a cross-language review, not semantic equivalence. Opt-in Goal cancellation joins its exact follow-up owner before returning from the same prompt slot. Session reopen does not rearm the goal; the explicit resume regression exercises that distinction.",
+      "notes": "Go waits for the active Agent to become idle before releasing its ACP slot after cancellation; official also drains descendants/output updates. PR #225 settles optional bounded review within the admitted prompt lifetime before the existing WhenIdle and inflight-slot release. Manual /review uses the same cancellable prompt slot without starting the ordinary parent turn. Review and prompt-termination regressions cover the local paths; extraction remains a cross-language review, not semantic equivalence. Opt-in Goal cancellation joins its exact follow-up owner before returning from the same prompt slot. Session reopen does not rearm the goal; the explicit resume regression exercises that distinction. Opt-in native continuations keep ACP open through child settlement and a fresh root idle/sequence check, tested with real ACP loopback.",
       "landmarks": [
         {
           "id": "settlement",

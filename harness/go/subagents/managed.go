@@ -7,16 +7,16 @@ import (
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
-// This wrapper advertises managed continuation only for the selected Claude
-// provider. Legacy spawn/fork providers retain their one-shot capability set.
-type managedClaudeProvider struct{ *inProcessProvider }
+// Managed creation is explicit for native and selected Claude providers.
+// Legacy spawn/fork retain their one-shot capability set.
+type managedInProcessProvider struct{ *inProcessProvider }
 
 type claudeBackgroundActivationKey struct{}
 
-func (p *managedClaudeProvider) PrepareContinuable(ctx context.Context, request harness.SubagentRequest) (harness.SubagentContinuationProviderRun, error) {
+func (p *managedInProcessProvider) PrepareContinuable(ctx context.Context, request harness.SubagentRequest) (harness.SubagentContinuationProviderRun, error) {
 	return harness.SubagentContinuationProviderRun{}, harness.ErrSubagentActivationModeUnsupported
 }
-func (p *managedClaudeProvider) PrepareActivation(ctx context.Context, request harness.SubagentRequest) (harness.SubagentContinuationProviderRun, error) {
+func (p *managedInProcessProvider) PrepareActivation(ctx context.Context, request harness.SubagentRequest) (harness.SubagentContinuationProviderRun, error) {
 	child, capture, err := p.createChild(ctx, request)
 	if err != nil {
 		return harness.SubagentContinuationProviderRun{}, err
@@ -35,14 +35,14 @@ func (p *managedClaudeProvider) PrepareActivation(ctx context.Context, request h
 	}
 	return run, nil
 }
-func (p *managedClaudeProvider) continuationRun(ctx context.Context, child *harness.Agent) harness.SubagentContinuationProviderRun {
+func (p *managedInProcessProvider) continuationRun(ctx context.Context, child *harness.Agent) harness.SubagentContinuationProviderRun {
 	background, _ := ctx.Value(claudeBackgroundActivationKey{}).(bool)
 	return harness.SubagentContinuationProviderRun{Child: child, ChildID: child.ID(), Submit: child.FollowupResultContext, Dispose: func(ctx context.Context) error { return p.removeChild(ctx, child) }, RetainBackgroundActivities: background}
 }
-func (p *managedClaudeProvider) PrepareResume(ctx context.Context, parent *harness.Agent, id harness.SessionID) (harness.SubagentContinuationProviderRun, harness.SubagentSnapshot, error) {
+func (p *managedInProcessProvider) PrepareResume(ctx context.Context, parent *harness.Agent, id harness.SessionID) (harness.SubagentContinuationProviderRun, harness.SubagentSnapshot, error) {
 	return harness.SubagentContinuationProviderRun{}, harness.SubagentSnapshot{}, harness.ErrSubagentActivationModeUnsupported
 }
-func (p *managedClaudeProvider) PrepareManagedResume(ctx context.Context, parent *harness.Agent, id harness.SessionID) (harness.SubagentContinuationProviderRun, harness.SubagentSnapshot, error) {
+func (p *managedInProcessProvider) PrepareManagedResume(ctx context.Context, parent *harness.Agent, id harness.SessionID) (harness.SubagentContinuationProviderRun, harness.SubagentSnapshot, error) {
 	unavailable := func() (harness.SubagentContinuationProviderRun, harness.SubagentSnapshot, error) {
 		return harness.SubagentContinuationProviderRun{}, harness.SubagentSnapshot{}, harness.ErrSubagentResumeUnavailable
 	}
@@ -67,6 +67,29 @@ func (p *managedClaudeProvider) PrepareManagedResume(ctx context.Context, parent
 	}
 	if !found || descriptor.Provider != p.name || descriptor.Mode != harness.SubagentDescriptorContinuable {
 		return unavailable()
+	}
+	if p.definitions == nil {
+		// Native direct-parent continuation uses the original route and tool
+		// restrictions. Child options refuse an incompatible current parent
+		// rather than silently switching providers or widening approvals.
+		request := harness.SubagentRequest{Parent: parent, ChildID: id, Depth: header.DelegationDepth, CWD: session.WorkingDirectory(), Provider: descriptor.AgentProvider, Model: descriptor.AgentModel, ReasoningEffort: descriptor.AgentReasoningEffort, Persona: descriptor.Persona, ToolFilter: descriptor.ToolFilter}
+		var capture *structuredCapture
+		options, err := p.childAgentOptions(request, &capture)
+		if err != nil {
+			return harness.SubagentContinuationProviderRun{}, harness.SubagentSnapshot{}, err
+		}
+		if err := p.resolveChildRoute(ctx, request, options); err != nil {
+			return harness.SubagentContinuationProviderRun{}, harness.SubagentSnapshot{}, err
+		}
+		child, err := p.h.Agents().Resume(ctx, session, options)
+		if err != nil {
+			return harness.SubagentContinuationProviderRun{}, harness.SubagentSnapshot{}, err
+		}
+		if err := p.attachSession(ctx, child.Session()); err != nil {
+			_ = p.removeChild(context.Background(), child)
+			return harness.SubagentContinuationProviderRun{}, harness.SubagentSnapshot{}, err
+		}
+		return p.continuationRun(ctx, child), harness.SubagentSnapshot{ID: id, Parent: header.ParentSession, Provider: p.name, Label: descriptor.Label, Depth: header.DelegationDepth, Continuable: true, SuppressParentSettlement: descriptor.SuppressParentSettlement}, nil
 	}
 	identity, found, err := selectedClaudeDefinition(session)
 	if err != nil {
@@ -132,7 +155,7 @@ func (p *managedClaudeProvider) PrepareManagedResume(ctx context.Context, parent
 // ListPersisted projects only recognizable selected Claude continuations. It
 // never resumes a child or grants an execution lease. An unreadable or no
 // longer configured child is not eligible for ownership reassignment.
-func (p *managedClaudeProvider) ListPersisted(ctx context.Context) ([]harness.SubagentCatalogEntry, error) {
+func (p *managedInProcessProvider) ListPersisted(ctx context.Context) ([]harness.SubagentCatalogEntry, error) {
 	if p.persistence == nil {
 		return nil, nil
 	}

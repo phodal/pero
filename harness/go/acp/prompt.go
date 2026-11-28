@@ -157,6 +157,9 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 			if promptErr == nil && grant != nil && result.Turn == delegatedTurn.Turn {
 				result, promptErr = s.settleDelegatedGoal(promptCtx, record, grant, result)
 			}
+			if promptErr == nil && s.waitForSubagentTree {
+				result, promptErr = s.settleSubagentTree(promptCtx, record.agent, result)
+			}
 		}
 		// Prompt can return as soon as its context is canceled. Retain the ACP
 		// slot until the worker has stopped, so the next turn cannot overlap it.
@@ -189,6 +192,56 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 		record.agent.StartSessionTitle(result.Turn)
 	}
 	return promptStopReason(result.Reason), nil
+}
+
+// The root can become idle before a child sends its completion notice.
+// Session event projection writes client updates synchronously, so joining
+// the root again after the children also joins their resulting wire output.
+func (s *Server) settleSubagentTree(ctx context.Context, agent *harness.Agent, result harness.TurnResult) (harness.TurnResult, error) {
+	registry := s.h.Subagents()
+	if registry == nil {
+		return result, nil
+	}
+	session := agent.Session()
+	for {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
+		if err := agent.WhenIdle(ctx); err != nil {
+			return result, err
+		}
+		before := session.LastEventSeq()
+		if _, err := registry.WaitForChildren(ctx, agent); err != nil {
+			return result, err
+		}
+		if agent.Status() == harness.AgentIdle && before == session.LastEventSeq() {
+			break
+		}
+	}
+	if agent.CurrentTurn() != result.Turn {
+		events := session.Events()
+		for i := len(events) - 1; i >= 0; i-- {
+			if events[i].Type != "turn/end" || events[i].IsOpaque() {
+				continue
+			}
+			var end struct {
+				Turn   int                `json:"turn"`
+				Reason harness.FinishKind `json:"reason"`
+				Error  string             `json:"error"`
+			}
+			if err := json.Unmarshal(events[i].Data, &end); err != nil {
+				return result, err
+			}
+			if end.Turn > result.Turn {
+				result.Turn, result.Reason = end.Turn, end.Reason
+				if end.Error != "" {
+					return result, errors.New(end.Error)
+				}
+			}
+			break
+		}
+	}
+	return result, s.writer.currentError()
 }
 
 func validTurnReceiptID(id string) bool {
