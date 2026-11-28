@@ -70,7 +70,7 @@ func sliceKey(owner, project, id string) string {
 	return owner + "\x00" + project + "\x00" + id
 }
 
-func (o *sliceOwner) Paper(owner, project, id string) (PaperRecord, bool) {
+func (o *sliceOwner) Paper(_ context.Context, owner, project, id string) (PaperRecord, bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	record, ok := o.papers[sliceKey(owner, project, id)]
@@ -81,7 +81,7 @@ func (o *sliceOwner) Paper(owner, project, id string) (PaperRecord, bool) {
 	return record, true
 }
 
-func (o *sliceOwner) ImportPDF(project string, body []byte, digest string) (string, string, bool) {
+func (o *sliceOwner) ImportPDF(_ context.Context, project string, body []byte, digest string) (string, string, bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	sum := sha256.Sum256(body)

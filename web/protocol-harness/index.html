@@ -12,6 +12,9 @@
     <form id="session">
       <label>Origin <input name="origin" required></label>
       <label>Project <input name="project" required value="lab"></label>
+      <label>Owner <input name="owner" required value="paper-owner"></label>
+      <label>Local project <input name="local" required value="local-lab"></label>
+      <label>Run <input name="run" required value="run-1"></label>
       <label>Client token <input name="token" required autocomplete="off"></label>
       <label>PDF <input name="pdf" type="file" accept="application/pdf"></label>
       <button type="submit">Run slice</button>
@@ -28,27 +31,29 @@
       event.preventDefault();
       const data = new FormData(event.currentTarget);
       const file = data.get('pdf');
+      const owner = data.get('owner');
       const corpus = {
         project: data.get('project'),
         clientToken: data.get('token'),
-        ownerHost: 'paper-owner',
-        localProject: 'local-lab',
+        ownerHost: owner,
+        localProject: data.get('local'),
         app: 'paper-agent',
-        appInstance: 'paper-agent@paper-owner',
+        appInstance: 'paper-agent@' + owner,
         appVersion: '1',
         paperId: 'paper-1',
         revision: '34ad712113ddbb4f4c4dc5f46380924a5ff69f53e0e5bc1b63e03c5bb6d44f90',
         evidence: 'pero-paper-evidence-v1',
         pdf: '%PDF-1.1\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n',
-        runId: 'run-1',
+        runId: data.get('run'),
         runOwner: 'control-plane',
       };
-      const picked = file && file.size ? new Uint8Array(await file.arrayBuffer()) : undefined;
+      result.textContent = '';
       try {
+        const picked = file && file.size ? new Uint8Array(await file.arrayBuffer()) : undefined;
         const slice = await runProtocolSlice({ origin: data.get('origin'), corpus, pdfBytes: picked });
         result.textContent = JSON.stringify({
           role: slice.me.role,
-          opened: slice.opened.digest,
+          opened: slice.opened ? slice.opened.digest : '',
           paperId: slice.first.paperId,
           createdAgain: slice.second.created,
           run: slice.observed.outcome,

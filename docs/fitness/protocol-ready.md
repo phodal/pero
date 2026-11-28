@@ -14,16 +14,18 @@ The corpus is `protocol/fixtures/protocol-ready/corpus.json`. Contract checks, l
 | agent start | local `/host` envelope | Electron, Native | `agent-start-stays-local`, `remote: false` | both dispatch adapters route it to `/host/app-agent` and the remote allow list does not name it | NOT_VERIFIED |
 | unknown operation | local envelope | Electron, Native | `unknown-operation` | both adapters return `unknown_operation` | NOT_VERIFIED |
 | scoped login | remote HTTP | browser | corpus `scoped-login` | harness `GET /api/client/v1/me` with the project client token | NOT_VERIFIED |
-| Paper read | remote HTTP | browser | `paper-read`, `paper-reopen`, `wrong-project` | `readPaperResource` against `ProtocolReadyHandler` | NOT_VERIFIED |
-| PDF pick and import | remote HTTP | browser | `pdf-import-once`, `path-handle` | SDK pick, handle registration,  raw upload, one domain import, second finalize returns the same Paper id | NOT_VERIFIED |
-| run observe | remote HTTP | browser | `run-observe`, `run-disconnect`, `run-replay`, `run-gap` | existing Run projection; disconnect is `transport_abort`; the same request id returns `duplicate` and effect `none` | NOT_VERIFIED |
+| Paper read | remote HTTP | browser | `paper-read`, `paper-reopen`, `wrong-project` | harness loopback, and `PersistedPaper` on `server/cmd/server` when `PERO_DATABASE_URL` is set. The id is `rev_…`, owner `pero-paper` | NOT_VERIFIED |
+| PDF pick and import | remote HTTP | browser | `pdf-import-once`, `path-handle` | one import per upload; a second finalize returns that revision; the desk drops the bytes after success; cancel during import does not report success | NOT_VERIFIED |
+| run observe | remote HTTP | browser | `run-observe`, `run-disconnect`, `run-replay`, `run-gap` | `persistedRuns` reads the existing Run. Non-`none` receipts are database rows and survive a new process | NOT_VERIFIED |
 | operator route | remote HTTP | browser | `operator-route`, `missing-token` | absent and unauthenticated | NOT_VERIFIED |
 
 Android Chrome and WebView are the same NOT_VERIFIED column. They are not implied by the Ubuntu loopback run.
 
 ## What ran here
 
-- `go -C server test -count=1 ./internal/httpapi -run 'TestProtocolReadyCorpus|TestPaperPDF|TestDeviceRoutes'`
+- `go -C server test -count=1 ./internal/httpapi -run 'TestProtocolReadyCorpus|TestPaperPDF|TestDeviceRoutes|TestConcurrentFinalize|TestPlaceKeeps'`
+- `go -C server test -count=1 ./internal/paperdomain`
+- `TestProductionServerKeepsAPaperAndARunReceipt` runs in the existing Postgres job with `TestResearchCampaignTemporal`. It skips when `PERO_TEST_DATABASE_URL` is unset.
 - `node --test scripts/ci/protocol-ready.test.mjs`
 - `node` under that Go test runs `web/protocol-harness/session.test.mjs` against the live handler
 - Native: `cargo test -p pero-ui --lib protocol_ready_corpus_matches_native_dispatch` when the UI crate builds
@@ -32,7 +34,7 @@ Normal CI stays the existing `go test` job and `node --test scripts/ci/*.test.mj
 
 ## Legacy exceptions
 
-Desktop, Native shell, and existing domain Apps may still import Electron or a host bridge for routes that are not in this migrated set. The fitness check covers `web/protocol-harness` and refuses `electron`, `capacitor`, and `preload` there. It does not fail the repository for those older call sites. Insights, connectors, automation, and direct host-agent routes stay on their current shells. `server/cmd/server` still has no Paper domain and no importer, so production device routes stay unmounted.
+Desktop, Native shell, and existing domain Apps may still import Electron or a host bridge for routes that are not in this migrated set. The fitness check covers `web/protocol-harness` and refuses `electron`, `capacitor`, and `preload` there. It does not fail the repository for those older call sites. Insights, connectors, automation, and direct host-agent routes stay on their current shells. `server/cmd/server` now installs `PersistedPaper` when the database is open. A nil importer still leaves the device routes unmounted.
 
 `remoteAllow` is only `paper.read`, `run.observe`, `device.files.pick`, and `device.files.transfer`. Inventory rows marked `local_only` or `privileged`, including `agent/start`, `agent/cancel`, `agent/retry`, `agent/prepare`, `agent/terminal`, and `connectors/secret.set`, are refused as remote grants.
 
@@ -41,14 +43,14 @@ Public SDK names `readPaperResource`, `observeRun`, `interpretDevicePick`, `plan
 ## Gaps
 
 - Safari on iPad, and Android Chrome or WebView, have no physical-device record.
-- Production still does not register picks or mount device routes until a composition root supplies an importer. The harness is that composition for the slice.
-- The in-memory desk can still retain PDF bytes after a successful import. The domain copy is what the reopen reads.
-- A cancel that overlaps finalize, and a same-digest retry after the handle expires, stay follow-up. This slice does not add that lock.
+- The production binary mounts device routes when the database is open. A nil importer still leaves them unmounted.
+- The production desk drops PDF bytes after a successful import. The in-memory harness owner can still keep its copy. The domain row keeps the bytes.
+- A same-digest retry after the handle expires stays follow-up. Cancel overlapping finalize is reserved on the upload and does not report success.
 - The SDK still accepts a nonempty `path` that does not contain a slash. The HTTP finalize and handle registration refuse a path field. Native pick refusal of every nonempty path is the Rust contract.
 - Version negotiation is the SDK snapshot. The HTTP routes do not carry a second protocol-version field; an unknown route is absent.
 
 ## Phodal-Studio
 
-1. On a machine that has this repo, hold the harness open with `PROTOCOL_READY_LISTEN=1 go -C server test -count=1 -timeout 30m -run TestProtocolReadyListen ./internal/httpapi`. It listens on every interface and prints a port. On a physical iPad, open `http://<that-machine>:<port>/web/protocol-harness/index.html`. The page and the API are that same origin. Do not open the HTML from a second static server. Leave Origin as the page origin. Use the printed project client token. Submit without choosing a file, then again with a different PDF under 32 MiB. Confirm each submission shows role `client`, the seeded digest, its own Paper id, `observed`, `transport_abort`, and `duplicate`. The second Paper id differs from the first. Confirm the network log has no operator token, no `OPTIONS` preflight, and no request outside the page, the four SDK modules, `/api/client/v1/me`, and `/api/client/v1/projects/lab/`.
+1. Start the production binary, not the harness listener: `PERO_DATABASE_URL=… PERO_OPERATOR_TOKEN=… PERO_PROTOCOL_ROOT=$PWD go -C server run ./cmd/server`. Put TLS in front of that process so the page and the API share one HTTPS origin with a certificate the device trusts. `crypto.subtle` does not run on a plain HTTP LAN address. localhost on the same machine is a secure context; an iPad is not that machine. Create a project client, claim one task, and dispatch one Run with the existing task API. On a physical iPad, open `https://<that-name>/web/protocol-harness/index.html`. Leave Origin as that page. Set Owner to `pero-paper`, Local project to the shared project id, and Run to the dispatched run id. Use the project client token. Submit the fixture PDF, then a different PDF under 32 MiB. The first seeded Paper may be missing; each import returns a `rev_` id, and the second id differs. The page's status calls confirm `transport_abort` and `duplicate`. Those status calls do not create a receipt. Separately, POST one cancel observation with a fixed request id and input hash. Restart the binary. POST that same body again and confirm `duplicate` with effect `none`. Confirm no operator token and no `OPTIONS` preflight.
 2. Repeat that page on Android Chrome, then in the Android WebView shell if one is installed. Record each as its own row. A desktop Chrome window does not fill either row.
 3. On Electron and on the Native shell, dispatch the corpus envelope for `agent-status` and `agent-start-stays-local` through the running shell, not only the unit function. Confirm start stays on `/host/app-agent` and does not appear on the client API.

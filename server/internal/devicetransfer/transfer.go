@@ -80,6 +80,17 @@ func Finalize(member bool, project string, transfer Transfer, body []byte, known
 	if transfer.Cancelled {
 		return Commit{}, CancelledTransfer
 	}
+	if prior != nil {
+		if transfer.Size == 0 || transfer.Size != transfer.Received {
+			return Commit{}, Interrupted
+		}
+		if prior.Digest == transfer.Digest {
+			copy := *prior
+			copy.Created = false
+			return copy, ""
+		}
+		return Commit{}, Conflict
+	}
 	if transfer.Received != transfer.Size || uint64(len(body)) != transfer.Size {
 		return Commit{}, Interrupted
 	}
@@ -87,14 +98,6 @@ func Finalize(member bool, project string, transfer Transfer, body []byte, known
 	actual := hex.EncodeToString(sum[:])
 	if actual != transfer.Digest {
 		return Commit{}, DigestMismatch
-	}
-	if prior != nil {
-		if prior.Digest == transfer.Digest {
-			copy := *prior
-			copy.Created = false
-			return copy, ""
-		}
-		return Commit{}, Conflict
 	}
 	if domainID == "" || domainRevision == "" || domainID == "paper-"+actual[:12] {
 		return Commit{}, Unavailable

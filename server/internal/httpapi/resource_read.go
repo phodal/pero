@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -25,7 +26,7 @@ type PaperRecord struct {
 
 // PaperDomain is the scientific source for one read. A miss is not another owner.
 type PaperDomain interface {
-	Paper(owner, project, id string) (PaperRecord, bool)
+	Paper(ctx context.Context, owner, project, id string) (PaperRecord, bool)
 }
 
 func (a *API) readPaperResource(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +78,7 @@ func (a *API) readPaperResource(w http.ResponseWriter, r *http.Request) {
 		writeResourceError(w, err)
 		return
 	}
-	record, found := a.paper.Paper(resource.OwnerHost, project, resource.ID)
+	record, found := a.paper.Paper(r.Context(), resource.OwnerHost, project, resource.ID)
 	if !found {
 		writeResourceError(w, resourceref.ErrMissing)
 		return

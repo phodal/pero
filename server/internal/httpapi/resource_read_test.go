@@ -22,12 +22,12 @@ type countingPaper struct {
 	calls int
 }
 
-func (c *countingPaper) Paper(owner, project, id string) (PaperRecord, bool) {
+func (c *countingPaper) Paper(ctx context.Context, owner, project, id string) (PaperRecord, bool) {
 	c.calls++
-	return c.paperMap.Paper(owner, project, id)
+	return c.paperMap.Paper(ctx, owner, project, id)
 }
 
-func (m paperMap) Paper(owner, project, id string) (PaperRecord, bool) {
+func (m paperMap) Paper(_ context.Context, owner, project, id string) (PaperRecord, bool) {
 	for _, record := range m.records {
 		if record.Resource.OwnerHost == owner && record.Resource.SharedProject == project && record.Resource.ID == id {
 			return record, true

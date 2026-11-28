@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "paperdomain",
+    srcs = ["place.go"],
+    importpath = "github.com/phodal/pero/server/internal/paperdomain",
+    visibility = ["//server:__subpackages__"],
+)
+
+go_test(
+    name = "paperdomain_test",
+    srcs = ["place_test.go"],
+    embed = [":paperdomain"],
+)

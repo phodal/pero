@@ -57,7 +57,12 @@ export async function runProtocolSlice({ origin, corpus, pdfBytes, fetchImpl = g
       return payload;
     },
   };
-  const opened = await readPaperResource(papers, { resource: paperResource(corpus, corpus.paperId, corpus.revision) });
+  let opened;
+  try {
+    opened = await readPaperResource(papers, { resource: paperResource(corpus, corpus.paperId, corpus.revision) });
+  } catch (error) {
+    if (!error || error.code !== 'missing') throw error;
+  }
   const pdf = pdfBytes ?? textEncoder.encode(corpus.pdf);
   const digest = await sha256(pdf);
   const stamp = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
