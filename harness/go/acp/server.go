@@ -734,7 +734,7 @@ func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) 
 	if err := checkMCPResumeRequirements(session.Events(), len(params.MCPServers) > 0); err != nil {
 		return err
 	}
-	if err := s.checkRestoredModel(ctx, session); err != nil {
+	if err := s.checkRestoredModel(ctx, session, params.Meta.QuietLoad != nil); err != nil {
 		return err
 	}
 	servers, err := s.decodeSessionMCPServers(params.MCPServers, params.CWD)

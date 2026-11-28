@@ -69,8 +69,8 @@ func (s *Server) validateModelChoice(ctx context.Context, selection harness.Agen
 	return nil
 }
 
-func (s *Server) checkRestoredModel(ctx context.Context, session *harness.Session) error {
-	if len(s.modelChoices) == 0 {
+func (s *Server) checkRestoredModel(ctx context.Context, session *harness.Session, exact bool) error {
+	if len(s.modelChoices) == 0 && !exact {
 		return nil
 	}
 	selection, found, err := harness.RecordedModelSelection(session)
@@ -79,6 +79,12 @@ func (s *Server) checkRestoredModel(ctx context.Context, session *harness.Sessio
 	}
 	if !found {
 		selection = harness.AgentModelSelection{Provider: s.provider, Model: s.model}
+	}
+	if len(s.modelChoices) == 0 {
+		if selection.Provider != s.provider || selection.Model != s.model {
+			return invalidError("recorded model is not the configured single model")
+		}
+		return nil
 	}
 	return s.validateModelChoice(ctx, selection)
 }
