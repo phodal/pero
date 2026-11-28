@@ -33,14 +33,17 @@ func TestProductionServerKeepsAPaperAndARunReceipt(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		task, err := db.CreateTask(t.Context(), store.Spec{Title: "Watch", Prompt: "Watch the run", Acceptance: "Seen", ProjectID: "lab", WorkspaceKey: "lab", AgentID: "fixture"}, "production-paper")
+		task, err := db.CreateTask(t.Context(), store.Spec{Title: "Watch", Prompt: "Watch the run", Acceptance: "Seen", ProjectID: "lab", WorkspaceKey: "lab", AgentID: "fixture"}, "production-paper-task")
 		if err != nil {
 			t.Fatal(err)
 		}
+		// Claim before dispatch. A queued run is busy, so a later claim is rejected,
+		// and ClientCancelRun accepts only the client that owns the task.
+		// The create and dispatch receipts are different keys: one key cannot name both operations.
 		if _, err = db.ClaimTask(t.Context(), &client, task.ID); err != nil {
 			t.Fatal(err)
 		}
-		run, err := db.Dispatch(t.Context(), task.ID, worker.ID, "production-paper")
+		run, err := db.Dispatch(t.Context(), task.ID, worker.ID, "production-paper-run")
 		if err != nil {
 			t.Fatal(err)
 		}
