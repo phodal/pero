@@ -29,7 +29,7 @@ func (s *Store) ConfigureRuntimeWorker(ctx context.Context, config runtimebindin
 		return ErrForbidden
 	}
 	var unsafe bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM runs r WHERE r.worker_id=$1 AND r.status IN ('running','cancel_requested','reconcile') AND NOT EXISTS(SELECT 1 FROM runtime_bindings b WHERE b.run_id=r.id))`, config.WorkerID).Scan(&unsafe); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM runs r WHERE r.worker_id=$1 AND `+holdsWorkerSlot+` AND NOT EXISTS(SELECT 1 FROM runtime_bindings b WHERE b.run_id=r.id))`, config.WorkerID).Scan(&unsafe); err != nil {
 		return err
 	}
 	if unsafe {
@@ -77,7 +77,7 @@ func (s *Store) DispatchRuntime(ctx context.Context, taskID, key string, config 
 	if !runtimeOnly {
 		return nil, nil, false, ErrForbidden
 	}
-	run, err := dispatchTx(ctx, tx, taskID, config.WorkerID, key)
+	run, err := dispatchTx(ctx, tx, taskID, config.WorkerID, key, managedDispatch)
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -239,7 +239,7 @@ func (s *Store) ReleaseRuntime(ctx context.Context, runID string) (runtimebindin
 	if err = saveRuntime(ctx, tx, binding); err != nil {
 		return runtimebinding.Binding{}, err
 	}
-	if _, err = tx.Exec(ctx, `UPDATE runs SET status=CASE WHEN status='queued' THEN 'cancelled' WHEN lease_expires_at<=clock_timestamp() THEN 'reconcile' ELSE 'cancel_requested' END,summary=CASE WHEN status='queued' THEN 'Cancelled before execution' WHEN lease_expires_at<=clock_timestamp() THEN 'Execution lease expired; cancellation is unconfirmed' ELSE summary END WHERE id=$1 AND status IN ('queued','running','cancel_requested')`, runID); err != nil {
+	if err = cancelRun(ctx, tx, runID); err != nil {
 		return runtimebinding.Binding{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

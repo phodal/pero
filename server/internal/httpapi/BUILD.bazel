@@ -12,6 +12,7 @@ go_library(
         "github.go",
         "routes.go",
         "run_desktop.go",
+        "run_operations.go",
         "sandbox.go",
         "worker.go",
         "worker_devices.go",
