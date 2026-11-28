@@ -66,6 +66,9 @@ func Workflow(ctx workflow.Context, input WorkflowInput) (campaign.Progress, err
 			}
 			var evidence campaign.ReviewedEvidence
 			err := workflow.ExecuteActivity(activities, verifyActivity, state.Command()).Get(ctx, &evidence)
+			for cancel.ReceiveAsync(nil) {
+				state.RequestCancel()
+			}
 			if err == nil {
 				state.RecordVerification(evidence)
 			} else {
