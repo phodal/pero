@@ -55,6 +55,21 @@ func TestProtocolReadyCorpus(t *testing.T) {
 	if module.StatusCode != 200 || module.Header.Get("Content-Type") != "text/javascript; charset=utf-8" {
 		t.Fatalf("module %d %s", module.StatusCode, module.Header.Get("Content-Type"))
 	}
+	for _, path := range []string{
+		"/packages/app-sdk/src/capability-client.mjs",
+		"/packages/app-sdk/src/device-files.mjs",
+		"/packages/app-sdk/src/resource-read.mjs",
+		"/packages/app-sdk/src/run-lifecycle.mjs",
+	} {
+		asset, err := http.Get(server.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		asset.Body.Close()
+		if asset.StatusCode != 200 || asset.Header.Get("Content-Type") != "text/javascript; charset=utf-8" {
+			t.Fatalf("%s %d %s", path, asset.StatusCode, asset.Header.Get("Content-Type"))
+		}
+	}
 	outside, err := http.Get(server.URL + "/server/internal/httpapi/protocol_ready.go")
 	if err != nil {
 		t.Fatal(err)
