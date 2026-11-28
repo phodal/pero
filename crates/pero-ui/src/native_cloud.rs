@@ -11,6 +11,8 @@ pub(crate) mod browser;
 #[cfg(target_os = "macos")]
 #[path = "native_cloud_desktop.rs"]
 mod desktop;
+#[path = "native_cloud_delivery.rs"]
+mod project_delivery;
 use crate::cloud_links::{self, idempotency_key};
 use crate::desktop_login::{self, Attempt, CALLBACK_ERROR, DEFAULT_ORIGIN};
 use pero_contracts::HostEvent;
@@ -150,7 +152,9 @@ impl CloudSession {
         if !action.starts_with("remote_") {
             return None;
         }
-        let event = if action.starts_with("remote_contribution_") {
+        let event = if matches!(action, "remote_delivery_list" | "remote_delivery_more" | "remote_delivery_create" | "remote_delivery_read" | "remote_delivery_evidence") {
+            self.coding_delivery(action, value)
+        } else if action.starts_with("remote_contribution_") {
             self.contribution(action, value)
         } else {
             self.remote(action, value)

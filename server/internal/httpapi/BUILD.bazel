@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "campaign_review.go",
         "campaigns.go",
+        "deliveries.go",
         "clients.go",
         "project_sources.go",
         "artifacts.go",

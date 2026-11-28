@@ -112,6 +112,7 @@ pub(crate) struct Workbench {
     pub navigation: WorkspaceNavigation,
     pub recovery:crate::workspace_restore::WorkspaceRecovery,
     pub remote: crate::remote::RemoteState,
+    pub(crate) deliveries: crate::project_deliveries::DeliveryState,
     pub local_execution: crate::local_execution::LocalExecution,
     pub contribution: crate::contributions::ContributionState,
     pub apps: crate::apps::AppCatalog,
@@ -332,6 +333,7 @@ impl Workbench {
             cx.notify();
         }));
         let remote = crate::remote::RemoteState::new(window, cx);
+        let deliveries = crate::project_deliveries::DeliveryState::new(window, cx);
         let local_execution = crate::local_execution::LocalExecution::new(&locale, window, cx);
         let navigation = WorkspaceNavigation::default();
         let preferences = pero_contracts::workbench::WorkbenchPreferences::default();
@@ -370,6 +372,7 @@ impl Workbench {
             #[cfg(target_family = "wasm")]
             web_surface: String::new(),
             remote,
+            deliveries,
             local_execution,
             contribution: Default::default(),
             apps: crate::apps::AppCatalog::default(),
@@ -557,6 +560,9 @@ impl Workbench {
             self.pending_project_workspace = false;
         }
         if session_command(&value.to_string()).is_err() {
+            if let Some(id) = value["response_id"].as_str() {
+                self.fail_delivery_request(id);
+            }
             if value["method"] == "project_agent" {
                 if let Some(id) = value["request_id"].as_str() {
                     self.fail_project_agent_request(id, cx);
@@ -670,6 +676,7 @@ impl Workbench {
             || self.receive_contribution(&event, cx)
             || self.receive_project_agents(&event, cx) || self.receive_research_resources(&event, cx)
             || self.receive_project_web_sources(&event, cx)
+            || self.receive_project_delivery(&event, cx)
             || self.receive_campaigns(&event, cx)
             || self.receive_apps(&event, cx)
             || self.receive_remote(&event, cx);

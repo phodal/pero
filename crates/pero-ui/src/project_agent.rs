@@ -609,7 +609,9 @@ impl Workbench {
         let padding = chrome.geo(pero_theme::SPACE_8);
         let action_width = chrome.control(pero_theme::GHOST_ICON_BUTTON);
         let current = self.project_tab;
-        let mut views = ProjectTab::ALL.to_vec();
+        let shared = self.current_project(cx).is_some_and(|project| project.shared_id.is_some());
+        let mut views = ProjectTab::ALL.into_iter()
+            .filter(|view| *view != ProjectTab::Deliveries || shared).collect::<Vec<_>>();
         if self.shared_web_source_target(cx).is_some() {
             views.insert(1, ProjectTab::Campaigns);
         }
