@@ -17,16 +17,21 @@ let page;
 const snapshot = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const campaignState = async () => (await snapshot()).projectCampaign;
 
-async function click(key) {
+async function projectControl(key) {
   let bounds;
   await expect.poll(async () => {
     bounds = (await snapshot()).projectControls[key];
     return bounds?.width ?? 0;
   }, { timeout: 30000, message: `Project control ${key}` }).toBeGreaterThan(0);
+  return bounds;
+}
+
+async function click(key) {
+  const bounds = await projectControl(key);
   await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
 }
 
-async function openCampaign() {
+async function openCampaign(saved) {
   app = await electron.launch({
     args: [...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []), resolve(root, 'desktop')],
     cwd: root,
@@ -43,13 +48,27 @@ async function openCampaign() {
   await page.waitForFunction(() => window.peroDiagnostics &&
     (!document.getElementById('loading') || document.querySelector('#loading[role="alert"]')), undefined, { timeout: 90000 });
   assert.equal(await page.locator('#loading').count(), 0, 'Desktop Workbench failed to open');
-  await click(`sidebar:open:shared:${project}`);
+  await click(`sidebar:open:${saved || `shared:${project}`}`);
+  const splitter = await projectControl('agent:splitter');
+  const x = splitter.x + splitter.width / 2;
+  const y = splitter.y + splitter.height / 2;
+  if (x > 800) {
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(780, y, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(async () => (await projectControl('agent:splitter')).x).toBeLessThan(800);
+  }
   await click('tab:campaign.title');
   await expect.poll(async () => (await campaignState())?.detail?.plan?.id, { timeout: 30000 }).toBe(campaign);
+  const state = await snapshot();
+  assert.equal(state.error, null);
+  assert.match(state.selectedProject, /^research:/);
+  return state.selectedProject;
 }
 
 try {
-  await openCampaign();
+  const saved = await openCampaign();
   await expect.poll(async () => (await campaignState())?.detail?.phase).toBe('awaiting_review');
   const before = (await campaignState()).detail.progress;
   assert.deepEqual(before.trials.map(trial => trial.status), ['succeeded', 'not_started']);
@@ -74,7 +93,7 @@ try {
   await page.screenshot({ path: join(output, '02-campaign-complete.png'), scale: 'css' });
   await app.close();
   app = undefined;
-  await openCampaign();
+  await openCampaign(saved);
   await expect.poll(async () => (await campaignState())?.detail?.decision?.request_id)
     .toBe(completed.decision.request_id);
   assert.deepEqual((await campaignState()).detail.result.evidence.map(item => item.digest),
@@ -82,10 +101,11 @@ try {
   console.log('Desktop approved the reviewed PyBaMM follow-up and reopened the saved receipt.');
 } catch (error) {
   await page?.screenshot({ path: join(output, 'desktop-failure.png'), scale: 'css' }).catch(() => {});
-  app?.process().kill('SIGTERM');
-  app = undefined;
   throw error;
 } finally {
-  await app?.close();
-  await rm(profile, { recursive: true, force: true });
+  try {
+    await app?.close();
+  } finally {
+    await rm(profile, { recursive: true, force: true, maxRetries: 3 });
+  }
 }

@@ -4,7 +4,7 @@
 # gpui-kit 7591a35 (desktop/README.md)
 # Go 1.26.4 (MODULE.bazel). server/go.mod's `go 1.26.0` is the language version.
 # Bazel 9.2.0 (.bazelversion). pnpm-lock.yaml is the Bazel translation of the npm lock.
-# PR/push runs Linux core contracts without Desktop compilation or GUI.
+# PR/push runs Linux core contracts and the Desktop Campaign acceptance.
 # Daily/manual/full-label retains every Desktop scenario and platform.
 name: CI
 

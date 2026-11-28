@@ -609,31 +609,29 @@ impl Workbench {
         let padding = chrome.geo(pero_theme::SPACE_8);
         let action_width = chrome.control(pero_theme::GHOST_ICON_BUTTON);
         let current = self.project_tab;
-        let tabs = ProjectTab::ALL.map(|view| {
-            pero_theme::pane_view_tab(
-                view.label_key(), self.t(view.compact_label_key()), current == view, chrome, window, cx,
-            )
-        });
-        let available = width - (padding + action_width + gap) * 2.;
-        let visible = if current == ProjectTab::Campaigns {
-            [false; ProjectTab::ALL.len()]
-        } else {
-            current.inspector_tabs(tabs.each_ref().map(|(_, width)| f32::from(*width)), available.into(), gap.into())
-        };
-        let shared = self.shared_web_source_target(cx).is_some();
-        let mut hidden: Vec<_> = ProjectTab::ALL.into_iter().zip(visible)
-            .filter_map(|(view, shown)| (!shown).then(|| (view, self.t(view.label_key()))))
-            .collect();
-        if shared && current != ProjectTab::Campaigns {
-            hidden.push((ProjectTab::Campaigns, self.t("campaign.title")));
+        let mut views = ProjectTab::ALL.to_vec();
+        if self.shared_web_source_target(cx).is_some() {
+            views.insert(1, ProjectTab::Campaigns);
         }
+        let tabs = views.into_iter().map(|view| {
+            let (button, width) = pero_theme::pane_view_tab(
+                view.label_key(), self.t(view.compact_label_key()), current == view, chrome, window, cx,
+            );
+            (view, button, f32::from(width))
+        }).collect::<Vec<_>>();
+        let available = width - (padding + action_width + gap) * 2.;
+        let widths = tabs.iter().map(|(view, _, width)| (*view, *width)).collect::<Vec<_>>();
+        let visible = current.inspector_tabs(&widths, available.into(), gap.into());
+        let hidden: Vec<_> = tabs.iter().zip(&visible)
+            .filter_map(|((view, _, _), shown)| (!shown).then(|| (*view, self.t(view.label_key()))))
+            .collect();
         let has_hidden = !hidden.is_empty();
         let tabs = div()
             .id("project-view-tabs")
             .role(Role::TabList)
             .aria_label(self.t("project.actions"))
             .flex_1().min_w_0().h_full().flex().items_center().gap(gap)
-            .children(ProjectTab::ALL.into_iter().zip(tabs).zip(visible).filter_map(|((view, (button, _)), shown)| {
+            .children(tabs.into_iter().zip(visible).filter_map(|((view, button, _), shown)| {
                 shown.then(|| {
                     let key = view.label_key();
                     let label = self.t(key);
@@ -641,13 +639,7 @@ impl Workbench {
                         .relative().child(self.view_bounds.projects.probe(format!("tab:{key}")))
                         .on_click(cx.listener(move |this, _, _, cx| this.select_project_view(view, cx)))
                 })
-            }))
-            .when(shared && current == ProjectTab::Campaigns, |tabs| {
-                let (button, _) = pero_theme::pane_view_tab(
-                    "campaign.title", self.t("campaign.title"), true, chrome, window, cx,
-                );
-                tabs.child(button)
-            });
+            }));
         let workbench = cx.entity().downgrade();
         let project_key = self.selected_project.clone();
         let delete_label = self.t("research.delete_action");
