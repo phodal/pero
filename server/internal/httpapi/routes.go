@@ -32,6 +32,7 @@ type API struct {
 	runDesktops  runDesktopBroker
 	campaigns    *ResearchCampaigns
 	paper        PaperDomain
+	runs         RunSource
 }
 type contextKey struct{}
 
