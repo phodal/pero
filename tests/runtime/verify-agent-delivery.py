@@ -54,10 +54,18 @@ def request(origin, route, status, *, method="GET", payload=None):
         return result
 
 
+def require_bool_archived(body):
+    rows = body["tasks"] if isinstance(body, dict) and "tasks" in body else [body]
+    for row in rows:
+        if type(row.get("archived")) is not bool:
+            raise AssertionError(f"archived must be a JSON boolean, got {row.get('archived')!r}")
+    return body
+
+
 def check_inbox(worktree, scratch):
     with inbox(worktree, scratch / "fresh.db") as origin:
         assert request(origin, "/tasks", 200)["tasks"] == []
-        fresh = request(origin, "/tasks", 201, method="POST", payload={"title": "Fresh task"})
+        fresh = require_bool_archived(request(origin, "/tasks", 201, method="POST", payload={"title": "Fresh task"}))
         assert fresh == {"id": 1, "title": "Fresh task", "archived": False}
     dbfile = scratch / "inbox.db"
     with sqlite3.connect(dbfile) as db:
@@ -66,28 +74,28 @@ def check_inbox(worktree, scratch):
     legacy = {"id": 17, "title": "Legacy task", "archived": False}
     archived = {**legacy, "archived": True}
     with inbox(worktree, dbfile) as origin:
-        assert request(origin, "/tasks", 200)["tasks"] == [legacy]
-        new = request(origin, "/tasks", 201, method="POST", payload={"title": "  New task  "})
+        assert require_bool_archived(request(origin, "/tasks", 200))["tasks"] == [legacy]
+        new = require_bool_archived(request(origin, "/tasks", 201, method="POST", payload={"title": "  New task  "}))
         assert new == {"id": 18, "title": "New task", "archived": False}
         request(origin, "/tasks", 400, method="POST", payload={"title": " "})
         for _ in range(2):
-            assert request(origin, "/tasks/17/archive", 200, method="POST") == archived
+            assert require_bool_archived(request(origin, "/tasks/17/archive", 200, method="POST")) == archived
         for route in ("/tasks", "/tasks?view=active"):
-            assert request(origin, route, 200)["tasks"] == [new]
-        assert request(origin, "/tasks?view=archived", 200)["tasks"] == [archived]
-        assert request(origin, "/tasks?view=all", 200)["tasks"] == [archived, new]
+            assert require_bool_archived(request(origin, route, 200))["tasks"] == [new]
+        assert require_bool_archived(request(origin, "/tasks?view=archived", 200))["tasks"] == [archived]
+        assert require_bool_archived(request(origin, "/tasks?view=all", 200))["tasks"] == [archived, new]
         for route in ("/tasks?view=bad", "/tasks?view=", "/tasks?view=active&view=active"):
             request(origin, route, 400)
         for route in ("/tasks/999/archive", "/tasks/999/restore", "/tasks/no/archive", "/tasks/0/restore",
                       "/tasks/9223372036854775808/archive"):
             request(origin, route, 404, method="POST")
     with inbox(worktree, dbfile) as origin:
-        assert request(origin, "/tasks?view=archived", 200)["tasks"] == [archived]
+        assert require_bool_archived(request(origin, "/tasks?view=archived", 200))["tasks"] == [archived]
         for _ in range(2):
-            assert request(origin, "/tasks/17/restore", 200, method="POST") == legacy
-        assert request(origin, "/tasks?view=archived", 200)["tasks"] == []
+            assert require_bool_archived(request(origin, "/tasks/17/restore", 200, method="POST")) == legacy
+        assert require_bool_archived(request(origin, "/tasks?view=archived", 200))["tasks"] == []
     with inbox(worktree, dbfile) as origin:
-        assert request(origin, "/tasks", 200)["tasks"] == [legacy, new]
+        assert require_bool_archived(request(origin, "/tasks", 200))["tasks"] == [legacy, new]
     return ["fresh and legacy SQLite databases", "create and title validation", "archive and restore idempotency",
             "active, archived and all views", "invalid views and action routes", "persistence across two restarts"]
 
