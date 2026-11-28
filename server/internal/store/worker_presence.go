@@ -39,7 +39,7 @@ func (s *Store) listWorkers(ctx context.Context, projects []string) ([]Worker, e
 		COALESCE(d.enabled,true),d.capabilities,COALESCE(r.id,''),COALESCE(r.task_id,''),COALESCE(r.status,''),COALESCE(r.project_id,'')
 		FROM workers w LEFT JOIN worker_devices d ON d.worker_id=w.id
 		LEFT JOIN LATERAL (SELECT id,task_id,status,spec->>'project_id' AS project_id FROM runs WHERE worker_id=w.id
-		AND status IN ('running','cancel_requested','reconcile') ORDER BY created_at DESC LIMIT 1) r ON true
+		AND `+holdsWorkerSlot+` ORDER BY created_at DESC LIMIT 1) r ON true
 		WHERE ($1::text[] IS NULL OR w.projects && $1) ORDER BY w.created_at,w.id`, projects)
 	if err != nil {
 		return nil, err

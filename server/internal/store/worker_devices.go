@@ -122,7 +122,7 @@ func (s *Store) EnrollWorker(ctx context.Context, enrollment DeviceEnrollment) (
 	}
 	if exists {
 		var busy bool
-		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM runs WHERE worker_id=$1 AND status IN ('running','cancel_requested','reconcile'))`, w.ID).Scan(&busy); err != nil {
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM runs WHERE worker_id=$1 AND `+holdsWorkerSlot+`)`, w.ID).Scan(&busy); err != nil {
 			return Worker{}, "", err
 		}
 		if busy {
@@ -161,7 +161,7 @@ func (s *Store) DisableOwnedWorker(ctx context.Context, ownerID, workerID string
 		return err
 	}
 	var busy bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM runs WHERE worker_id=$1 AND status IN ('running','cancel_requested','reconcile'))`, id).Scan(&busy); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM runs WHERE worker_id=$1 AND `+holdsWorkerSlot+`)`, id).Scan(&busy); err != nil {
 		return err
 	}
 	if busy {

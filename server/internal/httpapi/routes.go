@@ -51,6 +51,7 @@ func configuredHandler(db *store.Store, operatorToken string, runtime *sandbox.R
 	}
 	mux := http.NewServeMux()
 	a.registerClients(mux)
+	a.registerRunOperations(mux)
 	a.registerContributions(mux)
 	a.registerGitHub(mux)
 	a.registerSandbox(mux)
@@ -152,13 +153,13 @@ func failure(w http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrNotFound):
 		status = 404
 		message = err.Error()
-	case errors.Is(err, store.ErrContributionInput), errors.Is(err, store.ErrEnrollmentInput), errors.Is(err, store.ErrTaskInput):
+	case errors.Is(err, store.ErrContributionInput), errors.Is(err, store.ErrEnrollmentInput), errors.Is(err, store.ErrTaskInput), errors.Is(err, store.ErrRunReconciliationInput):
 		status = 400
 		message = err.Error()
 	case errors.Is(err, store.ErrForbidden):
 		status = 403
 		message = err.Error()
-	case errors.Is(err, store.ErrConflict), errors.Is(err, store.ErrLease):
+	case errors.Is(err, store.ErrConflict), errors.Is(err, store.ErrLease), errors.Is(err, store.ErrWorkerIneligible):
 		status = 409
 		message = err.Error()
 	case errors.Is(err, context.DeadlineExceeded):

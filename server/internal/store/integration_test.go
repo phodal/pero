@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"net/url"
@@ -233,9 +234,21 @@ func TestPostgresLeaseLossAuthorizationAndCancel(t *testing.T) {
 	if err != nil || status.State != "reconcile" {
 		t.Fatalf("expired state: %+v %v", status, err)
 	}
+	if observed, err := s.ClientRun(ctx, &Client{Projects: []string{"allowed"}}, run.Ref()); err != nil || observed.Ref() != run.Ref() || observed.Status != "reconcile" {
+		t.Fatalf("exact historical reference lost the lease outcome: %+v %v", observed, err)
+	}
 	_, _ = taskRun(t, s, "allowed", w.ID)
 	if r, err := s.Claim(ctx, w.ID, "new-instance", "quarantine"); err != nil || r != nil {
 		t.Fatalf("unresolved worker accepted another task: %+v %v", r, err)
+	}
+	if _, err = s.ResolveRun(ctx, run.Ref(), RunReconciliationDecision{Disposition: RunConfirmedStopped, Evidence: "original worker verified its process group stopped"}); err != nil {
+		t.Fatal(err)
+	}
+	if r, err := s.Claim(ctx, w.ID, "new-instance", "after-confirmed-stop"); err != nil || r == nil || r.ID == run.ID {
+		t.Fatalf("resolved Worker did not acquire a distinct Run: %+v %v", r, err)
+	}
+	if _, err = s.Complete(ctx, run.ID, w.ID, "instance", run.Generation, Completion{Outcome: "succeeded"}); !errors.Is(err, ErrLease) {
+		t.Fatalf("operator evidence restored the expired lease: %v", err)
 	}
 	// A separate clean Worker remains usable while the lost Worker is quarantined.
 	w, _ = mustWorker(t, s, "allowed")
@@ -373,6 +386,106 @@ func TestPostgresOperatorIdempotencyAndProjectScope(t *testing.T) {
 	third, err := s.Dispatch(ctx, allowed.ID, w.ID, "")
 	if err != nil || first.ID != third.ID {
 		t.Fatalf("active dispatch duplicate: %+v %v", third, err)
+	}
+}
+
+func TestPostgresTrialSurvivesRestartAndCredentialReplacement(t *testing.T) {
+	s, dsn := integrationStore(t)
+	ctx := context.Background()
+	client, _, err := s.CreateClient(ctx, "campaign", []string{"allowed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, err := client.TrialOperation("allowed", "trial-A")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongWorker, _ := mustWorker(t, s, "foreign")
+	input := TrialInput{Task: testSpec("allowed"), WorkerID: wrongWorker.ID}
+	if _, err := s.EnsureTrialRun(ctx, op, input); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("ineligible dispatch: %v", err)
+	}
+	if _, err := s.TrialReceipt(ctx, op); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("failed dispatch committed a receipt: %v", err)
+	}
+	if page, err := s.ClientTasks(ctx, &client, "", 50); err != nil || len(page.Tasks) != 0 {
+		t.Fatalf("failed dispatch left a draft: %+v %v", page, err)
+	}
+	worker, _ := mustWorker(t, s, "allowed")
+	input.WorkerID = worker.ID
+	original, err := s.EnsureTrialRun(ctx, op, input)
+	if err != nil || original.Run == nil {
+		t.Fatalf("initial trial: %+v %v", original, err)
+	}
+	const credentialID = "replacement-desktop"
+	const token = credentialID + ".test-replacement"
+	digest := sha256.Sum256([]byte(token))
+	if _, err := s.pool.Exec(ctx, `INSERT INTO desktop_credentials (id,client_id,token_hash) VALUES ($1,$2,$3)`, credentialID, client.ID, digest[:]); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(ctx, dsn, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(reopened.Close)
+	signedIn, err := reopened.AuthenticateClient(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retry, err := signedIn.TrialOperation("allowed", "trial-A")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if receipt, err := reopened.EnsureTrialRun(ctx, retry, input); err != nil || receipt.Run == nil || *receipt.Run != *original.Run {
+		t.Fatalf("resume changed dispatch identity: %+v %v", receipt, err)
+	}
+}
+
+func TestPostgresTrialSubmitAndCancelConverge(t *testing.T) {
+	s, _ := integrationStore(t)
+	ctx := context.Background()
+	client, _, err := s.CreateClient(ctx, "campaign", []string{"allowed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, err := client.TrialOperation("allowed", "contested-trial")
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := TrialInput{Task: testSpec("allowed")}
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	go func() {
+		<-start
+		_, err := s.EnsureTrialRun(ctx, op, input)
+		results <- err
+	}()
+	go func() {
+		<-start
+		_, err := s.CancelTrial(ctx, op)
+		results <- err
+	}()
+	close(start)
+	for range 2 {
+		if err := <-results; err != nil {
+			t.Fatal(err)
+		}
+	}
+	receipt, err := s.TrialReceipt(ctx, op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if receipt.Run == nil {
+		if receipt.Status != TrialCancelledBeforeDispatch {
+			t.Fatalf("missing cancellation receipt: %+v", receipt)
+		}
+		if page, err := s.ClientTasks(ctx, &client, "", 50); err != nil || len(page.Tasks) != 0 {
+			t.Fatalf("cancellation left a draft or Run: %+v %v", page, err)
+		}
+		return
+	}
+	if run, err := s.ClientRun(ctx, &client, *receipt.Run); err != nil || run.Status != "cancelled" {
+		t.Fatalf("concurrent cancellation missed the committed Run: %+v %v", run, err)
 	}
 }
 

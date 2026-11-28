@@ -139,6 +139,12 @@ POST /api/client/v1/tasks/{id}/claim
 POST /api/client/v1/tasks/{id}/release
 POST /api/client/v1/tasks/{id}/dispatch
 POST /api/client/v1/tasks/{id}/cancel
+GET  /api/client/v1/tasks/{task}/runs/{run}?generation=...
+POST /api/client/v1/tasks/{task}/runs/{run}/cancel?generation=...
+GET  /api/client/v1/tasks/{task}/runs/{run}/reconciliation?generation=...
+PUT  /api/client/v1/projects/{project}/trial-submissions/{operation}
+GET  /api/client/v1/projects/{project}/trial-submissions/{operation}
+POST /api/client/v1/projects/{project}/trial-submissions/{operation}/cancel
 ```
 
 Task creation accepts the operator manual TaskSpec fields, excluding source and
@@ -152,6 +158,54 @@ ownership even when another Desktop has stale data. Client credentials cannot
 provision Workers/clients or invoke the operator GitHub sync routes. GitHub
 sign-in can issue Desktop credentials for an existing Client scope. Project
 provisioning remains operator-owned; a credential revocation UI is not implemented.
+
+An explicit Worker selection checks the effective project grant, enrolled
+workspace and Agent capabilities, enabled state, and runtime queue. A known
+ineligible target returns `409` before storing a new Run. An eligible target
+can queue while offline. The Worker checks eligibility again when claiming.
+
+Exact Run routes resolve `task_id`, `run_id`, and positive `generation` together.
+Observation requires project access. Cancellation accepts `{}` and requires the
+existing Task claim. The response describes that Run even if the Task has moved
+to another generation.
+
+Trial submission `PUT` accepts `{"task": TaskSpec, "worker_id": "..."}` using the
+client manual Task fields and an optional Worker. The Task's `project_id` must
+match the path. The `operation` belongs to the project and the logical Client, so
+another credential for that Client can resume the request. The Go control plane
+commits the Task, Run, and submission receipt together. Repeating the same
+operation and input returns `status: dispatched` and `run: {task_id, run_id,
+generation}`. A different input for that committed dispatch returns `409`.
+
+`GET` reads the receipt. `404` means a committed receipt is unavailable to the
+caller. A request could still be in flight. Trial cancellation accepts `{}` and
+acts on the original Run if dispatch committed. Otherwise it records
+`status: cancelled_before_dispatch`, which also blocks later `PUT` attempts for
+that operation. A dispatch receipt attests to admission. Observe the exact Run
+for current status, including cancellation and `reconcile`.
+
+### Resolve an Agent Worker quarantine
+
+The operator can record a confirmed stop or non-start using the original Task ID,
+Run ID and generation. Inspect the original Worker and any retained Journal
+first, including separately managed resources before declaring a stop. Record a
+bounded evidence reference and one of `confirmed_stopped` or
+`confirmed_not_started`.
+
+```text
+PUT /api/v1/tasks/{task}/runs/{run}/reconciliation?generation=...
+Authorization: Bearer <PERO_OPERATOR_TOKEN>
+
+{"disposition":"confirmed_stopped","evidence":"Worker journal receipt and confirmed original process-group stop"}
+```
+
+This records a project-readable receipt and releases the Run's quarantine. The
+original `reconcile` outcome and prior completion remain intact, the expired
+lease stays fenced, and an explicit dispatch is required for a new generation.
+Repeating the same decision returns the original receipt. An unconfirmed outcome
+keeps the quarantine. A managed runtime must reach its own released phase before
+the operator can resolve its Run. If the Worker exited for review, restart that
+same enrolled Worker after settlement.
 
 ## Local device enrollment
 
@@ -285,7 +339,8 @@ in PostgreSQL; older-event pagination/export is a later slice. Additional source
 verification, team permissions, device revocation, PR publication and public
 multi-tenant operations remain later slices. Any unresolved `reconcile` Run also
 quarantines its assigned Worker's slot, preventing another task from overlapping
-unknown cleanup. A future explicit resolution workflow must clear this quarantine.
+unknown cleanup. The operator can release that quarantine with an exact Run
+reconciliation receipt after verifying the original execution.
 `succeeded` records execution outcome,
 not independent acceptance.
 

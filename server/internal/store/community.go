@@ -451,7 +451,7 @@ func (s *Store) CommunityClaim(ctx context.Context, taskID, worker string, user 
 	if _, err = tx.Exec(ctx, `UPDATE tasks SET claimed_by_client_id=$2 WHERE id=$1`, taskID, client); err != nil {
 		return "", err
 	}
-	run, err := dispatchTx(ctx, tx, taskID, worker, "")
+	run, err := dispatchTx(ctx, tx, taskID, worker, "", ordinaryDispatch)
 	if err != nil {
 		return "", err
 	}

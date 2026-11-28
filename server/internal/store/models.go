@@ -99,6 +99,7 @@ type Run struct {
 	LeaseExpiresAt  *time.Time         `json:"lease_expires_at,omitempty"`
 	Spec            Spec               `json:"spec"`
 	Summary         string             `json:"summary"`
+	reconciliation  *RunReconciliation
 }
 
 type Worker struct {

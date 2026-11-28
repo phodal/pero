@@ -187,7 +187,7 @@ func (s *Store) Dispatch(ctx context.Context, id, worker, key string, desktop ..
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	r, err := dispatchTx(ctx, tx, id, worker, key, desktop...)
+	r, err := dispatchTx(ctx, tx, id, worker, key, ordinaryDispatch, desktop...)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func (s *Store) Dispatch(ctx context.Context, id, worker, key string, desktop ..
 }
 
 // dispatchTx shares the caller's task lock and transaction with claim/source guards.
-func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string, desktop ...RunDesktopProfile) (*Run, error) {
+func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string, mode dispatchMode, desktop ...RunDesktopProfile) (*Run, error) {
 	var profile RunDesktopProfile
 	if len(desktop) != 0 {
 		profile = desktop[0]
@@ -213,10 +213,6 @@ func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string, desktop 
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, err
-	}
-	var snapshot Spec
-	if err = json.Unmarshal(spec, &snapshot); err != nil {
 		return nil, err
 	}
 	operation := "dispatch:" + id
@@ -238,13 +234,19 @@ func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string, desktop 
 	if bound.contributionSubmitted || taskSourceClosed(bound) || taskSourceStale(bound) {
 		return nil, ErrConflict
 	}
+	if worker != "" {
+		if err := checkWorkerPlacement(ctx, tx, worker, spec, mode); err != nil {
+			return nil, err
+		}
+	}
 	if current != "" {
 		var status, target string
 		var existingProfile RunDesktopProfile
-		if err = tx.QueryRow(ctx, `SELECT status,COALESCE(target_worker_id,''),desktop_profile FROM runs WHERE id=$1`, current).Scan(&status, &target, &existingProfile); err != nil {
+		var reconciled bool
+		if err = tx.QueryRow(ctx, `SELECT status,COALESCE(target_worker_id,''),desktop_profile,reconciliation IS NOT NULL FROM runs WHERE id=$1`, current).Scan(&status, &target, &existingProfile, &reconciled); err != nil {
 			return nil, err
 		}
-		if status == "reconcile" {
+		if status == "reconcile" && !reconciled {
 			return nil, ErrConflict
 		}
 		if status == "queued" || status == "running" || status == "cancel_requested" {
@@ -259,19 +261,6 @@ func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string, desktop 
 				return nil, err
 			}
 			return r, nil
-		}
-	}
-	if worker != "" {
-		var allowed bool
-		err = tx.QueryRow(ctx, `SELECT ($2=ANY(projects)) FROM workers WHERE id=$1`, worker, jsonProject(spec)).Scan(&allowed)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		if err != nil {
-			return nil, err
-		}
-		if !allowed {
-			return nil, ErrForbidden
 		}
 	}
 	runID := newID("run")
@@ -311,8 +300,7 @@ func (s *Store) Cancel(ctx context.Context, id string) (*Run, error) {
 	if runID == "" {
 		return nil, ErrConflict
 	}
-	_, err = tx.Exec(ctx, `UPDATE runs SET status=CASE WHEN status='queued' THEN 'cancelled' WHEN lease_expires_at<=clock_timestamp() THEN 'reconcile' ELSE 'cancel_requested' END,summary=CASE WHEN status='queued' THEN 'Cancelled before execution' WHEN lease_expires_at<=clock_timestamp() THEN 'Execution lease expired; cancellation is unconfirmed' ELSE summary END WHERE id=$1 AND status IN ('queued','running','cancel_requested')`, runID)
-	if err != nil {
+	if err = cancelRun(ctx, tx, runID); err != nil {
 		return nil, err
 	}
 	r, err := readRun(tx.QueryRow(ctx, `SELECT `+runColumns+` FROM runs WHERE id=$1`, runID))
