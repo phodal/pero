@@ -96,9 +96,14 @@ func (s *Store) RecordCampaignVerification(ctx context.Context, candidate Campai
 
 // A project Client may review, except the service Client that executes Activities.
 func (s *Store) ReviewableCampaign(ctx context.Context, caller *Client, project, id string) (CampaignRecord, error) {
-	return scanCampaign(s.pool.QueryRow(ctx, `SELECT `+campaignColumns+` FROM research_campaigns
-		WHERE id=$1 AND project_id=$2 AND project_id=ANY($3) AND runner_id<>$4 AND mode=$5`,
-		id, project, caller.Projects, caller.ID, campaign.ReviewedPyBaMM))
+	record, err := s.ClientCampaign(ctx, caller, project, id)
+	if err != nil {
+		return CampaignRecord{}, err
+	}
+	if !record.CanReview(caller) {
+		return CampaignRecord{}, ErrNotFound
+	}
+	return record, nil
 }
 
 func (s *Store) RecordCampaignDecision(ctx context.Context, runner *Client, id string, decision campaign.Decision) error {

@@ -192,12 +192,16 @@ pub struct SharedWebSourceTarget {
 }
 
 impl SharedWebSourceTarget {
-    pub fn route(&self) -> Option<String> {
+    pub fn project_route(&self) -> Option<String> {
         let id = &self.project_id;
         (!id.is_empty()
             && id.len() <= 128
             && id.bytes().all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b)))
-        .then(|| format!("/api/client/v1/projects/{id}/web-sources"))
+        .then(|| format!("/api/client/v1/projects/{id}"))
+    }
+
+    pub fn route(&self) -> Option<String> {
+        self.project_route().map(|path| format!("{path}/web-sources"))
     }
 }
 
