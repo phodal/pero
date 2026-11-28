@@ -19,7 +19,7 @@ Resolution is one function of the request:
 
 - An existing object resolves to the owner recorded on that object.
 - A new operation with no object resolves only when the project policy names a target.
-- A device operation resolves local.
+- A device operation resolves local, including when the request also names an existing remote object.
 - If that owner is unavailable, the result is `owner_unavailable`. The function has no alternate owner and does not treat a timeout as a reason to try somewhere else.
 
 The read-only route is `POST /api/client/v1/projects/{project}/app-resources/paper`. The caller is the scoped client credential already required for `/api/client/`. The body is the qualified reference. Headers that try to name an owner, a backend, a path, or a worker or operator token are refused, as are those fields in the JSON. The response is the owner, revision, digest, media type, base64 body, and provenance `domain:paper`. It does not include a path, a backend URL, or a credential.

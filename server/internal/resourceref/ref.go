@@ -118,6 +118,9 @@ func Qualify(local Local, binding *Binding) (Qualified, error) {
 }
 
 func Resolve(operation string, existing *Qualified, policy string, available bool) (string, error) {
+	if operation == OpDevice {
+		return "local", nil
+	}
 	if existing != nil {
 		if err := existing.fields(); err != nil {
 			return "", err
@@ -126,9 +129,6 @@ func Resolve(operation string, existing *Qualified, policy string, available boo
 			return "", ErrOwnerUnavailable
 		}
 		return existing.OwnerHost, nil
-	}
-	if operation == OpDevice {
-		return "local", nil
 	}
 	if operation == OpCreate {
 		if policy == "" {
@@ -220,10 +220,13 @@ func (r Qualified) fields() error {
 	if r.Class != ClassImmutable && r.Class != ClassObserved {
 		return ErrMissing
 	}
-	for _, value := range []string{r.OwnerHost, r.SharedProject, r.LocalProject, r.App, r.AppInstance, r.AppVersion, r.Kind, r.ID, r.Revision} {
+	for _, value := range []string{r.OwnerHost, r.LocalProject, r.App, r.AppInstance, r.AppVersion, r.Kind, r.ID, r.Revision} {
 		if !token(value) {
 			return ErrMissing
 		}
+	}
+	if r.SharedProject != "" && !token(r.SharedProject) {
+		return ErrMissing
 	}
 	return nil
 }

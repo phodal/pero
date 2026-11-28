@@ -48,22 +48,37 @@ func TestSamePaperEvidenceFromItsOwner(t *testing.T) {
 
 func TestResolutionNeverChangesOwner(t *testing.T) {
 	existing := paper("host-b", "lab", "paper-1")
-	if _, err := Resolve(OpRead, nil, "", true); err != ErrMissing {
-		t.Fatal(err)
+	local := paper("local", "lab", "paper-1")
+	local.SharedProject = ""
+	cases := []struct {
+		name      string
+		operation string
+		existing  *Qualified
+		policy    string
+		available bool
+		owner     string
+		err       Error
+	}{
+		{"missing", OpRead, nil, "", true, "", ErrMissing},
+		{"create-policy", OpCreate, nil, "", true, "", ErrMissingPolicy},
+		{"create", OpCreate, nil, "host-b", true, "host-b", ""},
+		{"device", OpDevice, nil, "host-b", true, "local", ""},
+		{"device-existing", OpDevice, &existing, "host-c", false, "local", ""},
+		{"unavailable", OpRead, &existing, "host-c", false, "", ErrOwnerUnavailable},
+		{"create-down", OpCreate, nil, "host-b", false, "", ErrOwnerUnavailable},
+		{"local-without-shared", OpRead, &local, "", true, "local", ""},
 	}
-	if _, err := Resolve(OpCreate, nil, "", true); err != ErrMissingPolicy {
-		t.Fatal(err)
+	for _, tc := range cases {
+		owner, err := Resolve(tc.operation, tc.existing, tc.policy, tc.available)
+		var want error
+		if tc.err != "" {
+			want = tc.err
+		}
+		if owner != tc.owner || err != want {
+			t.Fatalf("%s: owner %s err %v", tc.name, owner, err)
+		}
 	}
-	if owner, err := Resolve(OpCreate, nil, "host-b", true); err != nil || owner != "host-b" {
-		t.Fatalf("%s %v", owner, err)
-	}
-	if owner, err := Resolve(OpDevice, nil, "host-b", true); err != nil || owner != "local" {
-		t.Fatalf("%s %v", owner, err)
-	}
-	if _, err := Resolve(OpRead, &existing, "host-c", false); err != ErrOwnerUnavailable {
-		t.Fatal(err)
-	}
-	if _, err := Resolve(OpCreate, nil, "host-b", false); err != ErrOwnerUnavailable {
+	if _, err := ReadPaper(ReadInput{Resource: local, Project: "lab", Member: true, AppEnabled: true, OwnerAvailable: true}); err != ErrWrongProject {
 		t.Fatal(err)
 	}
 }

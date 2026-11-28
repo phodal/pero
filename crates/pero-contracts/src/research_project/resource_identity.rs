@@ -199,6 +199,9 @@ impl QualifiedResource {
 /// Existing object keeps its owner. A new operation needs an explicit policy.
 /// A device operation stays local. Unavailability never selects another owner.
 pub fn resolve(request: ResolveRequest<'_>) -> Result<Resolved, ResourceError> {
+    if request.operation == ResourceOperation::Device {
+        return Ok(Resolved::Local);
+    }
     if let Some(existing) = request.existing {
         existing.fields_ok()?;
         if !request.owner_available {
@@ -211,9 +214,6 @@ pub fn resolve(request: ResolveRequest<'_>) -> Result<Resolved, ResourceError> {
                 host_id: existing.owner_host.clone(),
             }
         });
-    }
-    if request.operation == ResourceOperation::Device {
-        return Ok(Resolved::Local);
     }
     if request.operation == ResourceOperation::Create {
         let Some(owner) = request.policy_owner else {
@@ -468,6 +468,13 @@ mod tests {
                 Ok(Resolved::Local),
             ),
             (
+                ResourceOperation::Device,
+                Some(&existing),
+                Some("host-c"),
+                false,
+                Ok(Resolved::Local),
+            ),
+            (
                 ResourceOperation::Read,
                 Some(&existing),
                 Some("host-c"),
@@ -493,6 +500,17 @@ mod tests {
                 expect
             );
         }
+        let mut local = paper("local", "lab", "paper-1");
+        local.shared_project = None;
+        assert_eq!(
+            resolve(ResolveRequest {
+                operation: ResourceOperation::Read,
+                existing: Some(&local),
+                policy_owner: None,
+                owner_available: true
+            }),
+            Ok(Resolved::Local)
+        );
     }
 
     #[test]
