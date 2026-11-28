@@ -69,11 +69,16 @@ async function check(plan){
   assert.deepEqual(errors,[]);assert.equal(code,0,stderr);assert.equal(state.requests.length,2,'one tool step and one final model turn expected');assert.equal(state.completes.at(-1)?.outcome,plan.cancel?'cancelled':'succeeded');
   if(plan.cancel)assert(state.providerClosed,'cancellation did not abort actual provider request');
   await plan.verify?.({state,workspace,outside,root});
+  const ready = state.events.find(event => event.kind === 'session_ready');
+  const firstTool = state.events.find(event => event.kind === 'session_update' && event.data?.sessionUpdate === 'tool_call');
+  const permission = ready?.data?.peroSettings?.options?.find(option => option.id === 'permission');
+  assert.equal(permission?.current, 'read-only', 'Worker did not establish read-only before ACP readiness');
+  assert(firstTool && ready.seq < firstTool.seq, 'Agent started its tools before the Worker acknowledged readiness');
   const all=JSON.stringify({events:state.events,requests:state.requests});for(const forbidden of ['fixture-provider-secret','fixture-cloud-secret','OUTSIDE_FILE_MUST_NOT_LEAK','OUTPUT_TAIL_MUST_NOT_LEAK'])assert(!all.includes(forbidden),`private/unsupported output leaked: ${forbidden}`);
-  return {name:plan.name,passed:true,tool:call.name,toolStatus:state.events.findLast(e=>e.kind==='session_update'&&e.data?.sessionUpdate==='tool_call_update'&&e.data.toolCallId==='actual-tool-call')?.data.status,providerCalls:state.requests.length,permissionDenials:state.events.filter(e=>e.kind==='permission_denied').length,outcome:state.completes.at(-1).outcome};
+  return {name:plan.name,passed:true,tool:call.name,toolStatus:state.events.findLast(e=>e.kind==='session_update'&&e.data?.sessionUpdate==='tool_call_update'&&e.data.toolCallId==='actual-tool-call')?.data.status,providerCalls:state.requests.length,initialPermission:permission.current,outcome:state.completes.at(-1).outcome};
  }finally{for(const child of children)child.kill('SIGKILL');for(const timer of timers)clearTimeout(timer);cloud.closeAllConnections();provider.closeAllConnections();await Promise.all([new Promise(ok=>cloud.close(ok)),new Promise(ok=>provider.close(ok))]);await cleanupAgents(sessions);await rm(root,{recursive:true,force:true})}
 }
 const results=[];for(const plan of plans){try{const row=await check(plan);results.push(row);console.log(JSON.stringify(row))}catch(error){const row={name:plan.name,passed:false,error:String(error.stack||error)};results.push(row);console.error(JSON.stringify(row))}}
 assert.deepEqual({worker:await hash(worker),agent:await hash(agent)},binaryHashes,'binary changed; rerun required');
-console.log(JSON.stringify({binaryHashes,results,limits:['Only loopback fake model/control-plane endpoints.','All tools are registered by the production runtime; no test-only no-op tools.','Worker refuses every permission request; write/shell execution success is not claimed.','Cancellation covers a real read followed by an in-flight model turn, not an already executing shell.']},null,2));
+console.log(JSON.stringify({binaryHashes,results,limits:['Only loopback fake model/control-plane endpoints.','All tools are registered by the production runtime; no test-only no-op tools.','The Go ACP session starts read-only, and attempted writes, edits and shell calls leave no effects.','Cancellation covers a real read followed by an in-flight model turn, not an already executing shell.']},null,2));
 if(results.some(r=>!r.passed))process.exitCode=1;
