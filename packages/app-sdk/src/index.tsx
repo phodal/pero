@@ -16,7 +16,6 @@ export {
   createCapabilitySnapshot,
   createFrameTransport,
   createLocalCapabilityTransport,
-  renderAgentStatus,
 } from './capability-client.mjs';
 import { mountAppConversation } from './chat-slot';
 import { AppApiProvider } from './host';

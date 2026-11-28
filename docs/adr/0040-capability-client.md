@@ -16,13 +16,13 @@ The snapshot carries protocol version, provider generation, availability, an aut
 - A missing operation, or a version other than 1, is `unsupported`.
 - `ready` is the only outcome that calls the transport. The other outcomes return before any call, so the client does not probe by executing the operation.
 
-`rebind` replaces the snapshot when the provider generation changes. A handle captured before that change throws `revoked` and cannot use the new snapshot. `subscribe` rejects a second registration of the same listener. `dispose` drops listeners. An in-flight call from the previous generation is `revoked`.
+`rebind` replaces the snapshot when the provider generation changes. A handle captured before that change throws `revoked` and cannot use the new snapshot. Rebind also drops that generation's frame-correlation waiters, so an unanswered call cannot stay pending. `subscribe` rejects a second registration of the same listener. `dispose` rejects in-flight calls, drops listeners, and rejects correlation waiters.
 
-`createCorrelation` accepts one reply per id. A late id, a second reply, and a message without `ok` are `late`, `duplicate`, and `malformed`. `dispose` rejects whatever is still pending.
+Correlation ids are namespaced by client, so two clients that share a transport do not collide. `createCorrelation` accepts one reply per id. A second reply for a settled id is `duplicate`. An id that was never requested is `late`. A message without `ok` is `malformed`. If `send()` throws, the waiter is removed and the same id can be retried. `dispose` rejects whatever is still pending.
 
-`createLocalCapabilityTransport` posts JSON to same-origin `/host/capability`. `createFrameTransport` requires a concrete `targetOrigin` and refuses `*`. The remote adapter is not in this slice.
+`createLocalCapabilityTransport` posts JSON to same-origin `/host/capability`. `createFrameTransport` requires a concrete `targetOrigin` and refuses `*`. When it listens, it owns the `message` listener and accepts a reply only when `event.origin` is that origin and `event.source` is the supplied source. A reply that does not arrive within 125000ms, the same bound as `requestAppShell`, fails as `timeout`. The remote adapter is not in this slice.
 
-`renderAgentStatus` is the browser fixture for the selected read. It imports neither Electron nor a Desktop preload.
+The browser fixture in the package test renders the agent status string from an injected fetch. That helper is not a public export. The client module imports neither Electron nor a Desktop preload.
 
 ## What this does not change
 

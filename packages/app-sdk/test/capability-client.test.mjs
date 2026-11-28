@@ -8,8 +8,12 @@ import {
   createCorrelation,
   createFrameTransport,
   createLocalCapabilityTransport,
-  renderAgentStatus,
 } from '../src/capability-client.mjs';
+
+function renderAgentStatus(value) {
+  if (!value || typeof value.status !== 'string' || typeof value.id !== 'string') throw new Error('malformed');
+  return `${value.status} ${value.id}`;
+}
 
 const run = {
   id: 'app:paper-agent:0123456789abcdef0123456789abcdef',
@@ -97,7 +101,7 @@ test('correlation accepts one reply and ignores late, duplicate and malformed me
   const first = box.request('1', () => { sent += 1; });
   assert.equal(box.receive({ id: '1', ok: true, value: run }), 'accepted');
   assert.deepEqual(await first, run);
-  assert.equal(box.receive({ id: '1', ok: true, value: run }), 'late');
+  assert.equal(box.receive({ id: '1', ok: true, value: run }), 'duplicate');
   assert.equal(box.receive({ id: 'missing' }), 'late');
   const second = box.request('2', () => { sent += 1; });
   assert.equal(box.receive({ id: '2', ok: false }), 'accepted');
@@ -124,7 +128,7 @@ test('a failed call is not repeated against another operation', async () => {
   });
   await assert.rejects(client.call('agent', 'status', input), error => error.code === 'transport');
   assert.deepEqual(seen, [['agent', 'status']]);
-  assert.deepEqual(client.observedCalls(), [{ capability: 'agent', operation: 'status', correlationId: 'gen-1:1' }]);
+  assert.equal(client.observedCalls()[0].correlationId.endsWith(':gen-1:1'), true);
 });
 
 test('the browser fixture uses an injected transport and does not import Electron', async () => {
@@ -140,14 +144,76 @@ test('the browser fixture uses an injected transport and does not import Electro
   assert.equal(fetches[0][0], '/host/capability');
   assert.deepEqual(fetches[0][1], { capability: 'agent', operation: 'status', input });
   const posted = [];
+  const listeners = [];
+  const parent = { id: 'parent' };
   const frame = createFrameTransport({
-    targetOrigin: 'pero-app://paper-agent',
+    targetOrigin: 'https://shell.example',
+    source: parent,
     postMessage: (message, origin) => posted.push([message, origin]),
+    addEventListener: (_type, listener) => listeners.push(listener),
+    removeEventListener: (_type, listener) => listeners.splice(listeners.indexOf(listener), 1),
+    timeoutMs: 5000,
   });
-  const pending = frame.call('research-assets', 'queries', { queryId: 'a'.repeat(64) }, { correlationId: 'q1' });
+  const pending = frame.call('research-assets', 'queries', { queryId: 'a'.repeat(64) }, { correlationId: 'q1', generation: 'gen-1' });
   assert.equal(posted.length, 1);
-  assert.equal(posted[0][1], 'pero-app://paper-agent');
-  frame.correlation.receive({ id: 'q1', ok: true, value: { acceptance: 'needs_review' } });
+  assert.equal(posted[0][1], 'https://shell.example');
+  assert.equal(listeners.length, 1);
+  const reply = value => ({ origin: 'https://shell.example', source: parent, data: { type: 'pero:capability-result', id: 'q1', ok: true, value } });
+  listeners[0]({ ...reply({}), origin: 'https://evil.example' });
+  listeners[0]({ ...reply({}), source: { id: 'other' } });
+  listeners[0](reply({ acceptance: 'needs_review' }));
   assert.deepEqual(await pending, { acceptance: 'needs_review' });
+  assert.equal(frame.correlation.receive({ id: 'q1', ok: true, value: {} }), 'duplicate');
+  frame.dispose();
+  assert.equal(listeners.length, 0);
   assert.throws(() => createFrameTransport({ targetOrigin: '*', postMessage() {} }), TypeError);
+});
+
+test('a failed send removes the waiter and revoke drops the frame correlation', async () => {
+  const box = createCorrelation();
+  await assert.rejects(box.request('again', () => { throw new Error('clone'); }), /clone/);
+  assert.equal(box.pending(), 0);
+  let sent = false;
+  const retry = box.request('again', () => { sent = true; });
+  assert.equal(sent, true);
+  assert.equal(box.receive({ id: 'again', ok: true, value: run }), 'accepted');
+  assert.deepEqual(await retry, run);
+
+  const listeners = [];
+  const parent = { id: 'parent' };
+  const frame = createFrameTransport({
+    targetOrigin: 'https://shell.example',
+    source: parent,
+    postMessage() {},
+    addEventListener: (_type, listener) => listeners.push(listener),
+    removeEventListener() {},
+    timeoutMs: 5000,
+  });
+  const client = createCapabilityClient({ snapshot: snapshot(), transport: frame });
+  const pending = client.call('agent', 'status', input);
+  assert.equal(frame.correlation.pending(), 1);
+  client.rebind(snapshot({ providerGeneration: 'gen-2' }));
+  await assert.rejects(pending, error => error.code === 'revoked');
+  assert.equal(frame.correlation.pending(), 0);
+
+  const hanging = client.call('agent', 'status', input);
+  client.dispose();
+  await assert.rejects(hanging, error => error.code === 'disposed');
+  assert.equal(frame.correlation.pending(), 0);
+  assert.equal(listeners.length, 1);
+});
+
+test('frame replies time out and two clients do not share a correlation id', async () => {
+  const frame = createFrameTransport({
+    targetOrigin: 'https://shell.example',
+    postMessage() {},
+    timeoutMs: 15,
+  });
+  await assert.rejects(frame.call('agent', 'status', input, { correlationId: 'slow', generation: 'gen-1' }), error => error.code === 'timeout');
+  assert.equal(frame.correlation.pending(), 0);
+  const first = createCapabilityClient({ snapshot: snapshot(), transport: { async call() { return run; } } });
+  const second = createCapabilityClient({ snapshot: snapshot(), transport: { async call() { return run; } } });
+  await first.call('agent', 'status', input);
+  await second.call('agent', 'status', input);
+  assert.notEqual(first.observedCalls()[0].correlationId, second.observedCalls()[0].correlationId);
 });
