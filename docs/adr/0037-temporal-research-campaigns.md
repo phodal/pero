@@ -1,8 +1,9 @@
 # 0037 — Temporal for durable shared research campaigns
 
-**Status** Accepted on 2026-11-27. Exact Run control and trial receipts are
-implemented and locally verified. The Temporal Campaign runtime and its
-end-to-end acceptance are pending.
+**Status** Accepted on 2026-11-27. Exact Run control, trial receipts and the
+opt-in single-round Temporal runtime are implemented. Local automated
+acceptance covers the control plane and Workflow. Authenticated review,
+independent verification and the real two-round PyBaMM acceptance remain open.
 
 **Parent** [Compute Epic #249](https://github.com/phodal/pero/issues/249)
 
