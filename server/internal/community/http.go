@@ -56,6 +56,7 @@ type page struct {
 	History                             []store.PointEntry
 	Offset, Next, Previous              int
 	More                                bool
+	Private                             *privateTaskPage
 }
 
 func Handler(db *store.Store, token string, config Config, fallback http.Handler) (http.Handler, error) {
@@ -82,9 +83,10 @@ func newServer(db *store.Store, token string, config Config) (*server, error) {
 		return nil, fmt.Errorf("both GitHub OAuth client variables are required")
 	}
 	tpl, err := template.New("pages").Funcs(template.FuncMap{
-		"state": taskState,
-		"rank":  func(i int) int { return i + 1 },
-		"date":  func(t time.Time) string { return t.UTC().Format("2006-01-02 15:04 UTC") },
+		"state":        taskState,
+		"rank":         func(i int) int { return i + 1 },
+		"date":         func(t time.Time) string { return t.UTC().Format("2006-01-02 15:04 UTC") },
+		"privateState": privateTaskState,
 	}).ParseFS(files, "templates/*.html")
 	if err != nil {
 		return nil, err
@@ -98,6 +100,10 @@ func (s *server) routes(fallback http.Handler) http.Handler {
 	mux.HandleFunc("GET /tasks", s.board)
 	mux.HandleFunc("GET /tasks/{id}", s.task)
 	mux.HandleFunc("POST /tasks/{id}/claim", s.claim)
+	mux.HandleFunc("GET /my/tasks", s.privateTasks)
+	mux.HandleFunc("POST /my/tasks", s.createPrivateTask)
+	mux.HandleFunc("GET /my/tasks/{id}", s.privateTask)
+	mux.HandleFunc("GET /my/tasks/{id}/runs/{run}", s.privateTask)
 	mux.HandleFunc("GET /leaderboard", s.leaderboard)
 	mux.HandleFunc("GET /contributors/{login}", s.contributor)
 	mux.HandleFunc("GET /auth/github", s.oauthStart)
@@ -317,7 +323,12 @@ func (s *server) form(w http.ResponseWriter, r *http.Request, operator bool) (*s
 		s.fail(w, r, store.ErrForbidden)
 		return nil, false
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
+	limit := int64(16 * 1024)
+	if r.URL.Path == privateTasksPath {
+		// Form encoding may use 12 bytes per non-ASCII code point.
+		limit = 1024 * 1024
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "表单过大或格式错误。", 400)
 		return nil, false
