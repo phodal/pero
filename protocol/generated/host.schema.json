@@ -19309,6 +19309,9 @@
         },
         "active": {
           "type": "boolean"
+        },
+        "reconnectable": {
+          "type": "boolean"
         }
       },
       "required": [

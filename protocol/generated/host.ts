@@ -3953,6 +3953,7 @@ export interface ThreadHistoryEvent {
 export interface ThreadHistoryData {
   events: ReplayThreadEvent[];
   active: boolean;
+  reconnectable?: boolean;
 }
 export interface ThreadHistoryErrorEvent {
   kind: "thread_history_error";

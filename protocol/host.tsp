@@ -458,7 +458,7 @@ model DeferredThread {
 }
 model ReplayData { events: ReplayThreadEvent[]; active: string[]; catalog?: DeferredThread[]; ...Closed }
 model ReplayEvent { kind: "replay"; ...EventBase; data: ReplayData }
-model ThreadHistoryData { events: ReplayThreadEvent[]; active: boolean; ...Closed }
+model ThreadHistoryData { events: ReplayThreadEvent[]; active: boolean; reconnectable?: boolean; ...Closed }
 model ThreadHistoryEvent { kind: "thread_history"; ...ThreadEventBase; data: ThreadHistoryData }
 model ThreadHistoryErrorEvent { kind: "thread_history_error"; ...ThreadEventBase }
 /** `text` is the selected workspace path. */
