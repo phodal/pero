@@ -101,6 +101,7 @@ allowlisted Agent (replace all `/srv/...` paths with the actual approved paths):
   {
     "id": "pybamm-sweep-v1",
     "name": "Frozen PyBaMM CPU method",
+    "supervision": "gate",
     "command": "/srv/pybamm-venv/bin/python",
     "args": ["/srv/pero/scripts/science/pybamm-sweep/acp.py", "--workspace", "/srv/battery-workspace"],
     "env": {}

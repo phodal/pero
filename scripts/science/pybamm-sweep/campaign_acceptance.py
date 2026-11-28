@@ -160,7 +160,7 @@ def acceptance(args):
         workspace.mkdir(mode=0o700)
         agents, config = output / 'agents.json', output / 'worker.json'
         save(agents, [{'id': 'pybamm-sweep-v1', 'name': 'Locked CPU method', 'command': args.python,
-                       'args': [str(ROOT / 'acp.py'), '--workspace', str(workspace)], 'env': {}}])
+                       'supervision': 'gate', 'args': [str(ROOT / 'acp.py'), '--workspace', str(workspace)], 'env': {}}])
         save(config, {'workspaces': {'battery': str(workspace)}, 'agents_file': str(agents)})
         def worker(name):
             process, _ = launch(args.worker, name, PERO_CLOUD_URL=origin, PERO_WORKER_TOKEN=machine['token'],
