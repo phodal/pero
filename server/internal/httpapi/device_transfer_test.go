@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/phodal/pero/server/internal/devicetransfer"
 	"github.com/phodal/pero/server/internal/store"
@@ -25,7 +26,7 @@ type countingImport struct {
 	revision string
 }
 
-func (c *countingImport) ImportPDF(string, []byte, string) (string, string, bool) {
+func (c *countingImport) ImportPDF(context.Context, string, []byte, string) (string, string, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.n++
@@ -55,6 +56,10 @@ func TestPaperPDFImportIsIdempotent(t *testing.T) {
 	code, body := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", "ab", uint64(len(samplePDF)))
 	if code != 409 || body["error"] != "conflict" {
 		t.Fatalf("digest %d %#v", code, body)
+	}
+	code, body = postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", digest, 0)
+	if code != 409 || body["error"] != "interrupted" {
+		t.Fatalf("replay size %d %#v", code, body)
 	}
 	code, _ = postBytes(t, api, "lab", []string{"lab"}, "partial", "handle-1", samplePDF[:4])
 	if code != 202 {
@@ -225,7 +230,7 @@ type gateImport struct {
 	once     sync.Once
 }
 
-func (g *gateImport) ImportPDF(string, []byte, string) (string, string, bool) {
+func (g *gateImport) ImportPDF(context.Context, string, []byte, string) (string, string, bool) {
 	g.mu.Lock()
 	g.n++
 	g.mu.Unlock()
@@ -289,6 +294,48 @@ func TestConcurrentFinalizeImportsOnceAndCancelDoesNotWin(t *testing.T) {
 	kept, _, _, ok := desk.Get("lab", "upload-1")
 	if !ok || len(kept) != 0 {
 		t.Fatalf("bytes %d", len(kept))
+	}
+}
+
+func TestUploadCapAndExpiry(t *testing.T) {
+	importer := &countingImport{id: "rev_cap", revision: "abc"}
+	desk := newImportingDesk(importer)
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	current := base
+	desk.now = func() time.Time { return current }
+	handle := devicetransfer.Handle{ID: "handle-1", Provider: "browser", MediaType: "application/pdf", Size: uint64(len(samplePDF)), Name: "note.pdf"}
+	if code := desk.Register("lab", handle); code != "" {
+		t.Fatal(code)
+	}
+	for i := 0; i < maxHandlesPerProject; i++ {
+		if code := desk.Register("handles", devicetransfer.Handle{ID: string(rune('a' + i)), Provider: "browser", MediaType: "application/pdf", Size: 1, Name: "n"}); code != "" {
+			t.Fatal(code)
+		}
+	}
+	if code := desk.Register("handles", devicetransfer.Handle{ID: "overflow", Provider: "browser", MediaType: "application/pdf", Size: 1, Name: "n"}); code != devicetransfer.OverLimit {
+		t.Fatalf("handles %s", code)
+	}
+	api := &API{files: desk}
+	for i := 0; i < maxUploadsPerProject; i++ {
+		code, _ := postBytes(t, api, "lab", []string{"lab"}, string(rune('a'+i)), "handle-1", samplePDF)
+		if code != 202 {
+			t.Fatalf("upload %d %d", i, code)
+		}
+	}
+	code, payload := postBytes(t, api, "lab", []string{"lab"}, "extra", "handle-1", samplePDF)
+	if code != 413 || payload["error"] != devicetransfer.OverLimit {
+		t.Fatalf("cap %d %#v", code, payload)
+	}
+	current = base.Add(uploadTTL + time.Second)
+	if _, known, _ := desk.Lookup("lab", "handle-1"); known {
+		t.Fatal("handle lived past the ttl")
+	}
+	if code := desk.Register("lab", handle); code != "" {
+		t.Fatal(code)
+	}
+	code, _ = postBytes(t, api, "lab", []string{"lab"}, "later", "handle-1", samplePDF)
+	if code != 202 {
+		t.Fatalf("expired %d", code)
 	}
 }
 

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"log"
 
 	"github.com/phodal/pero/server/internal/paperdomain"
 	"github.com/phodal/pero/server/internal/resourceref"
@@ -14,12 +15,15 @@ type PersistedPaper struct {
 	DB *store.Store
 }
 
-func (p *PersistedPaper) Paper(owner, project, id string) (PaperRecord, bool) {
+func (p *PersistedPaper) Paper(ctx context.Context, owner, project, id string) (PaperRecord, bool) {
 	if p == nil || p.DB == nil {
 		return PaperRecord{}, false
 	}
-	record, err := p.DB.PaperIdentity(context.Background(), owner, project, id)
+	record, err := p.DB.PaperIdentity(ctx, owner, project, id)
 	if err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			log.Printf("paper read: %v", err)
+		}
 		return PaperRecord{}, false
 	}
 	return PaperRecord{
@@ -32,15 +36,16 @@ func (p *PersistedPaper) Paper(owner, project, id string) (PaperRecord, bool) {
 	}, true
 }
 
-func (p *PersistedPaper) ImportPDF(project string, body []byte, digest string) (string, string, bool) {
+func (p *PersistedPaper) ImportPDF(ctx context.Context, project string, body []byte, digest string) (string, string, bool) {
 	if p == nil || p.DB == nil {
 		return "", "", false
 	}
-	existing, err := p.DB.PaperByDigest(context.Background(), project, digest)
+	existing, err := p.DB.PaperByDigest(ctx, project, digest)
 	var prior *paperdomain.Record
 	if err == nil {
 		prior = &existing
 	} else if !errors.Is(err, store.ErrNotFound) {
+		log.Printf("paper import lookup: %v", err)
 		return "", "", false
 	}
 	minted, err := paperdomain.MintID()
@@ -54,12 +59,14 @@ func (p *PersistedPaper) ImportPDF(project string, body []byte, digest string) (
 	if prior != nil && prior.ID == record.ID {
 		return record.ID, record.Revision, true
 	}
-	if err = p.DB.SavePaper(context.Background(), record); err != nil {
+	if err = p.DB.SavePaper(ctx, record); err != nil {
 		if !errors.Is(err, store.ErrConflict) {
+			log.Printf("paper import: %v", err)
 			return "", "", false
 		}
-		again, readErr := p.DB.PaperByDigest(context.Background(), project, digest)
+		again, readErr := p.DB.PaperByDigest(ctx, project, digest)
 		if readErr != nil {
+			log.Printf("paper import reread: %v", readErr)
 			return "", "", false
 		}
 		return again.ID, again.Revision, true
