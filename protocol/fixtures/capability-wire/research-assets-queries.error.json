@@ -1,0 +1,6 @@
+{
+  "code": "denied",
+  "message": "Research asset handoff is reserved for Paper.",
+  "capability": "research-assets",
+  "operation": "queries"
+}

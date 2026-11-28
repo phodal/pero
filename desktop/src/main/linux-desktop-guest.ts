@@ -52,6 +52,14 @@ export class LinuxDesktopGuest {
 
   idleInput() { return this.run(['exec', this.name, guestEntry, 'input-idle']); }
 
+  async model(file: 'result.blend' | 'result.obj') {
+    const { stdout } = await exec(this.binary, ['--host', this.engine, 'exec', this.name, '/bin/sh', '-c',
+      'file="$HOME/$1"; [ -f "$file" ] && [ ! -L "$file" ] && head -c 8388609 -- "$file"', 'read-model', file],
+      { encoding: 'buffer', timeout: 10_000, maxBuffer: 8_388_610 });
+    if (stdout.length > 8_388_608) throw new Error('The model exceeds the Run artifact limit.');
+    return stdout;
+  }
+
   vnc(control: boolean) {
     return spawn(this.binary, ['--host', this.engine, 'exec', '-i', this.name, guestEntry, control ? 'control' : 'observe'],
       { stdio: 'pipe' });

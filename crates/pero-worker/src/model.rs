@@ -11,7 +11,13 @@ pub struct Run {
     pub spec: Spec,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote_execution: Option<RemoteExecution>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desktop_profile: Option<DesktopProfile>,
 }
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DesktopProfile { Blender }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RemoteExecution {

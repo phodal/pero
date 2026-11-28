@@ -58,11 +58,12 @@ type TaskClaimant struct {
 type Task struct {
 	ID string `json:"id"`
 	Spec
-	State                 string        `json:"state"`
-	CurrentRunID          string        `json:"current_run_id,omitempty"`
-	Run                   *Run          `json:"run,omitempty"`
-	ClaimedBy             *TaskClaimant `json:"claimed_by,omitempty"`
-	LatestSource          *Source       `json:"latest_source,omitempty"`
+	State                 string            `json:"state"`
+	CurrentRunID          string            `json:"current_run_id,omitempty"`
+	CurrentDesktopProfile RunDesktopProfile `json:"current_desktop_profile,omitempty"`
+	Run                   *Run              `json:"run,omitempty"`
+	ClaimedBy             *TaskClaimant     `json:"claimed_by,omitempty"`
+	LatestSource          *Source           `json:"latest_source,omitempty"`
 	contributionSubmitted bool
 }
 
@@ -86,16 +87,19 @@ type RemoteExecution struct {
 	WorkingDirectory string `json:"working_directory"`
 }
 type Run struct {
-	RemoteExecution *RemoteExecution `json:"remote_execution,omitempty"`
-	ID              string           `json:"id"`
-	TaskID          string           `json:"task_id"`
-	Generation      int64            `json:"generation"`
-	WorkerID        string           `json:"worker_id,omitempty"`
-	InstanceID      string           `json:"instance_id,omitempty"`
-	Status          string           `json:"status"`
-	LeaseExpiresAt  *time.Time       `json:"lease_expires_at,omitempty"`
-	Spec            Spec             `json:"spec"`
-	Summary         string           `json:"summary"`
+	RemoteExecution *RemoteExecution   `json:"remote_execution,omitempty"`
+	DesktopProfile  RunDesktopProfile  `json:"desktop_profile,omitempty"`
+	DesktopHandoff  *RunDesktopHandoff `json:"desktop_handoff,omitempty"`
+	ID              string             `json:"id"`
+	TaskID          string             `json:"task_id"`
+	Generation      int64              `json:"generation"`
+	WorkerID        string             `json:"worker_id,omitempty"`
+	InstanceID      string             `json:"instance_id,omitempty"`
+	Status          string             `json:"status"`
+	LeaseExpiresAt  *time.Time         `json:"lease_expires_at,omitempty"`
+	Spec            Spec               `json:"spec"`
+	Summary         string             `json:"summary"`
+	reconciliation  *RunReconciliation
 }
 
 type Worker struct {

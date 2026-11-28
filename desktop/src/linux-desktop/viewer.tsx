@@ -92,7 +92,6 @@ function Viewer() {
     };
   }, [pair, state?.sharing]);
 
-  const dragStart = useRef<number | null>(null);
   async function act(action: DesktopAction) {
     setError(''); setPending(action);
     try {
@@ -109,27 +108,12 @@ function Viewer() {
   const watching = state?.phase === 'watching';
   return <main>
     <header>
-      <div className={state?.dockSide ? 'heading movable' : 'heading'}
-        onPointerDown={event => {
-          if (!state?.dockSide || event.button !== 0) return;
-          dragStart.current = event.clientX;
-          event.currentTarget.setPointerCapture(event.pointerId);
-        }}
-        onPointerCancel={() => { dragStart.current = null; }}
-        onPointerUp={event => {
-          if (dragStart.current !== null && (event.clientX - dragStart.current) * (state?.dockSide === 'left' ? 1 : -1) > 36)
-            void act('move');
-          dragStart.current = null;
-        }}>
+      <div className="heading">
         <h1>{t('linux_desktop.title')}</h1>
         <Feedback>{t(state?.sharing ? paired ? 'linux_desktop.shared' : 'linux_desktop.await_peer' :
           state ? phaseLabels[state.phase] : 'linux_desktop.loading')}</Feedback>
       </div>
       <div className="actions">
-        {state?.dockSide && <>
-          <Button onClick={() => void act('move')}>{t('linux_desktop.move')}</Button>
-          <Button onClick={() => void act('hide')}>{t('linux_desktop.hide')}</Button>
-        </>}
         {state?.sharing ? <Button variant="primary" disabled={blocked} onClick={() => void act('end-share')}>{t('linux_desktop.end_share')}</Button>
           : state?.external ? <Button disabled={blocked} onClick={() => void act('stop')}>{t('linux_desktop.disconnect_host')}</Button> : state?.hasGuest ? <>
           {watching && <Button variant="primary" disabled={blocked} onClick={() => void act('takeover')}>{t('linux_desktop.takeover')}</Button>}
@@ -144,7 +128,9 @@ function Viewer() {
     </header>
     {(error || state?.error) && <Feedback kind="error" variant="block" className="problem">{error || state?.error}</Feedback>}
     <section className="display" aria-label={t('linux_desktop.screen')}>
-      <div ref={surface} className="framebuffer" data-frame={state?.endpoint ? frame : 'absent'} />
+      <div ref={surface} className="framebuffer" tabIndex={-1}
+        onPointerDownCapture={event => { if (!controlling) event.currentTarget.focus({ preventScroll: true }); }}
+        data-frame={state?.endpoint ? frame : 'absent'} />
       {state?.endpoint && frame !== 'connected' ? <div className="display-message">
         <Feedback>{t(frame === 'closed' ? 'linux_desktop.disconnected' : 'linux_desktop.connecting')}</Feedback>
         {frame === 'closed' && <Button disabled={blocked} onClick={() => setRetry(value => value + 1)}>{t('linux_desktop.reconnect')}</Button>}
@@ -184,4 +170,43 @@ function Viewer() {
   </main>;
 }
 
-createRoot(document.getElementById('app')!).render(<Viewer />);
+const root = createRoot(document.getElementById('app')!);
+if (window.peroLinuxDesktop) {
+  root.render(<Viewer />);
+} else {
+  const connect = (event: MessageEvent) => {
+    if (event.source !== window.parent || event.origin !== 'pero://workbench' ||
+        event.data !== 'pero-linux-desktop' || event.ports.length !== 1) return;
+    window.removeEventListener('message', connect);
+    const [port] = event.ports;
+    let next = 0;
+    const requests = new Map<number, { resolve(state: DesktopSnapshot): void; reject(error: Error): void }>();
+    const listeners = new Set<(state: DesktopSnapshot) => void>();
+    port.onmessage = ({ data }) => {
+      if (data.state) {
+        for (const listener of listeners) listener(data.state);
+      } else {
+        const request = requests.get(data.id);
+        requests.delete(data.id);
+        if (data.error) request?.reject(new Error(data.error));
+        else request?.resolve(data.result);
+      }
+    };
+    window.peroLinuxDesktop = {
+      invoke(action, value) {
+        const id = ++next;
+        return new Promise((resolve, reject) => {
+          requests.set(id, { resolve, reject });
+          port.postMessage({ id, action, value });
+        });
+      },
+      listen(callback) {
+        listeners.add(callback);
+        return () => { listeners.delete(callback); };
+      },
+    };
+    root.render(<Viewer />);
+  };
+  window.addEventListener('message', connect);
+  window.parent.postMessage('pero-linux-desktop-ready', 'pero://workbench');
+}

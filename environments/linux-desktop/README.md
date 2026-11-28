@@ -15,8 +15,10 @@ colima start pero-remote-desktop --runtime docker --cpu 3 --memory 4 --disk 12 -
 ./environments/linux-desktop/run.sh build
 ```
 
-Use the current Electron workbench build and open **Workbench → Linux Desktop**.
-Start the desktop. For Agent access, select an ordinary Workbench chat, enable
+Use the current Electron Workbench build. In an ordinary conversation, open
+the resources pane and select **Desktop**. **@remote → Linux Desktop** opens
+the same tab from Composer. **Workbench → Linux Desktop** can open a
+standalone viewer when the tab is hidden. Start the desktop. For Agent access, select an ordinary Workbench chat, enable
 Computer Use, then click **Connect selected chat**. Ask the Agent to use
 `computer_use` to observe and operate Mousepad. The Rust Host supervises the
 chat and preserves its existing authorization. Guest screenshots and native
@@ -25,8 +27,8 @@ by its existing Host.
 
 **Take control** enables keyboard and pointer input in the viewer. **Return
 control** releases manual input. The Agent observes again before it acts. The
-viewer can close while the desktop runs, which returns any active manual
-control. **Stop desktop** asks before removing the container and its files.
+viewer can close or switch resources while the managed desktop runs. Both
+actions return any active manual control. **Stop desktop** asks before removing the container and its files.
 Normal Pero quit removes the desktop. Save anything you need outside the guest
 before stopping it.
 

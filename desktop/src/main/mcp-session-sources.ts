@@ -6,7 +6,7 @@ import type {McpView} from './mcp-sources.ts';
 import type {McpSessionScope,McpSessionCall} from './mcp-session-rpc.ts';
 import {admitMcpCsp} from './mcp-policy.ts';
 import {z} from 'zod';
-export type McpResourceSelection=McpSessionScope&{server:string;generation:number;uri:string;contents:{uri:string;mimeType?:string;text:string}[]};
+export type McpResourceSelection=McpSessionScope&{server:string;generation:number;uri:string;tool_call?:string;contents:{uri:string;mimeType?:string;text:string}[]};
 const TextResourceResult=z.object({contents:z.array(z.object({uri:z.string().min(1),text:z.string().refine(text=>!text.includes('\0')),mimeType:z.string().optional(),blob:z.never().optional()})).min(1).max(16)});
 const Catalog=z.object({servers:z.array(z.object({name:z.string(),generation:z.number().int().nonnegative(),connected:z.boolean(),tools:z.array(ToolSchema)}))});
 const PreparedBinding=z.object({binding:z.string().min(1),resource:z.unknown().optional()});
@@ -111,7 +111,7 @@ export class McpSessionSources {
           const result=adopted?.result??CallToolResultSchema.parse(await this.call({action:'tool',binding:prepared.binding,name:toolName,arguments:input}));
           if(operation.cancelled)throw new Error('MCP App opening cancelled');
           current();
-          const view:McpView={binding:{id:randomUUID(),server:command.server,resource_uri:uri,tool:toolName,tool_call:command.action==='adopt'?command.tool_call:randomUUID(),thread_id:this.scope.thread_id},html:content.text,csp,input,result};
+          const view:McpView={binding:{id:randomUUID(),server:command.server,resource_uri:uri,tool:toolName,tool_call:command.action==='adopt'?command.tool_call:randomUUID(),thread_id:this.scope.thread_id},html:content.text,csp,input,result,canUpdateModelContext:!!this.onResource};
           this.bindings.set(view.binding.id,{view,remote:prepared.binding,generation:server.generation});return view;
         }catch(error){if(operation.remote)await this.call({action:'close',binding:operation.remote}).catch(()=>{});throw error;}
         finally{this.opening.delete(command.operation);}
@@ -120,12 +120,22 @@ export class McpSessionSources {
         const entry=this.bindings.get(command.binding);if(!entry)return {};
         this.bindings.delete(command.binding);return this.call({action:'close',binding:entry.remote});
       }
-      case 'tool':case 'resource':case 'open_link':case 'message':{
+      case 'tool':case 'resource':case 'open_link':case 'message':case 'update_model_context':{
         const view=this.view(command.binding),entry=this.bindings.get(command.binding)!;
         if(this.catalog.has(view.binding.server))this.server(view.binding.server,entry.generation);
         if(command.action==='message'){
           if(!this.sendMessage)throw new Error('Sending messages to this conversation is unavailable');
           await this.sendMessage(this.scope,command.text);return {};
+        }
+        if(command.action==='update_model_context'){
+          if(!this.onResource)throw new Error('Adding context to Chat is unavailable');
+          const {server,resource_uri:uri,tool_call}=view.binding;
+          const provenance={...this.scope,server,generation:entry.generation,uri,tool_call};
+          const contents=command.text.trim()?[{uri,mimeType:'text/plain',text:command.text}]:[];
+          if(command.text.includes('\0') || Buffer.byteLength(JSON.stringify({provenance,contents}),'utf8')>64_000)
+            throw new Error('App context is invalid or exceeds 64 KB');
+          this.onResource({...provenance,contents});
+          return {};
         }
         if(command.action==='tool')return this.call({action:'tool',binding:entry.remote,name:command.name,arguments:command.arguments});
         if(command.action==='resource'){

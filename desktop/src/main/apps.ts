@@ -1,3 +1,4 @@
+import { capabilityErrorResponse, directOperation, dispatchEnvelope } from './capability-dispatch.mjs';
 import { NotebookProjectRequests } from './notebook-projects.ts';
 import { AppCanvasRequests } from './app-canvas.ts';
 import { DoclingSetup, doclingInput, doclingStatus } from './docling-runtime.ts';
@@ -300,18 +301,18 @@ export class DesktopApps {
         if (request.method !== 'POST') return new Response('Method refused', {status:405});
         const body = await request.text();
         if (Buffer.byteLength(body) > 256000) return new Response('Host request too large', {status:413});
-        const {capability, operation, input} = JSON.parse(body);
-        const routes: Record<string,string> = {agent:'app-agent',insights:'insights',connectors:'connectors',automation:'automation','research-assets':'research-assets',skills:'skills'};
-        if (!Object.hasOwn(routes, capability) || typeof operation !== 'string' || !input || typeof input !== 'object' || Array.isArray(input)) return new Response('Host capability unavailable', {status:403});
-        const route = capability === 'agent' && ['science', 'science_sessions'].includes(operation) ? 'agent' : routes[capability];
-        const target = new URL(`/host/${route}`, request.url);
-        return this.serve(new Request(target, {method:'POST',headers:request.headers,body:JSON.stringify({...input,operation})}));
+        const decision = dispatchEnvelope(JSON.parse(body));
+        if (!decision.ok) return capabilityErrorResponse(decision.error);
+        const target = new URL(decision.route, request.url);
+        return this.serve(new Request(target, {method:'POST',headers:request.headers,body:JSON.stringify(decision.body)}));
       }
       if (url.pathname === '/host/skills') {
         if (request.method !== 'POST') return new Response('Method refused', {status:405});
         const body = await request.text();
         if (Buffer.byteLength(body) > 4096) return new Response('Request too large', {status:413});
         const input = JSON.parse(body);
+        const admitted = directOperation('/host/skills', input);
+        if (!admitted.ok) return capabilityErrorResponse(admitted.error);
         const query = input?.operation === 'skillhub-search' || input?.operation === 'skillhub-versions';
         const value = await this.request('skillsmarket', {name:url.hostname,request:input}, query ? 12000 : undefined);
         return Response.json(value, {headers:{'Cache-Control':'no-store'}});
@@ -361,13 +362,19 @@ export class DesktopApps {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
         const raw = await request.text();
         if (Buffer.byteLength(raw) > 256_000) return new Response('Request too large', { status: 413 });
-        return Response.json(await this.request('automation', { name: url.hostname, request: JSON.parse(raw) }), { headers: { 'Cache-Control': 'no-store' } });
+        const automation = JSON.parse(raw);
+        const admitted = directOperation('/host/automation', automation);
+        if (!admitted.ok) return capabilityErrorResponse(admitted.error);
+        return Response.json(await this.request('automation', { name: url.hostname, request: automation }), { headers: { 'Cache-Control': 'no-store' } });
       }
       if (url.pathname === '/host/research-assets') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
         const body = await request.text();
         if (Buffer.byteLength(body) > 64 * 1024) return new Response('Request too large', { status: 413 });
-        return Response.json(await this.request('research-assets', { name: url.hostname, request: JSON.parse(body) }), { headers: { 'Cache-Control': 'no-store' } });
+        const research = JSON.parse(body);
+        const admitted = directOperation('/host/research-assets', research);
+        if (!admitted.ok) return capabilityErrorResponse(admitted.error);
+        return Response.json(await this.request('research-assets', { name: url.hostname, request: research }), { headers: { 'Cache-Control': 'no-store' } });
       }
       if (url.pathname === '/host/connectors') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
@@ -375,7 +382,10 @@ export class DesktopApps {
         if (!this.connectors) return Response.json({ ok: false, code: 'MCP_HOST_UNAVAILABLE' }, { status: 503 });
         const body = await request.text();
         if (Buffer.byteLength(body) > 131072) return new Response('Request too large', { status: 413 });
-        return Response.json(await this.connectors(JSON.parse(body)), { headers: { 'Cache-Control': 'no-store' } });
+        const connectors = JSON.parse(body);
+        const admitted = directOperation('/host/connectors', connectors);
+        if (!admitted.ok) return capabilityErrorResponse(admitted.error);
+        return Response.json(await this.connectors(connectors), { headers: { 'Cache-Control': 'no-store' } });
       }
       if (url.pathname === '/host/insights') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
@@ -392,6 +402,8 @@ export class DesktopApps {
         const body = await request.text();
         if (Buffer.byteLength(body) > 256_000) return new Response('Pero Agent request too large', {status:413});
         const operation = JSON.parse(body);
+        const admitted = directOperation('/host/app-agent', operation);
+        if (!admitted.ok) return capabilityErrorResponse(admitted.error);
         const value = await this.request<{context?: unknown}>('agentrun', {name:url.hostname,request:operation});
         return Response.json(operation.operation === 'prepare' ? value.context : value, {headers:{'Cache-Control':'no-store'}});
       }
@@ -400,6 +412,8 @@ export class DesktopApps {
         const body = await request.text();
         if (Buffer.byteLength(body) > 256_000) return new Response('Research request too large', { status: 413 });
         const operation = JSON.parse(body);
+        const admitted = directOperation('/host/agent', operation);
+        if (!admitted.ok) return capabilityErrorResponse(admitted.error);
         const result = await this.request<{ cancelled?: boolean }>('agent', { name: url.hostname, request: operation });
         if (operation.operation === 'cancel' && result.cancelled === true)
           this.onAgentCancel?.(operation.sessionId);

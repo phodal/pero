@@ -141,8 +141,9 @@ export function connectPair(pair: Pair, role: 'owner' | 'viewer',
   return end;
 }
 
-export function publishRfb(endpoint: string, channel: RfbChannel, close: () => void) {
-  const local = new WebSocket(endpoint);
+export function publishRfb(endpoint: string, channel: RfbChannel, close: () => void,
+  open = (url: string) => new WebSocket(url)) {
+  const local = open(endpoint);
   local.binaryType = 'arraybuffer';
   channel.onmessage = ({ data }: MessageEvent) => {
     if (!(data instanceof ArrayBuffer) || local.readyState !== WebSocket.OPEN || local.bufferedAmount > 8 * 1024 * 1024) {

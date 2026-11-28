@@ -314,6 +314,8 @@ impl Workbench {
 
 impl Render for Workbench {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        #[cfg(target_family = "wasm")]
+        pero_chat_ui::ChatPanel::clear_desktop_surface();
         let dragging = window.use_keyed_state("window-chrome", cx, |_, _| false);
         self.view_bounds.clear();
         self.leave_settings_route(window, cx);
@@ -381,14 +383,21 @@ impl Render for Workbench {
             resizing,
             SurfaceStacking::CURRENT,
         );
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        self.sync_run_desktop(covered, cx);
         let mut layout = WorkspaceLayout::resolve(
             width,
             self.navigation.route(),
             self.tab,
             &self.preferences.layout,
             covered,
-            pane_layout,
+            self.navigation.pane_layout().filter(|_| pane_tree),
         );
+        if self.run_desktop_active() {
+            layout.chat = ChatPlacement::Hidden;
+            layout.chat_width = 0.;
+            layout.content_visible = true;
+        }
         if self.project_agent_active() {
             layout.chat = ChatPlacement::Main;
             layout.chat_width = 0.;
@@ -398,8 +407,9 @@ impl Render for Workbench {
             .navigation
             .pane_layout()
             .is_none_or(|layout| layout.leaves().len() <= 1);
-        let slot = self.active_app_chat_slot().cloned().filter(|_| !covered);
-        let floating = cfg!(target_family = "wasm")
+        let expanded_mcp = self.chat.read(cx).has_expanded_mcp();
+        let slot = self.active_app_chat_slot().cloned().filter(|_| !covered && !expanded_mcp);
+        let floating = !expanded_mcp && cfg!(target_family = "wasm")
             && slot.is_none()
             && self.floating_chat
             && single_pane
@@ -420,6 +430,9 @@ impl Render for Workbench {
         if !floating && slot.is_none() {
             Self::publish_app_chat_overlay(None);
         }
+        if expanded_mcp {
+            layout.embedded_surface_visible = false;
+        }
         if self.sidebar_collapsed {
             layout = layout.hide_sidebar(width, &self.preferences.layout);
         }
@@ -428,7 +441,7 @@ impl Render for Workbench {
         }
         let project_chat_was_hidden = self.project_context_in_place(cx);
         self.layout = layout;
-        let project_insights_visible = self.project_insights_id().is_some()
+        let project_insights_visible = !expanded_mcp && self.project_insights_id().is_some()
             && self.apps.project_insights_requested
             && self.project_inspector_visible(cx)
             && !covered;
@@ -458,7 +471,7 @@ impl Render for Workbench {
         #[cfg(not(target_family="wasm"))]
         self.sync_inline_mcp(cx);
         let sidebar_width = layout.sidebar_width;
-        let sessions = (self.navigation.page() == WorkbenchPage::Conversation && self.tab == ConversationTab::Chat)
+        let sessions = self.sessions_available()
             .then(|| self.preferences.layout.visible_sessions_width(width - sidebar_width))
             .flatten()
             .map(|width| self.sessions_panel(width, window, cx).into_any_element());
@@ -867,8 +880,9 @@ impl Render for Workbench {
                             .min_h_0()
                             .flex()
                             .relative()
-                            .children(sessions)
-                            .when(layout.content_visible, |el| {
+                            .when(expanded_mcp, |el| el.child(self.chat.clone()))
+                            .when(!expanded_mcp, |el| el.children(sessions))
+                            .when(!expanded_mcp && layout.content_visible, |el| {
                                 el.child(
                                     div()
                                         .flex_1()
@@ -924,17 +938,17 @@ impl Render for Workbench {
                                         ),
                                 )
                             })
-                            .when(dock, |el| {
+                            .when(!expanded_mcp && dock, |el| {
                                 el.child(self.chat_dock(dock_span, narrow, window, cx))
                             })
-                            .when(floating, |el| {
+                            .when(!expanded_mcp && floating, |el| {
                                 el.child(self.floating_app_chat(width, window, cx))
                             }),
                     )
                                                         )
                                                     ),
                                             )
-                                            .when(resources_width > 0., |row| {
+                                            .when(!expanded_mcp && resources_width > 0., |row| {
                                                 row.child(self.resources_column(&dragging, window, cx))
                                             }),
                                     )

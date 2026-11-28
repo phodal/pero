@@ -93,6 +93,7 @@ pub struct LayoutPreferences {
     sidebar_width: u16,
     #[serde(deserialize_with = "LayoutPreferences::deserialize_sessions_width")]
     sessions_width: u16,
+    pub sessions_open: bool,
     #[serde(default = "LayoutPreferences::default_artifact_pane_width")]
     artifact_pane_width: u16,
     pub artifact_view: ArtifactView,
@@ -107,6 +108,7 @@ impl Default for LayoutPreferences {
     fn default() -> Self {
         Self {
             sessions_width: 280,
+            sessions_open: true,
             chat_width: 420,
             chat_open: false,
             sidebar_width: Self::DEFAULT_SIDEBAR_WIDTH,
@@ -200,9 +202,16 @@ impl LayoutPreferences {
         ) as u16;
     }
 
-    /// Preserve at least 320px for the conversation; hide the list on narrow windows.
+    const MIN_CONVERSATION_WIDTH: f32 = 320.;
+
+    /// Preserve room for the conversation when the list is shown.
+    pub fn sessions_fit(available: f32) -> bool {
+        available >= f32::from(Self::MIN_SESSIONS_WIDTH) + Self::MIN_CONVERSATION_WIDTH
+    }
+
     pub fn visible_sessions_width(&self, available: f32) -> Option<f32> {
-        (available >= 520.).then(|| self.sessions_width().min(available - 320.))
+        (self.sessions_open && Self::sessions_fit(available))
+            .then(|| self.sessions_width().min(available - Self::MIN_CONVERSATION_WIDTH))
     }
 
     /// Move the displayed divider, retaining the preference when it cannot move.
@@ -542,6 +551,7 @@ mod layout_tests {
     fn sessions_width_preserves_preferences_when_space_is_limited() {
         let mut layout: LayoutPreferences = serde_json::from_str("{}").unwrap();
         assert_eq!(layout.sessions_width(), 280.);
+        assert_eq!(layout.visible_sessions_width(900.), Some(280.));
         for (requested, saved, available, visible) in [
             (100., 200., 900., Some(200.)),
             (900., 480., 900., Some(480.)),
@@ -554,6 +564,12 @@ mod layout_tests {
                 serde_json::from_value(serde_json::to_value(layout).unwrap()).unwrap();
             assert_eq!(restored.sessions_width(), saved);
         }
+        layout.sessions_open = false;
+        let mut restored: LayoutPreferences =
+            serde_json::from_value(serde_json::to_value(layout).unwrap()).unwrap();
+        assert_eq!(restored.visible_sessions_width(900.), None);
+        restored.sessions_open = true;
+        assert_eq!(restored.visible_sessions_width(900.), Some(360.));
         for width in [199, 481] {
             assert!(
                 serde_json::from_value::<LayoutPreferences>(

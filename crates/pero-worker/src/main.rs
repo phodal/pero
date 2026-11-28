@@ -3,6 +3,7 @@ mod control;
 mod executor;
 mod journal;
 mod model;
+mod run_desktop;
 mod supervisor;
 
 use control::{CloudFailure, Control};
@@ -42,8 +43,8 @@ fn terminal(status: &str) -> bool {
     matches!(status, "succeeded" | "failed" | "cancelled" | "reconcile")
 }
 
-fn clear(journal: &mut Journal) -> Result<(), String> {
-    journal.retain_unuploaded()?;
+fn clear(journal: &mut Journal, cloud_status: &str) -> Result<(), String> {
+    journal.retain_for_review(cloud_status == "reconcile")?;
     journal.state.active = None;
     journal.state.pending_claim = None;
     journal.save()
@@ -55,9 +56,9 @@ fn complete(control: &Control, journal: &mut Journal) -> Result<(), CloudFailure
     let run = active.run.clone();
     // Persisted result is retried verbatim, preserving the server's idempotent receipt.
     match control.complete(&run, &result) {
-        Ok(_) => clear(journal).map_err(Into::into),
+        Ok(current) => clear(journal, &current.status).map_err(Into::into),
         Err(error) => match control.inspect(&run) {
-            Ok(current) if terminal(&current.status) => clear(journal).map_err(Into::into),
+            Ok(current) if terminal(&current.status) => clear(journal, &current.status).map_err(Into::into),
             Ok(current)
                 if current.status == "cancel_requested" && result.outcome == "succeeded" =>
             {
@@ -86,11 +87,10 @@ fn settle(control: &Control, journal: &mut Journal, once: bool) -> Result<(), Cl
         let active = journal.state.active.as_ref().unwrap();
         if let Err(error) = control.renew(&active.run) {
             // Lease expiry may already have produced a terminal reconcile state.
-            if control
-                .inspect(&active.run)
-                .is_ok_and(|current| terminal(&current.status))
+            if let Ok(current) = control.inspect(&active.run)
+                && terminal(&current.status)
             {
-                return clear(journal).map_err(Into::into);
+                return clear(journal, &current.status).map_err(Into::into);
             }
             if error.retryable && !once {
                 let delay = backoff.failed().as_secs();
@@ -167,11 +167,10 @@ fn recover(control: &Control, journal: &mut Journal, once: bool) -> Result<bool,
             .result
             .as_ref()
             .is_none_or(|result| result.outcome == "reconcile" || result.needs_attention);
-        if control
-            .inspect(&active.run)
-            .is_ok_and(|current| terminal(&current.status))
+        if let Ok(current) = control.inspect(&active.run)
+            && terminal(&current.status)
         {
-            clear(journal)?;
+            clear(journal, &current.status)?;
             return Ok(needs_review);
         }
         if active.result.is_none() {
@@ -358,6 +357,16 @@ fn run() -> Result<(), String> {
             config.execution(&run)
         };
         let mut result = match execution {
+            Ok(mut execution) if run.desktop_profile.is_some() => {
+                match run_desktop::RunDesktop::start(&control, &run, &mut execution) {
+                    Ok(desktop) => {
+                        let result = supervisor::execute(&control, &mut journal, execution, started)
+                            .unwrap_or_else(|error| Outcome::new("reconcile", error));
+                        desktop.finish(&control, &run, result)
+                    }
+                    Err(error) => Outcome::blocked(error),
+                }
+            }
             Ok(execution) => supervisor::execute(&control, &mut journal, execution, started)
                 .unwrap_or_else(|error| Outcome::new("reconcile", error)),
             Err(error) => Outcome::blocked(error),

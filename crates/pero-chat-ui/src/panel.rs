@@ -85,6 +85,7 @@ pub struct ChatPanel {
     pub composer: Entity<TextareaState>,
     pub chats: Vec<Conversation>,
     pub active_chat: Option<usize>,
+    pub(crate) expanded_mcp: Option<(String, String)>,
     pub deleting_chat: Option<String>,
     pub agents: Vec<AgentChoice>,
     pub agent_index: usize,
@@ -118,9 +119,11 @@ pub struct ChatPanel {
     /// The shell already exposes the resource navigation beside this chat.
     pub external_resource_navigation: bool,
     /// Side resources column measured by the last layout. Bottom stack is none.
-    pub resource_column: Option<crate::artifact_panel::ResourceColumn>,
+    pub resource_column: Option<crate::resource_panel::ResourceColumn>,
     #[cfg(all(feature = "native", target_os = "macos"))]
     pub computer_preview: Option<AnyView>,
+    #[cfg(all(feature = "native", target_os = "macos"))]
+    pub native_desktop_pane: Option<AnyView>,
     pub(crate) pending_prompts: Vec<ComposerInsertion>,
     pub scope: Option<pero_contracts::AppChatScope>,
     pub(crate) scope_selection: HashMap<Option<pero_contracts::AppChatScope>, String>,
@@ -128,6 +131,10 @@ pub struct ChatPanel {
     input_placeholder: &'static str,
     pub(crate) replayed: bool,
     pub(crate) visible: bool,
+    /// The Workbench route is the Conversation page. Layout can show this panel earlier.
+    conversation_page: bool,
+    /// The user removed the active chat. Re-entering Sessions clears it.
+    hold_empty_conversation: bool,
     pub(crate) next_request: u64,
     pub(crate) retired_chats: HashMap<String, String>,
     pub(crate) artifacts: crate::session_artifacts::SessionArtifacts,
@@ -180,6 +187,7 @@ impl ChatPanel {
             composer,
             chats: vec![],
             active_chat: None,
+            expanded_mcp: None,
             deleting_chat: None,
             agents: vec![],
             agent_index: 0,
@@ -210,12 +218,16 @@ impl ChatPanel {
             resource_column: None,
             #[cfg(all(feature = "native", target_os = "macos"))]
             computer_preview: None,
+            #[cfg(all(feature = "native", target_os = "macos"))]
+            native_desktop_pane: None,
             pending_prompts: vec![],
             scope: None,
             scope_selection: HashMap::new(),
             project_composer: ProjectComposer::default(),
             replayed: false,
             visible: true,
+            conversation_page: false,
+            hold_empty_conversation: false,
             next_request: 0,
             retired_chats: HashMap::new(),
             artifacts: Default::default(),
@@ -347,21 +359,50 @@ impl ChatPanel {
         }
     }
 
+    fn conversation_gate(&self) -> crate::conversation_target::ConversationTarget {
+        crate::conversation_target::ConversationTarget {
+            connected: self.connected,
+            replayed: self.replayed,
+            visible: self.visible,
+            project_composer: self.project_composer.scope.is_some(),
+            conversation_page: self.conversation_page,
+            active_chat: self.active_chat.is_some(),
+            hold_empty: self.hold_empty_conversation,
+        }
+    }
+
+    pub fn set_conversation_page(&mut self, conversation_page: bool) {
+        let mut gate = self.conversation_gate();
+        gate.set_page(conversation_page);
+        self.conversation_page = gate.conversation_page;
+        self.hold_empty_conversation = gate.hold_empty;
+    }
+
+    pub(crate) fn note_active_chat_removed(&mut self) {
+        let mut gate = self.conversation_gate();
+        gate.note_active_removed();
+        self.hold_empty_conversation = gate.hold_empty;
+    }
+
+    /// Restores a scope chat exactly when [`crate::conversation_target::ConversationTarget::missing`] is true.
+    pub fn ensure_conversation_target(&mut self, cx: &mut Context<Self>) {
+        if self.conversation_gate().missing() {
+            self.restore_scope_chat(cx);
+        }
+    }
+
     pub fn set_visible(&mut self, visible: bool, cx: &mut Context<Self>) {
         if self.visible != visible {
             self.visible = visible;
-            if !visible { self.hide_mcp_surfaces(); }
+            if !visible { self.expanded_mcp = None; self.hide_mcp_surfaces(); }
             if visible {
                 if let Some(chat) = self.active_chat.and_then(|index| self.chats.get_mut(index)) { chat.notice.read(); }
-                if self.active_chat.is_none() && self.replayed && self.project_composer.scope.is_none() {
-                    self.new_draft(cx);
-                } else {
-                    self.prepare_chat(cx);
-                }
+                self.prepare_chat(cx);
             }
             self.sync_follow(cx);
             cx.notify();
         }
+        self.ensure_conversation_target(cx);
     }
 
     /// UI controls enter the command boundary here; only typed intents leave it.
@@ -530,6 +571,11 @@ impl ChatPanel {
                     && chat.mcp.as_ref().is_some_and(|snapshot| view.available(snapshot));
                 let mut row = json!({"chat":chat.id,"tool":tool.id,"historical":view.historical,"interactive":interactive,"server":view.descriptor.server,"resourceUri":view.descriptor.resource_uri});
                 row["notice"] = if visible && !interactive { Value::String(history_notice.into()) } else { Value::Null };
+                let expanded = self.mcp_expanded_active(&chat.id, &tool.id);
+                row["expanded"] = expanded.into();
+                if interactive || expanded {
+                    row["placementBounds"] = view.placement_control.snapshot();
+                }
                 Some(row)
             })
         }).collect();
@@ -578,6 +624,9 @@ impl ChatPanel {
                 "hasQueuedPrompt": chat.queued.is_some(),
             });
         }
+        value["replayed"] = self.replayed.into();
+        value["visible"] = self.visible.into();
+        value["projectComposerActive"] = self.project_composer.scope.is_some().into();
         value
     }
 }
@@ -604,7 +653,11 @@ impl Render for ChatPanel {
             });
         }
         self.prepare_artifacts(window, cx);
+        if let Some(result) = self.expanded_mcp_surface(cx) {
+            return result;
+        }
         let view = cx.entity().clone();
         container_query(move |size, window, cx| view.update(cx, |this, cx| this.artifact_chat_layout(size, window, cx)))
+            .into_any_element()
     }
 }

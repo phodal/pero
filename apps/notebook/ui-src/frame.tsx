@@ -59,6 +59,9 @@ function Notebook() {
   const { t, locale } = useAppI18n(messages);
   const { active } = useAppContext();
   const api = useAppApi(), chat = useAppChat();
+  // Cold startup may resolve the SDK manifest while a saved revision is loading.
+  const revisionApi = useRef(api);
+  revisionApi.current = api;
   const [entries, setEntries] = useState<NotebookEntrySummary[] | null>(null);
   const [selected, setSelected] = useState('');
   const [navigationOpen, setNavigationOpen] = useState(true);
@@ -310,7 +313,7 @@ function Notebook() {
       const request = ++navigationRequest.current, revision = Number(target.revision);
       setOpeningRevision({ revision });
       setError(''); setReplacementNotice('');
-      void api.get<NotebookEntry>(`${endpoint(target.entryId)}/revisions/${revision}`).then(entry => {
+      void revisionApi.current.get<NotebookEntry>(`${endpoint(target.entryId)}/revisions/${revision}`).then(entry => {
         if (request !== navigationRequest.current) return;
         if (entry.id !== target.entryId || entry.revision !== revision) throw new Error('Notebook returned a different saved revision');
         const saved = readEntry(entry);
@@ -322,7 +325,7 @@ function Notebook() {
     };
     window.addEventListener(NOTEBOOK_SEARCH_OPEN_EVENT, openRevision);
     return () => { navigationRequest.current++; window.removeEventListener(NOTEBOOK_SEARCH_OPEN_EVENT, openRevision); };
-  }, [api]);
+  }, []);
   const save = (draft: Draft) => perform('save', async () => {
     if (!draft.document.title.trim()) { setError(t('titleRequired')); return; }
     if (hasIncompleteReference(draft.document.content.content)) { setError(t('pendingReference')); return; }

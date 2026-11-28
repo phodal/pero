@@ -446,21 +446,15 @@ impl NativeApps {
         if path == "/host/capability" {
             anyhow::ensure!(method == "POST" && body.len() <= 256000, "Invalid Host request");
             let call: Value = serde_json::from_slice(body)?;
-            let target = match call["capability"].as_str() {
-                Some("agent") if matches!(call["operation"].as_str(), Some("science" | "science_sessions")) => "agent",
-                Some("agent") => "app-agent", Some("insights") => "insights", Some("connectors") => "connectors",
-                Some("automation") => "automation", Some("research-assets") => "research-assets", Some("skills") => "skills", _ => anyhow::bail!("Host capability unavailable"),
-            };
-            let mut input = call["input"].as_object().cloned().ok_or_else(|| anyhow::anyhow!("Host input must be an object"))?;
-            let operation = call["operation"].as_str().ok_or_else(|| anyhow::anyhow!("Host operation is required"))?;
-            input.insert("operation".into(),json!(operation));
-            let forwarded = Request::builder().method("POST").uri(format!("pero-app://{name}/host/{target}"))
-                .header("Content-Type","application/json").body(serde_json::to_vec(&input)?)?;
+            let decision = match crate::capability_dispatch::dispatch_envelope(&call) { Ok(v) => v, Err(e) => return Ok(crate::capability_dispatch::rejection_response(&e)) };
+            let forwarded = Request::builder().method("POST").uri(format!("pero-app://{name}{}", decision.route))
+                .header("Content-Type","application/json").body(serde_json::to_vec(&decision.body)?)?;
             return self.respond(name,forwarded,is_live);
         }
         if path == "/host/skills" {
             anyhow::ensure!(method == "POST" && body.len() <= 4096, "Invalid Skills request");
             let operation: Value = serde_json::from_slice(body)?;
+            if let Err(response) = crate::capability_dispatch::admit_route("/host/skills", &operation) { return Ok(response); }
             let value = self.request::<Value>("skillsmarket", json!({"name":name,"request":operation}))?;
             return Ok(Response::builder().header("Content-Type","application/json").header("Cache-Control","no-store")
                 .body(serde_json::to_vec(&value)?)?);
@@ -473,6 +467,7 @@ impl NativeApps {
                 return Ok(Response::builder().status(413).body(b"Request too large".to_vec())?);
             }
             let operation: Value = serde_json::from_slice(body)?;
+            if let Err(response) = crate::capability_dispatch::admit_route("/host/research-assets", &operation) { return Ok(response); }
             let value = self.request::<Value>("research-assets", json!({"name":name,"request":operation}))?;
             return Ok(Response::builder().header("Content-Type", "application/json")
                 .header("Cache-Control", "no-store").body(serde_json::to_vec(&value)?)?);
@@ -480,6 +475,7 @@ impl NativeApps {
         if path == "/host/automation" {
             anyhow::ensure!(method == "POST" && body.len() <= 256_000, "Invalid Automation request");
             let operation: Value = serde_json::from_slice(body)?;
+            if let Err(response) = crate::capability_dispatch::admit_route("/host/automation", &operation) { return Ok(response); }
             let value=self.request::<Value>("automation", json!({"name":name,"request":operation}))?;
             return Ok(Response::builder().header("Content-Type","application/json").header("Cache-Control","no-store")
                 .body(serde_json::to_vec(&value)?).unwrap());
@@ -497,6 +493,7 @@ impl NativeApps {
                 Ok(value) => value,
                 Err(_) => return Ok(response(400, json!({"ok":false,"code":"MCP_ARGUMENT"}))),
             };
+            if let Err(response) = crate::capability_dispatch::admit_route("/host/connectors", &operation) { return Ok(response); }
             return Ok(match self.connectors.as_ref().and_then(std::sync::Weak::upgrade).map(|owner| owner.request(operation)) {
                 Some(Ok(value)) => response(200, value),
                 _ => response(503, json!({"ok":false,"code":"MCP_HOST_UNAVAILABLE"})),
@@ -509,6 +506,7 @@ impl NativeApps {
                 "Invalid App Host request"
             );
             let operation: Value = serde_json::from_slice(body)?;
+            if let Err(response) = crate::capability_dispatch::admit_route(path, &operation) { return Ok(response); }
             let preparing = path == "/host/app-agent" && operation["operation"] == "prepare";
             let (action, fields) = if path == "/host/app-agent" {
                 ("agentrun", json!({"name":name,"request":operation}))

@@ -11,7 +11,7 @@ use pero_contracts::{
 
 pub(crate) struct NativeMcpView {
     page: Entity<NativeWebPage>,
-    context: Option<(bool, String)>,
+    context: Option<(bool, String, bool)>,
     _load: Subscription,
 }
 impl Workbench {
@@ -102,19 +102,18 @@ impl Workbench {
     }
     pub(crate) fn sync_inline_mcp(&mut self, cx: &mut Context<Self>) {
         let visible = self.chat_visible(cx);
-        let context = (
-            pero_theme::UiAppearance::global(cx).dark,
-            self.locale.clone(),
-        );
         for ((thread, call), view) in &mut self.native_mcp_views {
-            if !visible || !self.chat.read(cx).mcp_inline_active(thread, call) {
+            let chat = self.chat.read(cx);
+            let expanded = chat.mcp_expanded_active(thread, call);
+            if !expanded && (!visible || !chat.mcp_inline_active(thread, call)) {
                 view.page.update(cx, |page, cx| page.hide(cx));
             }
+            let context = (pero_theme::UiAppearance::global(cx).dark, self.locale.clone(), expanded);
             if view.context.as_ref() != Some(&context)
                 && matches!(view.page.read(cx).document.observation.load, WebLoad::Ready)
             {
                 let message = serde_json::json!({"type":"pero:mcp:context", "context":{
-                    "theme":if context.0 {"dark"} else {"light"}, "locale":context.1}});
+                    "theme":if context.0 {"dark"} else {"light"}, "locale":context.1,"expanded":context.2}});
                 if view.page.read(cx).post_message(&message, cx).is_ok() {
                     view.context = Some(context.clone());
                 }

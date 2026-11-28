@@ -39,3 +39,10 @@
 - [0034: Auditable memory projections before service adoption](0034-auditable-memory-projections.md) — accepted research decision; runtime adoption deferred
 - [0035: Data semantic definition and query receipt contract](0035-data-semantic-contract.md) — reuse-contract-only; no upstream deployment adoption
 - [0036: MCP Apps Host Runtime and saved Notebook Inspector](0036-mcp-apps-host-runtime.md) — v0 renderer and first product consumer
+- [0037: Temporal for durable shared research campaigns](0037-temporal-research-campaigns.md) — accepted, implementation tracked under Compute #249
+- [0038: Capability inventory and typed wire contracts](0038-capability-inventory.md) — P0.1 protocol inventory; no shell migration
+- [0039: Shared capability dispatch and owner admission](0039-capability-dispatch.md) — P0.2 Electron and Native routes from the inventory; not a grant
+- [0040: App SDK capability client and transport port](0040-capability-client.md) — P0.3 typed client; a snapshot is not a grant
+- [0041: Owner-qualified resource identity and Paper read](0041-resource-identity.md) — P0.4 a reference is not a grant; Paper evidence stays with its owner
+- [0042: Run and session projection](0042-run-lifecycle.md) — P0.5 observe an existing Run; do not invent its lifecycle
+- [0043: Portable device files and Paper import](0043-device-files.md) — P0.6 pick and transfer a PDF; 0042 is the separate P0.5 projection

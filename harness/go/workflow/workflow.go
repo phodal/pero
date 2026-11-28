@@ -173,6 +173,8 @@ func (app *App) Dispose(ctx context.Context) error {
 		return nil
 	}
 	if err := app.instance.Dispose(ctx); err != nil {
+		// context.Canceled / DeadlineExceeded means the caller left.
+		// Close uses one fresh timeout and does not retry.
 		return err
 	}
 	return app.catalog.close()

@@ -122,6 +122,7 @@ if (!computer) {
   await generate('shortcuts', 'ShortcutProtocol', ['ShortcutProtocol'], 'shortcuts');
   await generate('host', 'HostProtocol', ['HostInput', 'HostEvent', 'WebCommand']);
   await generate('remote', 'RemoteProtocol', ['RemoteProtocol']);
+  await generate('capabilities', 'CapabilityProtocol', ['CapabilityWire'], 'capabilities');
 }
 await generate('computer-observation', 'ComputerObservationContract', ['ComputerCapabilities', 'ComputerTarget', 'ComputerObservation'], 'computer-use');
 await generate('computer-action', 'ComputerActionContract', ['ComputerAction', 'ComputerActionReceipt', 'ComputerError'], 'computer-use');

@@ -18,9 +18,10 @@ pub(crate) struct MainColumn {
     /// Installed column-header actions and whether that app failed.
     /// Failure keeps retry and drops the declared actions.
     pub app: Option<FocusedApp>,
+    pub toggle_sessions: bool,
     pub open_chat: bool,
     pub close_chat: bool,
-    pub conversation_resources: bool,
+    pub resource_launcher: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -54,9 +55,12 @@ pub(crate) struct ResourcesColumn {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ResourcePrimary {
     Project,
+    Launcher,
     Files,
     Artifacts,
     Changes,
+    Desktop,
+    Run,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -84,8 +88,9 @@ pub(crate) enum Primary {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Action {
     SidebarToggle,
+    SessionsToggle,
     Search,
-    Artifacts,
+    RightPanel,
     OpenChat,
     CloseChat,
     Retry,
@@ -137,9 +142,9 @@ pub(crate) fn project(columns: &WorkbenchColumns) -> Titleband {
             actions: vec![Action::ResourceToolbar],
         });
     }
-    if columns.main.conversation_resources {
+    if columns.main.resource_launcher {
         if let Some(rightmost) = segments.last_mut() {
-            rightmost.actions.push(Action::Artifacts);
+            rightmost.actions.push(Action::RightPanel);
         }
     }
     Titleband { segments }
@@ -165,6 +170,9 @@ fn main_segment(main: &MainColumn) -> Segment {
             (Primary::Tabs, actions)
         }
     };
+    if main.toggle_sessions {
+        actions.push(Action::SessionsToggle);
+    }
     if main.open_chat {
         actions.push(Action::OpenChat);
     }
@@ -211,9 +219,10 @@ mod tests {
         MainColumn {
             focus,
             app,
+            toggle_sessions: false,
             open_chat: false,
             close_chat: false,
-            conversation_resources: false,
+            resource_launcher: false,
         }
     }
 
@@ -231,9 +240,9 @@ mod tests {
         let cases = [
             (
                 "ordinary Native conversation",
-                columns(MainColumn { conversation_resources: true, ..main(MainFocus::Tabs, None) }, None),
+                columns(MainColumn { resource_launcher: true, ..main(MainFocus::Tabs, None) }, None),
                 None,
-                vec![Action::Artifacts],
+                vec![Action::RightPanel],
             ),
             (
                 "resources closed",
@@ -242,9 +251,18 @@ mod tests {
                 vec![],
             ),
             (
+                "conversation list can be toggled",
+                columns(
+                    MainColumn { toggle_sessions: true, ..main(MainFocus::Tabs, None) },
+                    None,
+                ),
+                None,
+                vec![Action::SessionsToggle],
+            ),
+            (
                 "resources open at W",
                 columns(
-                    MainColumn { conversation_resources: true, ..main(MainFocus::Tabs, None) },
+                    MainColumn { resource_launcher: true, ..main(MainFocus::Tabs, None) },
                     Some(ResourcesColumn {
                         width: 420.,
                         primary: ResourcePrimary::Files,
@@ -289,7 +307,7 @@ mod tests {
                 Some(width) => {
                     let resources = band.segment(ColumnKind::Resources).expect(name);
                     assert_eq!(resources.width, SegmentWidth::Fixed(width), "{name}");
-                    assert_eq!(resources.actions, vec![Action::ResourceToolbar, Action::Artifacts], "{name}");
+                    assert_eq!(resources.actions, vec![Action::ResourceToolbar, Action::RightPanel], "{name}");
                 }
             }
         }

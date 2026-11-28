@@ -54,6 +54,10 @@ pub struct Manager {
     automation_rx: Option<mpsc::Receiver<automation_agent::AutomationReceipt>>,
 }
 impl Manager {
+    pub(crate) fn catalog(&self) -> &[AgentConfig] {
+        &self.agents
+    }
+
     pub(crate) fn workspace(&self) -> &std::path::Path {
         &self.workspace
     }

@@ -336,4 +336,53 @@ conversation about 42 seconds); 30 minutes is the cold-compile ceiling, not a
 claim that the job takes that long.
 
 `ui/update-model-context`, Task/Run/Artifact binding, author tooling,
-panel/fullscreen, and marketplace distribution stay out of this pass.
+panel/fullscreen, and marketplace distribution stayed outside the 2026-11-24 pass.
+
+## Workbench placement and Notebook draft context — 2026-11-26
+
+Local macOS Electron, source based on `32132b5ad` with the Workbench changes.
+Built Wasm, Web, Desktop and Rust Host. Ran
+`npm run test:mcp-notebook-conversation` and the unchanged official 2.0.4 MCP App
+through `npm run test:mcp-official-conversation`. The Notebook Python backend,
+Rust Host and Go ACP were running. Model requests went to the loopback fixture.
+
+- From the tool row, **Open in workbench** and **Back to chat** retained the same
+  outer frame and guest document. Notebook continued to show revision 1 and
+  `12.5 U/mL` after revision 2 had been saved.
+- Browsing and selecting the block made the two explicit follow-up reads.
+  Adding the block twice produced one draft attachment. The model fixture only
+  received its source text after the user submitted from the Composer.
+- Closing or reopening the view did not repeat the tool. Restart restored the
+  read-only history. Following its source link opened the saved Notebook revision
+  read-only, with zero additional MCP tool or model calls.
+- Inspected the light 1400px and dark 1000px Workbench captures and the reopened
+  Notebook. The back action and revision link were visible, revision 1 remained
+  readable, and the dark view fit without horizontal overflow.
+
+Evidence is in `test-results/mcp-notebook-conversation/` (`result.json`,
+`notebook-workbench-pinned.png`, `notebook-workbench-dark-narrow.png`,
+`notebook-reopened-pinned.png`). Native shell compilation passed. Native
+graphical interaction and signed distribution were outside this run.
+
+### Native graphical follow-up — 2026-11-26
+
+Ran source commit `cc9229c57` in a local macOS GPUI preview with real WKWebView,
+the Rust Host, Go ACP and the Notebook backend. The test used an isolated
+profile, a local model fixture and a Notebook with two saved revisions.
+
+- With the current Notebook on revision 2 (`13.0 U/mL`), the Inspector opened
+  revision 1 (`12.5 U/mL`) and expanded from the chat dock to the Workbench.
+- In the expanded view, **Browse blocks → Read observations → Add block to
+  chat** staged the selected text. **Back to chat** showed the removable chip
+  in the original Composer and retained the selected block in the Inspector.
+  The Host recorded one MCP view event and one draft-context event for that
+  tool call. Adding the draft did not send a prompt.
+- A fresh Native process opened the same profile. The conversation showed its
+  historical, inactive MCP result. **Open Notebook revision 1** opened the
+  exact saved entry and revision in Notebook's read-only view, displaying
+  `12.5 U/mL`. Model request count remained two, and the restarted Host
+  emitted no MCP view event.
+
+Screenshots and a sanitized Host event ledger are in
+`test-results/mcp-native-inspector/`. The local ad-hoc preview was the target
+for this run. Release distribution remains a separate check.

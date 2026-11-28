@@ -135,9 +135,18 @@ A task draft copies the editable prompt into the existing form for the bound
 project. The user chooses a Worker and submits through the normal task flow.
 
 
-The Electron Workbench on macOS and Linux places the VNC renderer in a
-sandboxed WebContentsView beside the retained Workbench. Point's
-`desktop/electron/src/vnc/vnc-surface-host.mjs` and `vnc/renderer/app.mjs`
-provide the reference for display ownership, sizing, noVNC and handoff.
-Pero's LinuxDesktop owns the guest, conversation binding and control route.
-Moving the panel relays no input to the guest and preserves its RFB connection.
+In the Electron Workbench on macOS and Linux, the conversation resources pane
+offers **Desktop** beside Files, Artifacts, and Changes. Composer's Remote Use
+entry selects the same view. The pane supplies its measured body bounds to
+the Workbench, which places the existing noVNC viewer in a sandboxed
+loopback iframe. A dedicated message port connects the viewer to the same
+Electron session owner used by the standalone window. The Workbench canvas
+clips out the viewer slot, keeping the resource header visible on Linux
+software rendering. The Desktop tab uses the resource splitter and the resource pane's narrow layout.
+This replaces the fixed-width, movable, window-level Linux Desktop dock.
+
+Desktop selection is conversation-local. Files and Artifacts keep their
+existing preference. Leaving Desktop returns manual input to the existing
+LinuxDesktop owner. A managed guest and its Agent binding survive the
+presentation change. Layout changes preserve the viewer. The separate
+Workbench menu remains an entry for standalone viewing.

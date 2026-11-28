@@ -58,6 +58,22 @@ Light theme, narrow-window rendering, Wasm interaction and signed-package
 acceptance were not exercised in this increment. Narrow sizing is covered by
 the contract value tests. No real model request was submitted.
 
+### Collapsible session list (2026-11-27)
+
+The conversation titlebar has a dedicated session-list toggle beside the
+content tabs. Host preferences save its open state and width independently.
+The existing splitter and narrow-window threshold apply when the list is open.
+
+In a dark macOS Native debug preview based on `9bdd7ef93` plus this change,
+the toggle reduced the four-column conversation and Desktop view to three
+columns. The same draft and the active noVNC control of Blender Run
+`run_3f019ddda0f588b106404c75c532639d` stayed available while collapsing and
+reopening. Screenshot inspection showed Blender and the draft side by side.
+The preview also restored the collapsed state after a Native and Host restart.
+Reopening after restart restored the adjusted width of 298px. The Host
+protocol conformance and focused layout and titlebar tests passed. Electron
+runtime, light theme and signed packages were outside this check.
+
 ## Sidebar creation actions (2026-11-23)
 
 The shared GPUI sidebar uses full-width navigation rows for Sessions and

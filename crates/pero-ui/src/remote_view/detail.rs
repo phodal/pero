@@ -381,6 +381,16 @@ impl Workbench {
                                 })),
                         )
                     })
+                    .when(cfg!(all(feature = "native", target_os = "macos")) && can_dispatch && target_worker.is_some(), |el| {
+                        el.child(Button::new("remote-dispatch-blender").outline().small()
+                            .label(self.t("run_desktop.dispatch"))
+                            .disabled(busy)
+                            .on_click(cx.listener({
+                                let id = id.clone();
+                                let worker_id = target_worker.clone();
+                                move |this, _, _, cx| this.command(json!({"action":"remote_dispatch", "task_id":id, "worker_id":worker_id, "desktop_profile":"blender"}), cx)
+                            })))
+                    })
                     .when(can_cancel && !confirming, |el| {
                         el.child(
                             Button::new("remote-cancel")

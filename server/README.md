@@ -139,6 +139,12 @@ POST /api/client/v1/tasks/{id}/claim
 POST /api/client/v1/tasks/{id}/release
 POST /api/client/v1/tasks/{id}/dispatch
 POST /api/client/v1/tasks/{id}/cancel
+GET  /api/client/v1/tasks/{task}/runs/{run}?generation=...
+POST /api/client/v1/tasks/{task}/runs/{run}/cancel?generation=...
+GET  /api/client/v1/tasks/{task}/runs/{run}/reconciliation?generation=...
+PUT  /api/client/v1/projects/{project}/trial-submissions/{operation}
+GET  /api/client/v1/projects/{project}/trial-submissions/{operation}
+POST /api/client/v1/projects/{project}/trial-submissions/{operation}/cancel
 ```
 
 Task creation accepts the operator manual TaskSpec fields, excluding source and
@@ -152,6 +158,142 @@ ownership even when another Desktop has stale data. Client credentials cannot
 provision Workers/clients or invoke the operator GitHub sync routes. GitHub
 sign-in can issue Desktop credentials for an existing Client scope. Project
 provisioning remains operator-owned; a credential revocation UI is not implemented.
+
+An explicit Worker selection checks the effective project grant, enrolled
+workspace and Agent capabilities, enabled state, and runtime queue. A known
+ineligible target returns `409` before storing a new Run. An eligible target
+can queue while offline. The Worker checks eligibility again when claiming.
+
+Exact Run routes resolve `task_id`, `run_id`, and positive `generation` together.
+Observation requires project access. Cancellation accepts `{}` and requires the
+existing Task claim. The response describes that Run even if the Task has moved
+to another generation.
+
+Trial submission `PUT` accepts `{"task": TaskSpec, "worker_id": "..."}` using the
+client manual Task fields and an optional Worker. The Task's `project_id` must
+match the path. The `operation` belongs to the project and the logical Client, so
+another credential for that Client can resume the request. The Go control plane
+commits the Task, Run, and submission receipt together. Repeating the same
+operation and input returns `status: dispatched` and `run: {task_id, run_id,
+generation}`. A different input for that committed dispatch returns `409`.
+
+`GET` reads the receipt. `404` means a committed receipt is unavailable to the
+caller. A request could still be in flight. Trial cancellation accepts `{}` and
+acts on the original Run if dispatch committed. Otherwise it records
+`status: cancelled_before_dispatch`, which also blocks later `PUT` attempts for
+that operation. A dispatch receipt attests to admission. Observe the exact Run
+for current status, including cancellation and `reconcile`.
+
+### Resolve an Agent Worker quarantine
+
+The operator can record a confirmed stop or non-start using the original Task ID,
+Run ID and generation. Inspect the original Worker and any retained Journal
+first, including separately managed resources before declaring a stop. Record a
+bounded evidence reference and one of `confirmed_stopped` or
+`confirmed_not_started`.
+
+```text
+PUT /api/v1/tasks/{task}/runs/{run}/reconciliation?generation=...
+Authorization: Bearer <PERO_OPERATOR_TOKEN>
+
+{"disposition":"confirmed_stopped","evidence":"Worker journal receipt and confirmed original process-group stop"}
+```
+
+This records a project-readable receipt and releases the Run's quarantine. The
+original `reconcile` outcome and prior completion remain intact, the expired
+lease stays fenced, and an explicit dispatch is required for a new generation.
+Repeating the same decision returns the original receipt. An unconfirmed outcome
+keeps the quarantine. A managed runtime must reach its own released phase before
+the operator can resolve its Run. If the Worker exited for review, restart that
+same enrolled Worker after settlement.
+
+### Shared research Campaigns with Temporal
+
+The opt-in first version executes one frozen round of one to eight manual trials
+in order. A completed trial allows the next one to start. Failure or confirmed
+cancellation stops the round and records the remaining positions as skipped.
+An unresolved exact Run parks the Campaign until the original owner supplies
+reconciliation. The result records execution and exact Run references.
+
+Provision a dedicated existing Client with the Projects it may run. Use its
+logical Client ID on the control plane and its token only on the orchestrator.
+Both processes connect to the same private Temporal endpoint and namespace.
+The orchestrator polls `pero-research-campaigns-v1` and
+`pero-research-campaigns-v2`.
+
+| Process | Environment |
+| --- | --- |
+| Go control plane | `PERO_TEMPORAL_ADDRESS`, `PERO_CAMPAIGN_RUNNER_CLIENT_ID`, optional `PERO_TEMPORAL_NAMESPACE` (default `default`) |
+| `pero-campaign` | `PERO_TEMPORAL_ADDRESS`, the same namespace, `PERO_CLOUD_URL`, `PERO_CAMPAIGN_RUNNER_TOKEN` |
+
+Start the control plane normally. Run the orchestrator with
+`go run ./cmd/pero-campaign` from the server module, or build
+`//server/cmd/pero-campaign` with Bazel. A loopback Temporal CLI dev server can
+run both processes locally. Keep the runner Client ID stable across token
+rotation. Only that Client can deliver Activity operations and final receipts
+for Campaigns bound to it.
+
+```text
+POST /api/client/v1/projects/{project}/campaigns
+Idempotency-Key: <stable client request key>
+{"trials":[{"task": <manual TaskSpec>, "worker_id":"<optional Worker ID>"}]}
+
+GET  /api/client/v1/projects/{project}/campaigns/{campaign}
+POST /api/client/v1/projects/{project}/campaigns/{campaign}/cancel
+```
+
+Start returns the frozen plan reference and the recorded Temporal Run ID when
+available. If start could not be acknowledged, it returns `202` and the saved
+Campaign ID. Repeat the same POST with the same key and plan to recover it.
+Changing the payload for that key returns `409`. Project Clients can read the
+Campaign. The creator can request cancellation with an empty JSON object. The
+control plane saves the request before waking the Workflow. Cancellation waits
+for its original trial receipt and confirmation from the execution owner.
+
+Enable the reviewed two-round mode by setting the control plane's
+`PERO_PYBAMM_METHOD_DIR` to the absolute locked `scripts/science/pybamm-sweep`
+directory and `PERO_PYBAMM_CHECKER_PYTHON` to an absolute Python 3.12 executable.
+The checker uses the standard library. The executor uses the separate locked
+PyBaMM environment. Keep the checker script, reference and method bundle
+available at the recorded digest until its campaigns finish.
+
+Start with `"mode":"pybamm_reviewed_v1"` and two ordered
+`pybamm-sweep-v1` trials with explicit Worker IDs. Read the active
+`review_gate` in Campaign progress. Evidence can be reopened through
+`GET /api/client/v1/projects/{project}/campaigns/{campaign}/evidence/{index}`
+with a zero-based trial index. The response includes the exact Run reference,
+method, checker, result and observed environment digests, and bounded Run
+events. Execution status and numerical consistency are separate.
+
+A project Client sends the decision using its own bearer credential and a
+stable Idempotency-Key. The runner Client cannot submit a human decision.
+
+```text
+POST /api/client/v1/projects/{project}/campaigns/{campaign}/review
+Idempotency-Key: <stable decision key>
+{"gate_id":"...","plan_digest":"...","evidence_digest":"...","choice":"approve"}
+```
+
+A decision can also be `reject`. The gate expires after 24 hours.
+The original decision receipt is returned for an identical request even after
+the Workflow closes. A stale or expired gate returns `409`. The reviewed
+Workflow keeps the next trial unsubmitted until an approval is persisted.
+
+The Workflow definition name is versioned. Preserve the current definition and
+run the committed history replay before replacing workers that may receive
+in-flight Campaigns. Plan content and runner credentials stay in Pero and the
+orchestrator process. Temporal stores the bounded plan and trial references it
+needs to advance.
+
+Automated acceptance uses a disposable PostgreSQL database and a pinned Temporal
+CLI dev server. Set `PERO_TEST_TEMPORAL_CLI` to an installed CLI binary for an
+offline run.
+
+```sh
+PERO_TEST_TEMPORAL=1 PERO_TEST_DATABASE_URL='<disposable PostgreSQL URL>' \
+  go -C server test -race -count=1 -v ./internal/httpapi -run '^TestResearchCampaignTemporal$'
+go -C server test ./internal/campaignruntime -run '^TestReplayCampaignV1$'
+```
 
 ## Local device enrollment
 
@@ -285,7 +427,8 @@ in PostgreSQL; older-event pagination/export is a later slice. Additional source
 verification, team permissions, device revocation, PR publication and public
 multi-tenant operations remain later slices. Any unresolved `reconcile` Run also
 quarantines its assigned Worker's slot, preventing another task from overlapping
-unknown cleanup. A future explicit resolution workflow must clear this quarantine.
+unknown cleanup. The operator can release that quarantine with an exact Run
+reconciliation receipt after verifying the original execution.
 `succeeded` records execution outcome,
 not independent acceptance.
 

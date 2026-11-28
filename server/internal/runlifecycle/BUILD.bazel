@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "runlifecycle",
+    srcs = ["observe.go"],
+    importpath = "github.com/phodal/pero/server/internal/runlifecycle",
+    visibility = ["//server:__subpackages__"],
+)
+
+go_test(
+    name = "runlifecycle_test",
+    srcs = ["observe_test.go"],
+    embed = [":runlifecycle"],
+)

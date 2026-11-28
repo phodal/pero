@@ -1,21 +1,19 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import type {McpAppResource} from '@pero/mcp-apps';
-import {McpAppSurface, type McpAppSurfaceHandle} from '@pero/mcp-apps/react';
+import type {McpAppSurfaceHandle} from '@pero/mcp-apps/react';
+import {BoundResultView, type BoundResult} from './result.tsx';
 import {applyMcpAppTheme, mcpAppHostContext} from '@pero/mcp-apps/theme';
 import type {McpUiHostContext} from '@modelcontextprotocol/ext-apps/app-bridge';
 import {AppBar, Badge, Button, Disclosure, EmptyState, Feedback, Field, Input, Select, Textarea} from '@pero/app-sdk/ui';
 import '@pero/app-sdk/tokens.css';
 import './panel.css';
 import type {Tool} from '@modelcontextprotocol/sdk/types.js';
-import type {McpAppBinding} from '../../../packages/content-source/mcp-source.ts';
 
 const query=new URL(location.href).searchParams;
 const token=query.get('token'),thread=query.get('thread')||'',managed=query.get('mode')==='session';
 const recorded=query.get('tool_call');
 type AppTool={name:string;title:string;description?:string;inputSchema:Tool['inputSchema']};
 type ServerInfo={id:string;title:string;connected:boolean;generation?:number;tools:AppTool[]};
-type View=McpAppResource&{binding:McpAppBinding};
 type Resource={uri:string;name:string};
 type Template={uriTemplate:string;name:string};
 type ResourcePage={server:ServerInfo;templates:boolean;resources?:Resource[];resourceTemplates?:Template[];nextCursor?:string};
@@ -60,9 +58,10 @@ function ToolForm({tool,onOpen,busy}:{tool:AppTool;onOpen(args:Record<string,unk
 function Panel(){
   const [hostContext,setHostContext]=useState<{theme:'light'|'dark';locale:string}>({theme:query.get('theme')==='dark'?'dark':query.get('theme')==='light'?'light':matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',locale:query.get('locale')||'en'});
   const [surfaceContext,setSurfaceContext]=useState<McpUiHostContext>(hostContext);
+  const [expanded,setExpanded]=useState(false);
   const [servers,setServers]=useState<ServerInfo[]>([]),[serverId,setServerId]=useState('');
   const [selected,setSelected]=useState<{server:ServerInfo;tool:AppTool}>();
-  const [view,setView]=useState<View>(),[busy,setBusy]=useState(false),[error,setError]=useState(''),[status,setStatus]=useState('Loading tools…');
+  const [view,setView]=useState<BoundResult>(),[busy,setBusy]=useState(false),[error,setError]=useState(''),[status,setStatus]=useState('Loading tools…');
   const [page,setPage]=useState<ResourcePage>(),[output,setOutput]=useState<{uri:string;text:string}>();
   const surface=useRef<McpAppSurfaceHandle>(null);
   const opening=useRef<{id:string;cancelled:boolean}|undefined>(undefined);
@@ -92,7 +91,10 @@ function Panel(){
     const receive=(event:MessageEvent)=>{
       if(event.source!==window.parent||!(['pero://workbench','pero://chat'].includes(event.origin)||window.parent===window&&event.origin===location.origin)||event.data?.type!=='pero:mcp:context')return;
       const value=event.data.context;
-      if(['light','dark'].includes(value?.theme)&&typeof value.locale==='string')setHostContext({theme:value.theme,locale:value.locale});
+      if(['light','dark'].includes(value?.theme)&&typeof value.locale==='string'){
+        setHostContext({theme:value.theme,locale:value.locale});
+        setExpanded(value.expanded===true);
+      }
     };
     colors.addEventListener('change',update);window.addEventListener('message',receive);
     return ()=>{colors.removeEventListener('change',update);window.removeEventListener('message',receive);};
@@ -116,7 +118,7 @@ function Panel(){
     const pending={id:crypto.randomUUID(),cancelled:false};opening.current=pending;
     setBusy(true);setError('');setStatus(recorded?'Loading tool view…':'Running tool…');
     try{
-      const next=await api<View>(recorded?{action:'adopt',server:query.get('server'),generation:Number(query.get('generation')),tool_call:recorded,operation:pending.id}:
+      const next=await api<BoundResult>(recorded?{action:'adopt',server:query.get('server'),generation:Number(query.get('generation')),tool_call:recorded,operation:pending.id}:
         {action:'execute',server:selected!.server.id,thread_id:thread,tool:selected!.tool.name,arguments:args,
         ...(managed?{generation:selected!.server.generation,operation:pending.id}:{})});
       if(pending.cancelled){await api({action:'close',binding:next.binding.id});return;}
@@ -176,16 +178,9 @@ function Panel(){
         {page.nextCursor&&<Button onClick={()=>run(()=>browse(page.server,page.templates,page.nextCursor))}>Next page</Button>}
         {output&&<><pre>{output.text}</pre><Button onClick={()=>run(async()=>{await api({action:'attach_resource',server:page.server.id,generation:page.server.generation,uri:output.uri});setStatus('Resource added to the Chat draft as untrusted context. Review it before sending.');})}>Add to Chat (text only, up to 64 KB)</Button></>}
       </section>}
-      <div id="view" hidden={!view}>{view&&<McpAppSurface ref={surface} resource={view} context={surfaceContext}
-        onClose={()=>setView(undefined)} onRetry={recorded?()=>void open({}):undefined}
-        options={{size:recorded?{initialHeight:320,minHeight:120,maxHeight:480}:{initialHeight:480,minHeight:240,maxHeight:960}}}
-        host={{
-          callTool:(name,args)=>api({action:'tool',binding:view.binding.id,name,arguments:args}),
-          readResource:uri=>api({action:'resource',binding:view.binding.id,uri}),
-          openLink:async url=>{await api({action:'open_link',binding:view.binding.id,url});},
-          ...(managed?{sendMessage:async(text:string)=>{await api({action:'message',binding:view.binding.id,text});}}:{}),
-          revoke:()=>api({action:'close',binding:view.binding.id}),
-        }}/>}</div>
+      <div id="view" hidden={!view}>{view&&<BoundResultView view={view} surface={surface} context={surfaceContext}
+        compact={!!recorded&&!expanded} managed={managed} api={api}
+        onClose={()=>setView(undefined)} onRetry={recorded?()=>void open({}):undefined}/>}</div>
     </main>
   </div>;
 }

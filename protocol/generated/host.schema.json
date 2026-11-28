@@ -10234,6 +10234,10 @@
           "maximum": 480,
           "default": 280
         },
+        "sessions_open": {
+          "type": "boolean",
+          "default": true
+        },
         "artifact_view": {
           "$ref": "#/$defs/ArtifactView",
           "default": "icons"
@@ -11647,6 +11651,9 @@
               "type": "integer"
             },
             "uri": {
+              "type": "string"
+            },
+            "tool_call": {
               "type": "string"
             },
             "contents": {

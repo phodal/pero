@@ -1,6 +1,9 @@
 //! Local Worker enrollment is distinct from the user's Cloud client credential.
 use serde::{Deserialize, Serialize};
 
+/// Private environment handoff from the Desktop Host to its managed Worker.
+pub const BUILTIN_AGENT_KEY_ENV: &str = "PERO_LOCAL_WORKER_DEEPSEEK_API_KEY";
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct LocalWorkerBinding {

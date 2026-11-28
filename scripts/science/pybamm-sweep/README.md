@@ -1,5 +1,27 @@
 # Six frozen PyBaMM CPU experiments
 
+The reviewed Temporal Campaign uses this same locked method and independent
+checker for one experiment per round. See [Campaign configuration](../../../server/README.md#shared-research-campaigns-with-temporal).
+
+To run the same acceptance locally, point the harness at a disposable local
+PostgreSQL database, Temporal CLI 1.10.1 and the built control-plane,
+`pero-campaign` and Rust Worker binaries. Use the locked environment for the
+solver and a separate Python 3.12 executable for the checker.
+
+```sh
+python3.12 scripts/science/pybamm-sweep/campaign_acceptance.py \
+  --database "$PERO_TEST_DATABASE_URL" --temporal "$TEMPORAL_CLI" \
+  --server "$PERO_SERVER_BIN" --orchestrator "$PERO_CAMPAIGN_BIN" --worker "$PERO_WORKER_BIN" \
+  --python "$PYBAMM_VENV/bin/python" --checker-python "$(command -v python3.12)" \
+  --output "$NEW_ACCEPTANCE_DIRECTORY"
+PERO_TEST_REVIEW_HISTORY="$NEW_ACCEPTANCE_DIRECTORY/history.json" \
+  go -C server test ./internal/campaignruntime -run '^TestReplayCampaignV2$'
+```
+
+The harness injects a lease expiration into the disposable database. It
+records the original execution, including any unresolved cleanup, in
+`receipt.json`.
+
 This method supports [#59](https://github.com/phodal/pero/issues/59) using the
 existing Task/Run/Worker owners. Numerical consistency is not battery accuracy.
 The independent macOS + Linux VM acceptance is recorded in the issue tracker.

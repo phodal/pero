@@ -237,6 +237,7 @@ mod tests {
         let text = format!("{}{}", "\\\n".repeat(15000), "x".repeat(5000));
         let mut active = Active {
             run: Run {
+                desktop_profile: None,
                 remote_execution: None,
                 id: "r".into(),
                 generation: 1,

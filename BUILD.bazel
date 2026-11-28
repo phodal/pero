@@ -7,6 +7,15 @@ npm_link_all_packages(name = "node_modules")
 
 exports_files(["ROADMAP.md"])
 
+filegroup(
+    name = "capability_wire_corpus",
+    srcs = glob([
+        "protocol/fixtures/capability-wire/**",
+        "protocol/inventory/capabilities.json",
+    ]),
+    visibility = ["//visibility:public"],
+)
+
 gazelle(
     name = "gazelle",
     args = ["server"],
@@ -65,6 +74,8 @@ _CONTRACT_OUTPUTS = [
     "host.ts",
     "remote.schema.json",
     "remote.ts",
+    "capabilities.schema.json",
+    "capabilities.ts",
 ]
 
 js_run_binary(

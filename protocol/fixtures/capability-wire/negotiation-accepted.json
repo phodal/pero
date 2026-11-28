@@ -1,0 +1,7 @@
+{
+  "protocolVersion": 1,
+  "capability": "agent",
+  "operation": "status",
+  "declaredHost": ["agent"],
+  "advertised": true
+}

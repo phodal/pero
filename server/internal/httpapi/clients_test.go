@@ -1,10 +1,119 @@
 package httpapi_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/phodal/pero/server/internal/httpapi"
 	"github.com/phodal/pero/server/internal/store"
 )
+
+func TestTrialSubmissionRecoversOriginalRun(t *testing.T) {
+	server := testAPI(t, func(db *store.Store) http.Handler {
+		api := httpapi.Handler(db, "test-operator")
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("lose_reply") != "1" {
+				api.ServeHTTP(w, r)
+				return
+			}
+			recorded := httptest.NewRecorder()
+			api.ServeHTTP(recorded, r)
+			if recorded.Code != http.StatusOK {
+				http.Error(w, recorded.Body.String(), recorded.Code)
+				return
+			}
+			conn, _, err := http.NewResponseController(w).Hijack()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			_ = conn.Close()
+		})
+	})
+	credential := func(project string) string {
+		return parse[struct{ Token string }](t, request(t, server, "POST", "/api/v1/clients", "test-operator", map[string]any{"name": project, "projects": []string{project}}, "", 201)).Token
+	}
+	owner, teammate, outsider := credential("team"), credential("team"), credential("foreign")
+	const trial = "/api/client/v1/projects/team/trial-submissions/first"
+	input := store.TrialInput{Task: store.Spec{Title: "Frozen trial", Prompt: "Run case A", Acceptance: "Result available", ProjectID: "team", WorkspaceKey: "lab", AgentID: "pybamm"}}
+	request(t, server, "GET", trial, owner, nil, "", 404)
+	encoded, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	put, err := http.NewRequest("PUT", server.URL+trial+"?lose_reply=1", bytes.NewReader(encoded))
+	if err != nil {
+		t.Fatal(err)
+	}
+	put.Header.Set("Authorization", "Bearer "+owner)
+	if response, err := server.Client().Do(put); err == nil {
+		response.Body.Close()
+		t.Fatalf("committed dispatch reply was delivered: %s", response.Status)
+	}
+	read := func(path string) store.TrialReceipt {
+		return parse[store.TrialReceipt](t, request(t, server, "GET", path, owner, nil, "", 200))
+	}
+	first := read(trial)
+	if first.Status != store.TrialDispatched || first.Run == nil {
+		t.Fatalf("missing original submission: %+v", first)
+	}
+	if replay := parse[store.TrialReceipt](t, request(t, server, "PUT", trial, owner, input, "", 200)); replay.Run == nil || *replay.Run != *first.Run {
+		t.Fatalf("retry changed original execution: %+v", replay)
+	}
+	wrong := input
+	wrong.Task.Prompt = "Run case B"
+	request(t, server, "PUT", trial, owner, wrong, "", 409)
+	request(t, server, "GET", trial, teammate, nil, "", 404)
+	request(t, server, "GET", trial, outsider, nil, "", 404)
+	request(t, server, "PUT", trial, outsider, input, "", 404)
+	request(t, server, "POST", trial+"/cancel", outsider, struct{}{}, "", 404)
+
+	pathFor := func(ref store.RunRef, suffix string) string {
+		return fmt.Sprintf("/api/client/v1/tasks/%s/runs/%s%s?generation=%d", ref.TaskID, ref.RunID, suffix, ref.Generation)
+	}
+	request(t, server, "GET", pathFor(*first.Run, ""), outsider, nil, "", 404)
+	request(t, server, "POST", pathFor(*first.Run, "/cancel"), teammate, struct{}{}, "", 403)
+	if cancel := parse[store.TrialReceipt](t, request(t, server, "POST", trial+"/cancel", owner, struct{}{}, "", 200)); cancel.Run == nil || *cancel.Run != *first.Run {
+		t.Fatalf("late cancellation lost original identity: %+v", cancel)
+	}
+	later := parse[store.Run](t, request(t, server, "POST", "/api/client/v1/tasks/"+first.Run.TaskID+"/dispatch", owner, struct{}{}, "next-generation", 200))
+	if later.Generation <= first.Run.Generation {
+		t.Fatalf("test requires a later Run: %+v", later)
+	}
+	if old := parse[store.Run](t, request(t, server, "GET", pathFor(*first.Run, ""), owner, nil, "", 200)); old.Ref() != *first.Run || old.Status != "cancelled" {
+		t.Fatalf("historical observation followed the current Run: %+v", old)
+	}
+	wrongGeneration := *first.Run
+	wrongGeneration.Generation = later.Generation
+	request(t, server, "POST", pathFor(wrongGeneration, "/cancel"), owner, struct{}{}, "", 404)
+	if old := parse[store.Run](t, request(t, server, "POST", pathFor(*first.Run, "/cancel"), owner, struct{}{}, "", 200)); old.Ref() != *first.Run || old.Status != "cancelled" {
+		t.Fatalf("historical Run changed: %+v", old)
+	}
+	request(t, server, "POST", trial+"/cancel", owner, struct{}{}, "", 200)
+	if observed := parse[store.Run](t, request(t, server, "GET", pathFor(later.Ref(), ""), owner, nil, "", 200)); observed.Status != "queued" {
+		t.Fatalf("historical cancellation touched the current Run: %+v", observed)
+	}
+	if replay := parse[store.TrialReceipt](t, request(t, server, "PUT", trial, owner, input, "", 200)); replay.Run == nil || *replay.Run != *first.Run {
+		t.Fatalf("retry followed the newer generation: %+v", replay)
+	}
+
+	const before = "/api/client/v1/projects/team/trial-submissions/stop-first"
+	request(t, server, "POST", before+"/cancel", owner, struct{}{}, "", 200)
+	if blocked := parse[store.TrialReceipt](t, request(t, server, "PUT", before, owner, input, "", 200)); blocked.Status != store.TrialCancelledBeforeDispatch || blocked.Run != nil || read(before) != blocked {
+		t.Fatalf("late dispatch escaped the cancellation fence: %+v", blocked)
+	}
+	const repeat = "/api/client/v1/projects/team/trial-submissions/explicit-repeat"
+	if rerun := parse[store.TrialReceipt](t, request(t, server, "PUT", repeat, owner, input, "", 200)); rerun.Run == nil || rerun.Run.TaskID == first.Run.TaskID {
+		t.Fatalf("intentional repeat reused previous trial: %+v", rerun)
+	}
+	if page := parse[store.TaskPage](t, request(t, server, "GET", "/api/client/v1/tasks", owner, nil, "", 200)); len(page.Tasks) != 2 {
+		t.Fatalf("retries or cancellation created additional Tasks: %+v", page.Tasks)
+	}
+}
 
 func TestScopedClientIdentityHumanClaimAndWorkerLease(t *testing.T) {
 	server := testAPI(t)

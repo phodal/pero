@@ -1,7 +1,7 @@
 //! Composer review controls and snapshot comparison pane, independent of document delivery.
 use crate::{
     panel::{ChatAction, ChatPanel},
-    session_artifacts::ArtifactCollection,
+    session_artifacts::{ArtifactCollection, ResourceView},
 };
 use gpui_kit::{
     base::Selectable,
@@ -218,8 +218,7 @@ impl ChatPanel {
                 .conversations
                 .entry(thread.into())
                 .or_default();
-            state.show_pane();
-            state.show_changes = true;
+            state.show_pane(ResourceView::Changes);
             cx.notify();
             return;
         }
@@ -236,8 +235,7 @@ impl ChatPanel {
             .conversations
             .entry(thread.into())
             .or_default();
-        state.show_pane();
-        state.show_changes = true;
+        state.show_pane(ResourceView::Changes);
         cx.emit(ChatAction::Changes(ChangesRequest::Read {
             method: ChangesMethod::WorkspaceChanges,
             request_id,
@@ -281,7 +279,7 @@ impl ChatPanel {
                             .get(&format!("{thread}/changes-toggle"))
                             .map(|bounds| bounds.probe()),
                     )
-                    .selected(open && state.is_some_and(|state| state.show_changes))
+                    .selected(open && state.is_some_and(|state| state.resource_view == ResourceView::Changes))
                     .accessibility_label(self.t("changes.review"))
                     .tooltip(self.t("changes.review_hint"))
                     .label(self.t("changes.review"))
@@ -306,14 +304,13 @@ impl ChatPanel {
                             .conversations
                             .entry(thread.clone())
                             .or_default();
-                        if state.open && state.show_changes {
+                        if state.open && state.resource_view == ResourceView::Changes {
                             state.open = false;
                             state.inline_open = false;
                             cx.notify();
                             return;
                         }
-                        state.show_pane();
-                        state.show_changes = true;
+                        state.show_pane(ResourceView::Changes);
                         this.read_changes(&thread, &selected, 0, cx);
                         if this.compact {
                             cx.emit(ChatAction::CompactNeedsSpace);
@@ -345,8 +342,8 @@ impl ChatPanel {
                             .conversations
                             .entry(docs_thread.clone())
                             .or_default();
-                        state.open = !(state.open && !state.show_changes);
-                        state.show_changes = false;
+                        state.open = !(state.open && state.resource_view == ResourceView::Contents);
+                        state.resource_view = ResourceView::Contents;
                         cx.notify();
                     })),
                 )

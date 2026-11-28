@@ -1,5 +1,5 @@
-import { LinuxDesktopDock } from "./linux-desktop-dock.ts";
-import { BrowserWindow, WebContentsView, dialog, ipcMain, nativeTheme } from 'electron';
+import { BrowserWindow, dialog, ipcMain, nativeTheme } from 'electron';
+import { z } from 'zod';
 import type { DesktopComputer } from './computer.ts';
 import { LinuxDesktop } from './linux-desktop.ts';
 import { LinuxDesktopVnc } from './linux-desktop-vnc.ts';
@@ -10,24 +10,34 @@ import { sshVncProfile } from './ssh-desktop.ts';
 import type { SshHostProfile } from './ssh-host.ts';
 import { createDesktopPair, relayOrigin } from './linux-desktop-share.ts';
 
+export const linuxDesktopSurface = z.object({
+  thread: z.string().min(1),
+  visible: z.boolean(),
+}).nullable();
+type DesktopSurface = z.infer<typeof linuxDesktopSurface>;
+
 export class LinuxDesktopWindow {
   readonly session: LinuxDesktop;
   private url?: Promise<string>;
   private window?: BrowserWindow;
-  private dock?: LinuxDesktopDock;
+  private workbench?: BrowserWindow;
+  private viewerDrain?: Promise<void>;
+  private surface: DesktopSurface = null;
   private relay = relayOrigin();
 
   constructor(private assets: string, private computer: DesktopComputer, private locale: () => Locale,
     private selectedThread: () => Promise<string | undefined>, private ssh?: SshHostProfile) {
     this.session = new LinuxDesktop(new LinuxDesktopVnc(assets, this.relay), () => computer.enabled, () => this.publish());
     ipcMain.handle('pero:linux-desktop', async (event, action: unknown, value: unknown) => {
-      const window = this.dock?.window ?? this.window;
-      const viewer = this.dock?.viewer.webContents ?? this.window?.webContents;
+      const embedded = this.workbench?.webContents === event.sender;
+      const window = embedded ? this.workbench : this.window;
+      const viewer = window?.webContents;
       if (!window || !viewer || event.sender !== viewer || event.senderFrame !== viewer.mainFrame ||
-          event.senderFrame?.url !== await this.url) throw new Error('Untrusted Linux desktop viewer');
+          event.senderFrame?.url !== (embedded ? 'pero://workbench/' : await this.url)) {
+        throw new Error('Untrusted Linux desktop viewer');
+      }
+      if (embedded && action !== 'state' && !this.surface?.visible) throw new Error('The desktop tab is hidden.');
       switch (action) {
-        case 'move': this.dock?.move(); break;
-        case 'hide': this.closeDock(); break;
         case 'state': break;
         case 'start':
           if (this.ssh && !this.ssh.desktop) throw new Error('This SSH profile does not configure a managed Linux desktop.');
@@ -49,7 +59,7 @@ export class LinuxDesktopWindow {
         case 'enable': await this.computer.command({ action: 'computer_set', enabled: true }); break;
         case 'attach': {
           const thread = await this.selectedThread();
-          if (!thread) throw new Error(translate(this.locale(), 'linux_desktop.select_chat'));
+          if (!thread || (embedded && this.surface?.thread !== thread)) throw new Error(translate(this.locale(), 'linux_desktop.select_chat'));
           this.session.attach(thread);
           break;
         }
@@ -68,39 +78,43 @@ export class LinuxDesktopWindow {
     });
   }
 
-  private snapshot() { return { ...this.session.state, dockSide: this.dock?.side, locale: this.locale(), dark: nativeTheme.shouldUseDarkColors,
+  private snapshot() { return { ...this.session.state, locale: this.locale(), dark: nativeTheme.shouldUseDarkColors,
     sshHost: this.ssh && { host: this.ssh.host, managed: Boolean(this.ssh.desktop) }, relayAvailable: !!this.relay }; }
   publish() {
-    if (this.dock && !this.dock.viewer.webContents.isDestroyed()) this.dock.viewer.webContents.send('pero:linux-desktop-state', this.snapshot());
-    if (this.window && !this.window.isDestroyed()) this.window.webContents.send('pero:linux-desktop-state', this.snapshot());
+    const state = this.snapshot();
+    if (this.workbench && !this.workbench.isDestroyed()) this.workbench.webContents.send('pero:linux-desktop-state', state);
+    if (this.window && !this.window.isDestroyed()) this.window.webContents.send('pero:linux-desktop-state', state);
   }
 
-  private closeDock = () => {
-    if (!this.dock) return;
-    this.dock.window.removeListener('closed', this.closeDock);
-    this.dock.close();
-    this.dock = undefined;
-    void this.session.returnControl().catch(console.error);
-  };
+  async setSurface(parent: BrowserWindow, surface: DesktopSurface) {
+    this.workbench = parent;
+    const previous = this.surface;
+    this.surface = surface;
+    if (previous && previous.thread !== surface?.thread) await this.session.returnControl();
+    if (this.surface !== surface || !surface?.visible) return;
+    if (this.window) {
+      this.window.close();
+      this.viewerDrain = this.session.vnc.disconnectViewer();
+    }
+    await this.viewerDrain;
+    if (this.surface === surface) return this.viewerUrl();
+  }
 
-  async open(parent?: BrowserWindow) {
-    if (this.dock) { this.dock.viewer.webContents.focus(); return; }
-    if (parent && this.window) this.window.close();
-    if (this.window && !this.window.isDestroyed()) { this.window.show(); this.window.focus(); return; }
-    this.url ??= this.session.vnc.open().catch(error => { this.url = undefined; throw error; });
-    const url = await this.url;
-    if (this.window && !this.window.isDestroyed()) return;
-    if (parent) {
-      if (this.dock || parent.isDestroyed()) return;
-      const view = new WebContentsView({webPreferences: {preload: join(this.assets, 'linux-desktop-preload.cjs'), sandbox:true, contextIsolation:true, nodeIntegration:false}});
-      this.dock = new LinuxDesktopDock(parent, view);
-      parent.once('closed', this.closeDock);
-      view.webContents.setWindowOpenHandler(() => ({action:'deny'}));
-      view.webContents.on('will-navigate', event => event.preventDefault());
-      view.webContents.once('render-process-gone', this.closeDock);
-      try { await view.webContents.loadURL(url); } catch (error) { this.closeDock(); throw error; }
+  private viewerUrl() {
+    return this.url ??= this.session.vnc.open().catch(error => { this.url = undefined; throw error; });
+  }
+
+  async open() {
+    if (this.surface?.visible && this.workbench && !this.workbench.isDestroyed()) {
+      this.workbench.focus();
       return;
     }
+    if (this.window && !this.window.isDestroyed()) { this.window.show(); this.window.focus(); return; }
+    if (this.workbench && !this.workbench.isDestroyed()) this.workbench.webContents.send('pero:linux-desktop-unmount');
+    this.viewerDrain = this.session.vnc.disconnectViewer();
+    await this.viewerDrain;
+    const url = await this.viewerUrl();
+    if (this.window || this.surface?.visible) return;
     const window = this.window = new BrowserWindow({
       width: 1060, height: 760, minWidth: 460, minHeight: 320, title: translate(this.locale(), 'linux_desktop.title'),
       ...testWindowOptions,
@@ -117,7 +131,6 @@ export class LinuxDesktopWindow {
   }
 
   async close() {
-    this.closeDock();
     await this.session.stop();
     this.window?.destroy();
     await this.session.vnc.close();

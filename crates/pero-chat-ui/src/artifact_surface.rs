@@ -33,7 +33,7 @@ impl ChatPanel {
         let chat = self.chats.get(self.active_chat?)?;
         let thread = &chat.id;
         let state = self.artifacts.conversations.get(thread)?;
-        if (!state.open && !state.inline_open) || state.show_changes {
+        if (!state.open && !state.inline_open) || state.resource_view != crate::session_artifacts::ResourceView::Contents {
             return None;
         }
         let (id, version) = state.selected.as_ref()?;
@@ -79,6 +79,7 @@ impl ChatPanel {
         let thread = &chat.id;
         let state = self.artifacts.conversations.get(thread)?;
         if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files
+            || state.resource_view != crate::session_artifacts::ResourceView::Contents
             || (!state.open && !state.inline_open)
             || (!state.inline_open && state.chart.is_some() && !state.chart_source_open)
         {

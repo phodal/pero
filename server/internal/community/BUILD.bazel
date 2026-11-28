@@ -8,6 +8,7 @@ go_library(
         "http.go",
         "desktop.go",
         "oauth.go",
+        "private_tasks.go",
     ],
     embedsrcs = [
         "assets/community.css",
@@ -15,6 +16,7 @@ go_library(
         "assets/task-browser.js",
         "assets/theme.generated.css",
         "templates/pages.html",
+        "templates/private_tasks.html",
     ],
     importpath = "github.com/phodal/pero/server/internal/community",
     visibility = ["//server:__subpackages__"],
@@ -23,7 +25,7 @@ go_library(
 
 go_test(
     name = "community_test",
-    srcs = ["http_test.go", "desktop_test.go", "contributor_desktop_test.go"],
+    srcs = ["http_test.go", "desktop_test.go", "contributor_desktop_test.go", "ipad_fixture_test.go", "private_tasks_test.go"],
     embed = [":community"],
     env = {"PERO_REQUIRE_TEST_DATABASE": "1"},
     env_inherit = ["PERO_TEST_DATABASE_URL"],

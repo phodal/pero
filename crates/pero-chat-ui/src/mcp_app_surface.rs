@@ -25,6 +25,8 @@ pub struct McpInlineView {
     pub historical: bool,
     #[serde(skip)]
     pub native_view: Option<AnyView>,
+    #[serde(skip)]
+    pub(crate) placement_control: crate::view_bounds::ViewBounds,
 }
 impl McpInlineView {
     pub(crate) fn available(&self, snapshot: &McpRuntimeSession) -> bool {
@@ -50,6 +52,7 @@ impl McpInlineView {
             error: None,
             historical: false,
             native_view: None,
+            placement_control: Default::default(),
         }
     }
 }
@@ -69,6 +72,10 @@ impl ChatPanel {
             event.kind.as_str(),
             "session_closed" | "session_deleted" | "disconnected"
         ) {
+            if self.expanded_mcp.as_ref().is_some_and(|(thread, _)|
+                event.kind == "disconnected" || Some(thread) == event.thread_id.as_ref()) {
+                self.expanded_mcp = None;
+            }
             for chat in &mut self.chats {
                 if event.kind == "disconnected" || Some(&chat.id) == event.thread_id.as_ref() {
                     for tool in &mut chat.tools {
@@ -175,6 +182,7 @@ impl ChatPanel {
     pub fn mcp_inline_visible(&self, thread: &str, call: &str) -> bool {
         self.visible
             && !self.artifact_surface_covered()
+            && !self.has_expanded_mcp()
             && self
                 .active_chat
                 .and_then(|index| self.chats.get(index))
@@ -193,8 +201,10 @@ impl ChatPanel {
                 })
     }
     pub fn mcp_inline_active(&self, thread: &str, call: &str) -> bool {
-        self.mcp_inline_visible(thread, call)
-            && self
+        self.mcp_inline_visible(thread, call) && self.mcp_view_admitted(thread, call)
+    }
+    fn mcp_view_admitted(&self, thread: &str, call: &str) -> bool {
+        self
                 .chats
                 .iter()
                 .find(|chat| {
@@ -209,6 +219,40 @@ impl ChatPanel {
                             .is_some_and(|view| view.available(snapshot))
                     })
                 })
+    }
+    pub fn has_expanded_mcp(&self) -> bool {
+        self.visible && self.expanded_mcp.as_ref().is_some_and(|(thread, call)| {
+            self.active_chat.and_then(|index| self.chats.get(index)).is_some_and(|chat| chat.id == *thread)
+                && self.mcp_view_admitted(thread, call)
+        })
+    }
+    pub fn mcp_expanded_active(&self, thread: &str, call: &str) -> bool {
+        !self.artifact_surface_covered() && self.has_expanded_mcp()
+            && self.expanded_mcp.as_ref().is_some_and(|(source, tool)| source == thread && tool == call)
+    }
+    pub(crate) fn expanded_mcp_surface(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let (thread, call) = self.expanded_mcp.as_ref().filter(|_| self.has_expanded_mcp())?;
+        let tool = self.chats.get(self.active_chat?)?.tools.iter().find(|tool| &tool.id == call)?;
+        let view = tool.mcp_app.as_ref()?;
+        let header = div().flex().items_center().gap(px(8.)).px(px(12.)).py(px(6.))
+            .child(Button::new("mcp-back-to-chat").relative().child(view.placement_control.probe())
+                .ghost().small().label(self.t("mcp.back_to_chat"))
+                .on_click(cx.listener(|this, _, _, cx| { this.expanded_mcp = None; cx.notify(); })))
+            .children(tool.app_links.iter().enumerate().map(|(index, link)| {
+                let url = link.url.clone();
+                Button::new(("mcp-open-source", index)).relative().child(link.bounds.probe())
+                    .ghost().small().label(link.label.clone())
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.expanded_mcp = None;
+                        cx.emit(crate::ChatAction::AppLink(url.clone()));
+                        cx.notify();
+                    }))
+            }));
+        Some(div().flex().flex_col().flex_1().min_h_0().w_full()
+            .child(header)
+            .children(self.approval(thread, crate::approvals::ApprovalPlacement::ExpandedResult, cx))
+            .when(!self.artifact_surface_covered(), |body| body.child(self.mcp_result_view(thread, call, view, true, cx)))
+            .into_any_element())
     }
     pub fn set_mcp_native_view(
         &mut self,
@@ -262,17 +306,36 @@ impl ChatPanel {
         if !self.mcp_inline_active(thread, &tool.id) {
             return self.read_only_history(view, cx);
         }
+        let thread_id = thread.to_owned();
+        let call = tool.id.clone();
+        div().w_full().flex().flex_col()
+            .when(view.url.is_some(), |body| body.child(div().flex().justify_end().child(
+                Button::new(SharedString::from(format!("mcp-expand-{call}")))
+                    .relative().child(view.placement_control.probe())
+                    .ghost().small().label(self.t("mcp.open_workbench"))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.expanded_mcp = Some((thread_id.clone(), call.clone()));
+                        cx.notify();
+                    })))))
+            .child(self.mcp_result_view(thread, &tool.id, view, false, cx))
+            .into_any_element()
+    }
+    fn mcp_result_view(
+        &self, thread: &str, call: &str, view: &McpInlineView, expanded: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         #[cfg(not(target_family = "wasm"))]
         if let Some(native) = &view.native_view {
             return div()
                 .w_full()
-                .h(px(380.))
+                .when(expanded, |el| el.flex_1().min_h_0())
+                .when(!expanded, |el| el.h(px(380.)))
                 .child(native.clone())
                 .into_any_element();
         }
         if let Some(error) = &view.error {
             let thread = thread.to_owned();
-            let call = tool.id.clone();
+            let call = call.to_owned();
             return div()
                 .flex()
                 .flex_col()
@@ -314,13 +377,14 @@ impl ChatPanel {
         #[cfg(target_family = "wasm")]
         {
             let thread = thread.to_owned();
-            let call = tool.id.clone();
+            let call = call.to_owned();
             let appearance = pero_theme::UiAppearance::global(cx).clone();
             let locale = self.locale.clone();
-            return div().w_full().h(px(380.)).on_prepaint(move|bounds,window,_|{
+            return div().w_full().when(expanded, |el| el.flex_1().min_h_0())
+                .when(!expanded, |el| el.h(px(380.))).on_prepaint(move|bounds,window,_|{
                 let mask=bounds.intersect(&window.content_mask().bounds);
                 let clip=[f32::from(mask.top()-bounds.top()),f32::from(bounds.right()-mask.right()),f32::from(bounds.bottom()-mask.bottom()),f32::from(mask.left()-bounds.left())].map(|value|value.max(0.));
-                let payload=serde_json::json!({"thread_id":thread,"tool_call":call,"url":url,"visible":mask.size.width>px(0.)&&mask.size.height>px(0.),"left":f32::from(bounds.origin.x),"top":f32::from(bounds.origin.y),"width":f32::from(bounds.size.width),"height":f32::from(bounds.size.height),"clip":clip,"dark":appearance.dark,"locale":locale});
+                let payload=serde_json::json!({"thread_id":thread,"tool_call":call,"url":url,"visible":mask.size.width>px(0.)&&mask.size.height>px(0.),"left":f32::from(bounds.origin.x),"top":f32::from(bounds.origin.y),"width":f32::from(bounds.size.width),"height":f32::from(bounds.size.height),"clip":clip,"dark":appearance.dark,"locale":locale,"expanded":expanded});
                 let _=publish_surface(&payload.to_string());
             }).into_any_element();
         }

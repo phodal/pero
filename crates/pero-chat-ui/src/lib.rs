@@ -48,7 +48,14 @@ mod session_artifacts;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod artifact_panel;
 #[cfg(any(target_family = "wasm", feature = "native"))]
-pub use artifact_panel::{ResourceColumn, ResourcePrimary};
+mod resource_panel;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod chat_resource_panel;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+pub use resource_panel::{
+    PanelTabAction, PanelTabs, ResourceColumn, ResourcePrimary, panel_launcher, panel_tab_strip,
+    resource_menu,
+};
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod pane_toolbar;
 #[cfg(any(target_family = "wasm", feature = "native"))]
@@ -79,6 +86,8 @@ pub use conversation::{AgentChoice, Conversation};
 pub mod usage;
 
 pub mod session_state;
+#[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
+mod conversation_target;
 pub mod authentication;
 
 pub mod conversation_title;

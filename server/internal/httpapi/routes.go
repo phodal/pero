@@ -17,6 +17,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	gh "github.com/phodal/pero/server/internal/github"
+	"github.com/phodal/pero/server/internal/runlifecycle"
+	"github.com/phodal/pero/server/internal/runtimeauth"
 	"github.com/phodal/pero/server/internal/runtimegateway"
 	"github.com/phodal/pero/server/internal/sandbox"
 	"github.com/phodal/pero/server/internal/store"
@@ -28,8 +30,32 @@ type API struct {
 	github       *gh.Service
 	sandbox      *sandbox.Runtime
 	gateway      *runtimegateway.Gateway
+	runDesktops  runDesktopBroker
+	campaigns    *ResearchCampaigns
+	paper        PaperDomain
+	runs         RunSource
+	files        DeviceDesk
 }
 type contextKey struct{}
+
+type ServerOptions struct {
+	Runtime   *sandbox.Runtime
+	Gateway   *runtimegateway.Gateway
+	Reviewer  *runtimeauth.Reviewer
+	Objects   ArtifactObjectStore
+	GitHub    *gh.Service
+	Campaigns *ResearchCampaigns
+	Paper     PaperDomain
+	Importer  PaperImporter
+}
+
+func ServerHandler(db *store.Store, token string, opts ServerOptions) http.Handler {
+	ordinary := configuredHandler(db, token, opts.Runtime, opts.Objects, opts.Gateway, opts.Campaigns, opts.Paper, opts.Importer, opts.GitHub)
+	if opts.Gateway == nil {
+		return ordinary
+	}
+	return isolatedTransports(db, ordinary, opts.Reviewer, opts.Objects)
+}
 
 func Handler(db *store.Store, operatorToken string, services ...*gh.Service) http.Handler {
 	return handler(db, operatorToken, nil, nil, services...)
@@ -41,19 +67,23 @@ func HandlerWithSandbox(db *store.Store, operatorToken string, runtime *sandbox.
 	return handler(db, operatorToken, runtime, nil, services...)
 }
 func handler(db *store.Store, operatorToken string, runtime *sandbox.Runtime, artifactReader ArtifactReader, services ...*gh.Service) http.Handler {
-	return configuredHandler(db, operatorToken, runtime, artifactReader, nil, services...)
+	return configuredHandler(db, operatorToken, runtime, artifactReader, nil, nil, nil, nil, services...)
 }
-func configuredHandler(db *store.Store, operatorToken string, runtime *sandbox.Runtime, artifactReader ArtifactReader, gateway *runtimegateway.Gateway, services ...*gh.Service) http.Handler {
-	a := &API{db: db, operatorHash: sha256.Sum256([]byte(operatorToken)), sandbox: runtime, gateway: gateway}
+func configuredHandler(db *store.Store, operatorToken string, runtime *sandbox.Runtime, artifactReader ArtifactReader, gateway *runtimegateway.Gateway, campaigns *ResearchCampaigns, paper PaperDomain, importer PaperImporter, services ...*gh.Service) http.Handler {
+	a := &API{db: db, operatorHash: sha256.Sum256([]byte(operatorToken)), sandbox: runtime, gateway: gateway, campaigns: campaigns, paper: paper, runs: &persistedRuns{db: db, ledger: map[string][]runlifecycle.Receipt{}}}
+	mountDeviceDesk(a, importer)
 	if len(services) > 0 {
 		a.github = services[0]
 	}
 	mux := http.NewServeMux()
 	a.registerClients(mux)
+	a.registerRunOperations(mux)
+	a.registerCampaigns(mux)
 	a.registerContributions(mux)
 	a.registerGitHub(mux)
 	a.registerSandbox(mux)
 	a.registerArtifacts(mux, artifactReader)
+	a.registerRunDesktops(mux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := db.Ping(r.Context()); err != nil {
 			respond(w, 503, map[string]string{"status": "unavailable"})
@@ -150,13 +180,13 @@ func failure(w http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrNotFound):
 		status = 404
 		message = err.Error()
-	case errors.Is(err, store.ErrContributionInput), errors.Is(err, store.ErrEnrollmentInput), errors.Is(err, store.ErrTaskInput):
+	case errors.Is(err, store.ErrContributionInput), errors.Is(err, store.ErrEnrollmentInput), errors.Is(err, store.ErrTaskInput), errors.Is(err, store.ErrRunReconciliationInput), errors.Is(err, store.ErrCampaignInput):
 		status = 400
 		message = err.Error()
 	case errors.Is(err, store.ErrForbidden):
 		status = 403
 		message = err.Error()
-	case errors.Is(err, store.ErrConflict), errors.Is(err, store.ErrLease):
+	case errors.Is(err, store.ErrConflict), errors.Is(err, store.ErrLease), errors.Is(err, store.ErrWorkerIneligible):
 		status = 409
 		message = err.Error()
 	case errors.Is(err, context.DeadlineExceeded):
@@ -267,7 +297,8 @@ func (a *API) task(w http.ResponseWriter, r *http.Request) {
 }
 func (a *API) dispatch(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		WorkerID string `json:"worker_id"`
+		WorkerID       string                  `json:"worker_id"`
+		DesktopProfile store.RunDesktopProfile `json:"desktop_profile,omitempty"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -280,7 +311,7 @@ func (a *API) dispatch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	run, err := a.db.Dispatch(r.Context(), r.PathValue("id"), in.WorkerID, key)
+	run, err := a.db.Dispatch(r.Context(), r.PathValue("id"), in.WorkerID, key, in.DesktopProfile)
 	if err != nil {
 		failure(w, err)
 		return

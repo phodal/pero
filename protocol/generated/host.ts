@@ -1775,6 +1775,7 @@ export interface LayoutPreferences {
   sidebar_width?: number;
   artifact_pane_width?: number;
   sessions_width?: number;
+  sessions_open?: boolean;
   artifact_view?: ArtifactView;
   resource_tab?: "files" | "artifacts";
   link_surface?: "in_app" | "external_browser";
@@ -2463,6 +2464,7 @@ export interface McpResourceSelectedEvent {
     server: string;
     generation: number;
     uri: string;
+    tool_call?: string;
     contents: McpResourceText[];
   };
 }

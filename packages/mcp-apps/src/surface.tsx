@@ -53,6 +53,7 @@ export const McpAppSurface = forwardRef<McpAppSurfaceHandle, McpAppSurfaceProps>
         readResource: uri => owner.host.readResource(uri),
         openLink: url => owner.host.openLink(url),
         ...(owner.host.sendMessage ? {sendMessage: (text: string) => owner.host.sendMessage!(text)} : {}),
+        ...(owner.host.updateModelContext ? {updateModelContext: (text: string) => owner.host.updateModelContext!(text)} : {}),
         revoke: () => owner.host.revoke(),
         onState: state => {
           if (!disposed) {setPhase(state);if (state === 'ready') setError(undefined);}

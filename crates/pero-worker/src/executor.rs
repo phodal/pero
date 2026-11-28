@@ -1,8 +1,9 @@
 use crate::{
     approval::{Gate, Policy, protected_path},
     model::{Outcome, RemoteGrant, Run},
+    run_desktop::{HandoffMonitor, HandoffStatus},
 };
-use pero_contracts::HostEvent;
+use pero_contracts::{HostEvent, local_worker::BUILTIN_AGENT_KEY_ENV};
 use pero_runtime::acp::{self, AgentConfig, SessionCommand};
 use pero_runtime::workspace_lease::WorkspaceLease;
 use serde::{Deserialize, Serialize};
@@ -48,9 +49,21 @@ pub struct Execution {
     approval: Option<Policy>,
     #[serde(default)]
     remote: bool,
+    #[serde(default)]
+    run_desktop: Option<HandoffMonitor>,
 }
 
 impl Execution {
+    pub(crate) fn attach_desktop(&mut self, url: &str, access: &str, monitor: HandoffMonitor) -> Result<(), String> {
+        let server = serde_json::from_value(json!({"type":"http", "name":"pero-run-desktop", "url":url,
+            "headers":[{"name":"Authorization","value":format!("Bearer {access}")}]}))
+            .map_err(|_| "Invalid desktop MCP configuration")?;
+        self.agent.mcp_servers.push(server);
+        self.run_desktop = Some(monitor);
+        self.prompt.push_str("\n\nUse the Run's computer_use tool to work in the isolated Blender desktop. The Worker collects Blender models saved as /home/pero/result.blend and optional /home/pero/result.obj. Capture a final screenshot using the tool after saving. If you need the user to operate the desktop, call request_handoff with the specific reason. Once the tool returns requested, end the current turn. The Worker will resume this session after the user returns control.");
+        Ok(())
+    }
+
     pub fn inherit_environment(&self) -> bool {
         self.approval.is_none() && !self.remote
     }
@@ -139,7 +152,7 @@ impl Config {
         };
         Ok(Execution {
             workspace, agent, prompt: prompt(run), run_id: run.id.clone(),
-            approval: None, remote: true,
+            approval: None, remote: true, run_desktop: None,
         })
     }
     pub fn execution(&self, run: &Run) -> Result<Execution, String> {
@@ -197,6 +210,13 @@ impl Config {
             }
         }
         agent.env.retain(|key, _| !key.starts_with("PERO_"));
+        // Restore only the built-in Agent's credential in its private launch config.
+        if agent.id == "pero"
+            && approval.is_none()
+            && let Ok(key) = std::env::var(BUILTIN_AGENT_KEY_ENV)
+        {
+            agent.env.insert("DEEPSEEK_API_KEY".into(), key);
+        }
         let prompt = prompt(run);
         Ok(Execution {
             workspace,
@@ -205,6 +225,7 @@ impl Config {
             run_id: run.id.clone(),
             approval,
             remote: false,
+            run_desktop: None,
         })
     }
 }
@@ -254,7 +275,7 @@ pub fn child_execute() -> Result<(), String> {
         return Err("Worker process supervision currently requires Unix".into());
     }
     let mut input = std::io::stdin().lock();
-    let execution: Execution = serde_json::from_slice(
+    let mut execution: Execution = serde_json::from_slice(
         &bounded_line(&mut input, 512 * 1024)?.ok_or("Missing execution configuration")?,
     )
     .map_err(|_| "Invalid execution configuration")?;
@@ -283,6 +304,17 @@ pub fn child_execute() -> Result<(), String> {
     // A supervisor dying must not release the checkout while its child still writes.
     let _workspace_lease = WorkspaceLease::acquire(&execution.workspace)?;
     let mut gate = Gate::new(execution.approval.clone(), execution.workspace.clone());
+    let run_desktop = execution.run_desktop;
+    let handoff_http = run_desktop.as_ref().map(|_| {
+        reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(1))
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+    }).transpose().map_err(|_| "Cannot connect to the Run desktop handoff endpoint")?;
+    if run_desktop.is_some() {
+        execution.agent.required_mcp_servers.insert("pero-run-desktop".into());
+    }
     let (tx, rx) = mpsc::channel();
     let handle = acp::start_supervised(execution.agent, execution.workspace, execution.run_id, tx);
     let cancel = Arc::new(AtomicBool::new(false));
@@ -296,6 +328,8 @@ pub fn child_execute() -> Result<(), String> {
     let mut cancelled_at = None;
     let mut result = None;
     let mut closing_at = None;
+    let mut handoff_poll_at = None;
+    let completed = || Outcome::new("succeeded", "Agent turn completed; independent verification remains pending");
     loop {
         if cancel.load(Ordering::SeqCst) && cancelled_at.is_none() {
             gate.revoke();
@@ -306,14 +340,39 @@ pub fn child_execute() -> Result<(), String> {
             result = Some(Outcome::new("cancelled", "Execution cancelled"));
             break;
         }
+        if cancelled_at.is_none()
+            && handoff_poll_at.is_some_and(|at| Instant::now() >= at)
+            && let Some((monitor, http)) = run_desktop.as_ref().zip(handoff_http.as_ref())
+        {
+            handoff_poll_at = None;
+            match monitor.poll(http) {
+                Ok(HandoffStatus::Idle) => result = Some(completed()),
+                Ok(HandoffStatus::Requested) => handoff_poll_at = Some(Instant::now() + Duration::from_millis(500)),
+                Ok(HandoffStatus::Returned { request_id }) => {
+                    emit("desktop_handoff_resumed", "Control returned to the Agent", json!({"request_id":request_id}))?;
+                    handle.tx.send(SessionCommand::Prompt(
+                        "The user returned control of this Run's desktop. Get fresh targets and observe the current desktop before sending any input. Continue the original task from what you see.".into(),
+                    )).map_err(|_| "Agent closed before continuing after desktop handoff")?;
+                }
+                Err(_) => result = Some(Outcome::new("failed", "Run desktop handoff could not be read")),
+            }
+        }
+        if result.is_some() && closing_at.is_none() {
+            gate.revoke();
+            let _ = handle.tx.send(SessionCommand::Close);
+            closing_at = Some(Instant::now());
+        }
         if closing_at.is_some_and(|at: Instant| at.elapsed() > Duration::from_secs(2)) {
             break;
         }
-        let event = match rx.recv_timeout(Duration::from_millis(50)) {
+        let mut event = match rx.recv_timeout(Duration::from_millis(50)) {
             Ok(event) => event,
             Err(mpsc::RecvTimeoutError::Timeout) => continue,
             Err(_) => break,
         };
+        if run_desktop.is_some() && event.kind == "session_update" && event.data["sessionUpdate"] == "tool_call_update" {
+            retain_tool_evidence_references(&mut event.data);
+        }
         if event.kind == "permission" {
             // Only a live local responder can consume a decision. No remote action
             // or agent-supplied display text can create approval authority.
@@ -345,7 +404,12 @@ pub fn child_execute() -> Result<(), String> {
             )?;
             continue;
         }
-        emit(&event.kind, &event.text, event.data.clone())?;
+        if let Err(error) = emit(&event.kind, &event.text, event.data.clone()) {
+            gate.revoke();
+            let _ = handle.tx.send(SessionCommand::Close);
+            result = Some(Outcome::new("failed", format!("{}: {error}", event.kind)));
+            break;
+        }
         match event.kind.as_str() {
             "session_ready" => {
                 gate.ready(event.data["sessionId"].as_str());
@@ -362,24 +426,20 @@ pub fn child_execute() -> Result<(), String> {
             }
             "turn_finished" => {
                 let reason = event.data["stopReason"].as_str().unwrap_or("");
+                if cancelled_at.is_none() && reason == "end_turn" && run_desktop.is_some() {
+                    handoff_poll_at = Some(Instant::now());
+                    continue;
+                }
                 result = Some(if cancelled_at.is_some() || reason == "cancelled" {
                     Outcome::new("cancelled", "Execution cancelled")
                 } else if reason == "end_turn" {
-                    Outcome::new(
-                        "succeeded",
-                        "Agent turn completed; independent verification remains pending",
-                    )
+                    completed()
                 } else {
                     Outcome::new("failed", format!("Agent stopped: {reason}"))
                 });
             }
             "session_closed" => break,
             _ => {}
-        }
-        if result.is_some() && closing_at.is_none() {
-            gate.revoke();
-            let _ = handle.tx.send(SessionCommand::Close);
-            closing_at = Some(Instant::now());
         }
     }
     let result =
@@ -402,9 +462,40 @@ fn emit(kind: &str, text: &str, data: Value) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+// ACP forwards MCP results both to the model and to the event journal. Keep
+// images in the model path and Run artifact storage, outside the JSON event cap.
+fn retain_tool_evidence_references(data: &mut Value) {
+    const EVIDENCE: &str = "See Run desktop evidence for the saved tool output.";
+    fn strip_images(value: &mut Value) {
+        if value["type"] == "image" && value["data"].is_string() {
+            *value = json!({"type":"text","text":EVIDENCE});
+            return;
+        }
+        match value {
+            Value::Array(items) => items.iter_mut().for_each(strip_images),
+            Value::Object(fields) => fields.values_mut().for_each(strip_images),
+            _ => {}
+        }
+    }
+    strip_images(data);
+    if serde_json::to_vec(data).is_ok_and(|wire| wire.len() > 60_000) {
+        *data = json!({"sessionUpdate":"tool_call_update","toolCallId":data["toolCallId"],
+            "status":data["status"],"content":[{"type":"content","content":{"type":"text","text":EVIDENCE}}]});
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn desktop_tool_event_retains_receipt_without_inline_image_bytes() {
+        let mut event = json!({"toolCallId":"tool-1", "rawOutput":{"result":{"content":[
+            {"type":"text","text":"observation 1"}, {"type":"image","data":"a".repeat(90_000),"mimeType":"image/jpeg"}
+        ]}}});
+        retain_tool_evidence_references(&mut event);
+        assert_eq!(event["rawOutput"]["result"]["content"][0]["text"], "observation 1");
+        assert!(serde_json::to_vec(&event).unwrap().len() < 1024);
+    }
     #[test]
     fn lines_are_bounded_and_truncation_rejected() {
         assert!(bounded_line(&mut std::io::Cursor::new(b"long\n"), 3).is_err());
@@ -426,6 +517,7 @@ mod tests {
             allowed_agents: BTreeMap::new(),
         };
         let run = Run {
+            desktop_profile: None,
             remote_execution: None,
             id: "r".into(),
             generation: 1,

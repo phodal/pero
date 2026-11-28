@@ -64,6 +64,9 @@ function Inspector(){
   const [entry,setEntry]=useState<Entry>();
   const [error,setError]=useState('');
   const [busy,setBusy]=useState(false);
+  const [contextAvailable,setContextAvailable]=useState(false);
+  const [contextStatus,setContextStatus]=useState<{error?:boolean; message:string}>();
+  const [addingContext,setAddingContext]=useState(false);
   const [locale,setLocale]=useState<string>();
   const [retry,setRetry]=useState<ReadSelection>();
   const mounted=useRef(true);
@@ -72,7 +75,7 @@ function Inspector(){
     if(result.isError){setError(result.content.filter(c=>c.type==='text').map(c=>c.text).join('\n')||'Could not read this saved entry.');return false;}
     const value=Envelope.safeParse(result.structuredContent);
     if(!value.success){setError('The Notebook response could not be displayed. Close the Inspector and read the saved entry again.');return false;}
-    setEntry(value.data.result);setError('');setRetry(undefined);return true;
+    setEntry(value.data.result);setError('');setRetry(undefined);setContextStatus(undefined);return true;
   };
   useEffect(()=>{
     mounted.current=true;
@@ -81,6 +84,7 @@ function Inspector(){
     void app.connect().then(()=>{
       if(!mounted.current)return;
       const context=app.getHostContext();if(context)applyMcpAppTheme(context);setLocale(context?.locale);
+      setContextAvailable(!!app.getHostCapabilities()?.updateModelContext?.text);
     }).catch(error=>{if(mounted.current)setError(String(error));});
     return ()=>{mounted.current=false;};
   },[]);
@@ -117,7 +121,19 @@ function Inspector(){
         {index.nextOffset!==null&&<Button busy={busy} onClick={()=>void read({view:'index',offset:index.nextOffset!})}>Read next part</Button>}
       </>}
       {'document' in entry&&entry.document.content.content.map((node,index)=><article key={index}><Block value={node}/></article>)}
-      {block&&<Block value={block}/>}
+      {block&&<>
+        <Block value={block}/>
+        {contextAvailable&&<Button busy={addingContext} onClick={async()=>{
+          setAddingContext(true);setContextStatus(undefined);
+          try{
+            const text=`${entry.title} · revision ${entry.revision}\nBlock ${String(block.attrs?.blockId ?? block.type)}\n${JSON.stringify(block)}`;
+            await app.updateModelContext({content:[{type:'text',text}]});
+            setContextStatus({message:'Added to the chat draft.'});
+          }catch(error){setContextStatus({error:true,message:error instanceof Error?error.message:String(error)});}
+          finally{setAddingContext(false);}
+        }}>Add block to chat</Button>}
+        {contextStatus&&<Feedback kind={contextStatus.error?'error':'info'}>{contextStatus.message}</Feedback>}
+      </>}
       {chunk&&<>
         <p className="notebook-inspector-meta">{chunk.target==='block'?`Block ${chunk.blockId}`:'Saved document'} · characters {chunk.offset+1}–{chunk.nextOffset??chunk.totalCharacters} of {chunk.totalCharacters}. This is a JSON fragment.</p>
         <pre>{chunk.content}</pre>

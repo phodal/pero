@@ -147,10 +147,21 @@ func (s *Store) ClientTask(ctx context.Context, client *Client, id string) (*Tas
 	return clientTaskTx(ctx, tx, client, id, false)
 }
 
+func clientOwnedTaskTx(ctx context.Context, tx pgx.Tx, client *Client, id string) (*Task, error) {
+	t, err := clientTaskTx(ctx, tx, client, id, true)
+	if err != nil {
+		return nil, err
+	}
+	if t.ClaimedBy == nil || t.ClaimedBy.ID != client.ID {
+		return nil, ErrForbidden
+	}
+	return t, nil
+}
+
 func taskBusy(t *Task) bool { return t.contributionSubmitted || taskExecutionBusy(t) }
 
 func taskExecutionBusy(t *Task) bool {
-	return t.Run != nil && (t.Run.Status == "queued" || t.Run.Status == "running" || t.Run.Status == "cancel_requested" || t.Run.Status == "reconcile")
+	return t.Run != nil && (t.Run.Status == "queued" || t.Run.Status == "running" || t.Run.Status == "cancel_requested" || (t.Run.Status == "reconcile" && t.Run.Reconciliation() == nil))
 }
 
 func taskSourceClosed(t *Task) bool {
@@ -227,23 +238,19 @@ func (s *Store) ReleaseTask(ctx context.Context, client *Client, id string) (*Ta
 	return t, nil
 }
 
-func (s *Store) ClientDispatch(ctx context.Context, client *Client, id, worker, key string) (*Run, error) {
+func (s *Store) ClientDispatch(ctx context.Context, client *Client, id, worker, key string, desktop ...RunDesktopProfile) (*Run, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	t, err := clientTaskTx(ctx, tx, client, id, true)
-	if err != nil {
+	if _, err = clientOwnedTaskTx(ctx, tx, client, id); err != nil {
 		return nil, err
-	}
-	if t.ClaimedBy == nil || t.ClaimedBy.ID != client.ID {
-		return nil, ErrForbidden
 	}
 	if key != "" {
 		key = "client:" + client.ID + ":" + key
 	}
-	run, err := dispatchTx(ctx, tx, id, worker, key)
+	run, err := dispatchTx(ctx, tx, id, worker, key, ordinaryDispatch, desktop...)
 	if err != nil {
 		return nil, err
 	}
@@ -259,18 +266,14 @@ func (s *Store) ClientCancel(ctx context.Context, client *Client, id string) (*R
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	t, err := clientTaskTx(ctx, tx, client, id, true)
+	t, err := clientOwnedTaskTx(ctx, tx, client, id)
 	if err != nil {
 		return nil, err
-	}
-	if t.ClaimedBy == nil || t.ClaimedBy.ID != client.ID {
-		return nil, ErrForbidden
 	}
 	if t.CurrentRunID == "" {
 		return nil, ErrConflict
 	}
-	_, err = tx.Exec(ctx, `UPDATE runs SET status=CASE WHEN status='queued' THEN 'cancelled' WHEN lease_expires_at<=clock_timestamp() THEN 'reconcile' ELSE 'cancel_requested' END,summary=CASE WHEN status='queued' THEN 'Cancelled before execution' WHEN lease_expires_at<=clock_timestamp() THEN 'Execution lease expired; cancellation is unconfirmed' ELSE summary END WHERE id=$1 AND status IN ('queued','running','cancel_requested')`, t.CurrentRunID)
-	if err != nil {
+	if err = cancelRun(ctx, tx, t.CurrentRunID); err != nil {
 		return nil, err
 	}
 	run, err := readRun(tx.QueryRow(ctx, `SELECT `+runColumns+` FROM runs WHERE id=$1`, t.CurrentRunID))

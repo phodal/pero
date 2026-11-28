@@ -2,7 +2,7 @@
 # Node.js 22 (desktop/README.md: 22.12+), npm from package-lock.json
 # Rust stable, plus nightly-2026-10-28 for Wasm (scripts/build/wasm.mjs)
 # gpui-kit 7591a35 (desktop/README.md)
-# Go 1.26.4 (MODULE.bazel). server/go.mod's `go 1.24` is the language version.
+# Go 1.26.4 (MODULE.bazel). server/go.mod's `go 1.26.0` is the language version.
 # Bazel 9.2.0 (.bazelversion). pnpm-lock.yaml is the Bazel translation of the npm lock.
 # PR/push runs Linux core contracts without Desktop compilation or GUI.
 # Daily/manual/full-label retains every Desktop scenario and platform.
@@ -181,6 +181,76 @@ jobs:
       - name: Test
         working-directory: server
         run: go test -race ./...
+
+  campaign-temporal:
+    name: Research Campaign recovery and reviewed PyBaMM rounds
+    # setup-python publishes the locked 3.12.11 interpreter for this image.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17.11-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+        env:
+          POSTGRES_PASSWORD: campaign-fixture-only
+          POSTGRES_USER: campaign_fixture
+          POSTGRES_DB: campaign_fixture
+        ports: [5432/tcp]
+        options: >-
+          --health-cmd "pg_isready -U campaign_fixture -d campaign_fixture"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.4"
+          cache-dependency-path: server/go.sum
+      - name: Verify restart, exact execution and history replay
+        env:
+          PERO_TEST_TEMPORAL: '1'
+          PERO_REQUIRE_TEST_DATABASE: '1'
+          PERO_TEST_DATABASE_URL: postgresql://campaign_fixture:campaign-fixture-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/campaign_fixture?sslmode=disable
+          TMPDIR: ${{ runner.temp }}
+        run: go -C server test -race -count=1 -v ./internal/httpapi -run '^TestResearchCampaignTemporal$'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.11"
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the control plane, orchestrator and real Worker
+        run: |
+          export PERO_GPUI_KIT_PATH="$RUNNER_TEMP/gpui-kit"
+          bash scripts/ci/checkout-public-pin.sh "$PERO_GPUI_KIT_PATH" https://github.com/longbridge/gpui-kit.git 7591a35eced761e3613c01e71ff04c10129dae1a
+          node scripts/cargo.mjs build --locked -p pero-worker
+          go -C server build -o "$RUNNER_TEMP/pero-server" ./cmd/server
+          go -C server build -o "$RUNNER_TEMP/pero-campaign" ./cmd/pero-campaign
+      - name: Execute two locked PyBaMM rounds and replay the reviewed Workflow
+        env:
+          PERO_TEST_DATABASE_URL: postgresql://campaign_fixture:campaign-fixture-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/campaign_fixture?sslmode=disable
+        run: |
+          command -v psql >/dev/null || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+          python -m venv "$RUNNER_TEMP/pybamm"
+          "$RUNNER_TEMP/pybamm/bin/python" -m pip install --only-binary=:all: --no-deps -r scripts/science/pybamm-sweep/requirements.lock
+          python scripts/science/pybamm-sweep/campaign_acceptance.py \
+            --database "$PERO_TEST_DATABASE_URL" --server "$RUNNER_TEMP/pero-server" \
+            --orchestrator "$RUNNER_TEMP/pero-campaign" --worker "$PWD/target/debug/pero-worker" \
+            --temporal "$RUNNER_TEMP/temporal-cli-v1.10.1" --python "$RUNNER_TEMP/pybamm/bin/python" \
+            --checker-python "$(command -v python)" --output "$RUNNER_TEMP/reviewed-pybamm"
+          PERO_TEST_REVIEW_HISTORY="$RUNNER_TEMP/reviewed-pybamm/history.json" \
+            go -C server test ./internal/campaignruntime -run '^TestReplayCampaignV2$'
+      - name: Retain exact Run and verification receipts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reviewed-pybamm-receipts
+          path: |
+            ${{ runner.temp }}/reviewed-pybamm/receipt.json
+            ${{ runner.temp }}/reviewed-pybamm/history.json
+          if-no-files-found: ignore
 
   harness:
     name: Harness Go contracts (${{ matrix.os }})
@@ -644,7 +714,7 @@ jobs:
       - name: Host connection contracts
         id: host_connection
         if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
-        run: node --test web/src/host-connection.test.ts web/src/mcp-settings-bridge.test.ts
+        run: node --test web/src/host-connection.test.ts web/src/mcp-settings-bridge.test.ts web/src/canvas-focus.test.ts
       - name: Desktop content and connector contracts
         id: desktop_content
         if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
@@ -986,7 +1056,7 @@ jobs:
   complete:
     name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
     if: always()
-    needs: [scope, notebook-canvas, native-ui, paper-html-live, core, mcp-browser, data, lab, control-lab, virtual-cell, notebook, scientific-viewer, lcms2yield, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
+    needs: [scope, notebook-canvas, native-ui, paper-html-live, core, mcp-browser, data, lab, control-lab, virtual-cell, notebook, scientific-viewer, lcms2yield, bazel, go, campaign-temporal, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

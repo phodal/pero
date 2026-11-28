@@ -16,7 +16,7 @@ func (s *Store) CreateTask(ctx context.Context, spec Spec, key string) (*Task, e
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	task, err := createTaskTx(ctx, tx, spec, key, nil)
+	task, err := createTaskTx(ctx, tx, spec, key, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -26,13 +26,24 @@ func (s *Store) CreateTask(ctx context.Context, spec Spec, key string) (*Task, e
 	return task, nil
 }
 
-func createTaskTx(ctx context.Context, tx pgx.Tx, spec Spec, key string, creator *TaskClaimant) (*Task, error) {
+func createTaskTx(ctx context.Context, tx pgx.Tx, spec Spec, key string, creator *TaskClaimant, requireWorkerCapability bool) (*Task, error) {
 	id, digest, err := receipt(ctx, tx, key, "create-task", spec)
 	if err != nil {
 		return nil, err
 	}
 	if id != "" {
 		return taskIn(ctx, tx, id)
+	}
+	if requireWorkerCapability {
+		capability := []WorkerCapability{{ProjectID: spec.ProjectID, WorkspaceKey: spec.WorkspaceKey, AgentID: spec.AgentID}}
+		var available bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM worker_devices d JOIN workers w ON w.id=d.worker_id
+			WHERE d.enabled AND $1=ANY(w.projects) AND d.capabilities @> $2::jsonb)`, spec.ProjectID, capability).Scan(&available); err != nil {
+			return nil, err
+		}
+		if !available {
+			return nil, ErrWorkerIneligible
+		}
 	}
 	id = newID("task")
 	data, _ := json.Marshal(spec)
@@ -92,6 +103,7 @@ func taskIn(ctx context.Context, q interface {
 			return nil, err
 		}
 		t.State = t.Run.Status
+		t.CurrentDesktopProfile = t.Run.DesktopProfile
 	}
 	return &t, nil
 }
@@ -180,13 +192,13 @@ func (s *Store) Tasks(ctx context.Context, cursor string, limit int, filters ...
 	return page, nil
 }
 
-func (s *Store) Dispatch(ctx context.Context, id, worker, key string) (*Run, error) {
+func (s *Store) Dispatch(ctx context.Context, id, worker, key string, desktop ...RunDesktopProfile) (*Run, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	r, err := dispatchTx(ctx, tx, id, worker, key)
+	r, err := dispatchTx(ctx, tx, id, worker, key, ordinaryDispatch, desktop...)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +209,14 @@ func (s *Store) Dispatch(ctx context.Context, id, worker, key string) (*Run, err
 }
 
 // dispatchTx shares the caller's task lock and transaction with claim/source guards.
-func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string) (*Run, error) {
+func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string, mode dispatchMode, desktop ...RunDesktopProfile) (*Run, error) {
+	var profile RunDesktopProfile
+	if len(desktop) != 0 {
+		profile = desktop[0]
+	}
+	if profile != "" && (profile != BlenderDesktop || worker == "") {
+		return nil, ErrTaskInput
+	}
 	var spec []byte
 	var current string
 	err := tx.QueryRow(ctx, `SELECT spec,COALESCE(current_run_id,'') FROM tasks WHERE id=$1 FOR UPDATE`, id).Scan(&spec, &current)
@@ -207,12 +226,12 @@ func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string) (*Run, e
 	if err != nil {
 		return nil, err
 	}
-	var snapshot Spec
-	if err = json.Unmarshal(spec, &snapshot); err != nil {
-		return nil, err
-	}
 	operation := "dispatch:" + id
-	previous, digest, err := receipt(ctx, tx, key, operation, worker)
+	var selection any = worker
+	if profile != "" {
+		selection = [2]string{worker, string(profile)}
+	}
+	previous, digest, err := receipt(ctx, tx, key, operation, selection)
 	if err != nil {
 		return nil, err
 	}
@@ -226,16 +245,23 @@ func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string) (*Run, e
 	if bound.contributionSubmitted || taskSourceClosed(bound) || taskSourceStale(bound) {
 		return nil, ErrConflict
 	}
-	if current != "" {
-		var status, target string
-		if err = tx.QueryRow(ctx, `SELECT status,COALESCE(target_worker_id,'') FROM runs WHERE id=$1`, current).Scan(&status, &target); err != nil {
+	if worker != "" {
+		if err := checkWorkerPlacement(ctx, tx, worker, spec, mode); err != nil {
 			return nil, err
 		}
-		if status == "reconcile" {
+	}
+	if current != "" {
+		var status, target string
+		var existingProfile RunDesktopProfile
+		var reconciled bool
+		if err = tx.QueryRow(ctx, `SELECT status,COALESCE(target_worker_id,''),desktop_profile,reconciliation IS NOT NULL FROM runs WHERE id=$1`, current).Scan(&status, &target, &existingProfile, &reconciled); err != nil {
+			return nil, err
+		}
+		if status == "reconcile" && !reconciled {
 			return nil, ErrConflict
 		}
 		if status == "queued" || status == "running" || status == "cancel_requested" {
-			if target != worker {
+			if target != worker || existingProfile != profile {
 				return nil, ErrConflict
 			}
 			r, err := readRun(tx.QueryRow(ctx, `SELECT `+runColumns+` FROM runs WHERE id=$1`, current))
@@ -248,21 +274,8 @@ func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string) (*Run, e
 			return r, nil
 		}
 	}
-	if worker != "" {
-		var allowed bool
-		err = tx.QueryRow(ctx, `SELECT ($2=ANY(projects)) FROM workers WHERE id=$1`, worker, jsonProject(spec)).Scan(&allowed)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		if err != nil {
-			return nil, err
-		}
-		if !allowed {
-			return nil, ErrForbidden
-		}
-	}
 	runID := newID("run")
-	r, err := readRun(tx.QueryRow(ctx, `INSERT INTO runs(id,task_id,generation,spec,target_worker_id,status) SELECT $1,$2,COALESCE(MAX(generation),0)+1,$3,NULLIF($4,''),'queued' FROM runs WHERE task_id=$2 RETURNING `+runColumns, runID, id, spec, worker))
+	r, err := readRun(tx.QueryRow(ctx, `INSERT INTO runs(id,task_id,generation,spec,target_worker_id,status,desktop_profile) SELECT $1,$2,COALESCE(MAX(generation),0)+1,$3,NULLIF($4,''),'queued',$5 FROM runs WHERE task_id=$2 RETURNING `+runColumns, runID, id, spec, worker, profile))
 	if err != nil {
 		return nil, err
 	}
@@ -298,8 +311,7 @@ func (s *Store) Cancel(ctx context.Context, id string) (*Run, error) {
 	if runID == "" {
 		return nil, ErrConflict
 	}
-	_, err = tx.Exec(ctx, `UPDATE runs SET status=CASE WHEN status='queued' THEN 'cancelled' WHEN lease_expires_at<=clock_timestamp() THEN 'reconcile' ELSE 'cancel_requested' END,summary=CASE WHEN status='queued' THEN 'Cancelled before execution' WHEN lease_expires_at<=clock_timestamp() THEN 'Execution lease expired; cancellation is unconfirmed' ELSE summary END WHERE id=$1 AND status IN ('queued','running','cancel_requested')`, runID)
-	if err != nil {
+	if err = cancelRun(ctx, tx, runID); err != nil {
 		return nil, err
 	}
 	r, err := readRun(tx.QueryRow(ctx, `SELECT `+runColumns+` FROM runs WHERE id=$1`, runID))

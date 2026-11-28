@@ -1,0 +1,147 @@
+[
+  {
+    "id": "agent-status",
+    "kind": "envelope",
+    "body": {"capability": "agent", "operation": "status", "input": {"scope": {"workspaceId": "ws_0123456789abcdef0123456789abcdef"}, "runId": "run-1"}},
+    "route": "/host/app-agent",
+    "owner": "host",
+    "injectOperation": true,
+    "forward": {"scope": {"workspaceId": "ws_0123456789abcdef0123456789abcdef"}, "runId": "run-1", "operation": "status"}
+  },
+  {
+    "id": "agent-lookup",
+    "kind": "envelope",
+    "body": {"capability": "agent", "operation": "lookup", "input": {"runId": "run-1"}},
+    "route": "/host/app-agent",
+    "owner": "host",
+    "injectOperation": true,
+    "forward": {"runId": "run-1", "operation": "lookup"}
+  },
+  {
+    "id": "agent-science",
+    "kind": "envelope",
+    "body": {"capability": "agent", "operation": "science", "input": {"action": "status"}},
+    "route": "/host/agent",
+    "owner": "host",
+    "injectOperation": true,
+    "forward": {"action": "status", "operation": "science"}
+  },
+  {
+    "id": "agent-science-sessions",
+    "kind": "envelope",
+    "body": {"capability": "agent", "operation": "science_sessions", "input": {}},
+    "route": "/host/agent",
+    "owner": "host",
+    "injectOperation": true,
+    "forward": {"operation": "science_sessions"}
+  },
+  {
+    "id": "agent-info-envelope",
+    "kind": "envelope",
+    "body": {"capability": "agent", "operation": "info", "input": {}},
+    "error": "unknown_operation"
+  },
+  {
+    "id": "research-queries",
+    "kind": "envelope",
+    "body": {"capability": "research-assets", "operation": "queries", "input": {"queryId": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}},
+    "route": "/host/research-assets",
+    "owner": "host",
+    "injectOperation": true,
+    "forward": {"queryId": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", "operation": "queries"}
+  },
+  {
+    "id": "unknown-capability",
+    "kind": "envelope",
+    "body": {"capability": "files", "operation": "read", "input": {}},
+    "error": "unknown_operation"
+  },
+  {
+    "id": "unknown-operation",
+    "kind": "envelope",
+    "body": {"capability": "agent", "operation": "compile", "input": {}},
+    "error": "unknown_operation"
+  },
+  {
+    "id": "operation-casing",
+    "kind": "envelope",
+    "body": {"capability": "agent", "operation": "Status", "input": {}},
+    "error": "unknown_operation"
+  },
+  {
+    "id": "input-array",
+    "kind": "envelope",
+    "body": {"capability": "agent", "operation": "status", "input": []},
+    "error": "invalid_input"
+  },
+  {
+    "id": "automation-envelope",
+    "kind": "envelope",
+    "body": {"capability": "automation", "operation": "call", "input": {"method": "GET", "path": "/recipes", "body": null}},
+    "route": "/host/automation",
+    "owner": "host",
+    "injectOperation": false,
+    "forward": {"method": "GET", "path": "/recipes", "body": null}
+  },
+  {
+    "id": "automation-operation-field",
+    "kind": "envelope",
+    "body": {"capability": "automation", "operation": "call", "input": {"method": "GET", "path": "/recipes", "operation": "call"}},
+    "error": "invalid_input"
+  },
+  {
+    "id": "insights-unnamed",
+    "kind": "envelope",
+    "body": {"capability": "insights", "operation": "open", "input": {"threadId": "thread-1"}},
+    "route": "/host/insights",
+    "owner": "host",
+    "injectOperation": true,
+    "forward": {"threadId": "thread-1", "operation": "open"}
+  },
+  {
+    "id": "direct-app-agent-science",
+    "kind": "direct",
+    "path": "/host/app-agent",
+    "body": {"operation": "science"},
+    "error": "unknown_operation"
+  },
+  {
+    "id": "direct-agent-info",
+    "kind": "direct",
+    "path": "/host/agent",
+    "body": {"operation": "info"}
+  },
+  {
+    "id": "direct-agent-status",
+    "kind": "direct",
+    "path": "/host/agent",
+    "body": {"operation": "status"},
+    "error": "unknown_operation"
+  },
+  {
+    "id": "direct-research-read",
+    "kind": "direct",
+    "path": "/host/research-assets",
+    "body": {"operation": "read"},
+    "error": "unknown_operation"
+  },
+  {
+    "id": "direct-research-queries",
+    "kind": "direct",
+    "path": "/host/research-assets",
+    "body": {"operation": "queries"}
+  },
+  {
+    "id": "direct-automation-method",
+    "kind": "direct",
+    "path": "/host/automation",
+    "body": {"method": "GET", "path": "/recipes", "body": null}
+  },
+  {
+    "id": "direct-automation-operation",
+    "kind": "direct",
+    "path": "/host/automation",
+    "body": {"method": "GET", "path": "/recipes", "operation": "call"},
+    "error": "invalid_input"
+  }
+]

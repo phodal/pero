@@ -3,6 +3,8 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "httpapi",
     srcs = [
+        "campaign_review.go",
+        "campaigns.go",
         "clients.go",
         "project_sources.go",
         "artifacts.go",
@@ -10,7 +12,12 @@ go_library(
         "runtime_channel.go",
         "contributions.go",
         "github.go",
+        "device_transfer.go",
+        "resource_read.go",
+        "run_observe.go",
         "routes.go",
+        "run_desktop.go",
+        "run_operations.go",
         "sandbox.go",
         "worker.go",
         "worker_devices.go",
@@ -18,12 +25,17 @@ go_library(
     importpath = "github.com/phodal/pero/server/internal/httpapi",
     visibility = ["//server:__subpackages__"],
     deps = [
+        "//server/internal/campaign",
+        "//server/internal/campaignruntime",
         "//server/internal/github",
         "//server/internal/store",
         "//server/internal/projectsource",
         "//server/internal/sandbox",
         "//server/internal/runtimebinding",
         "//server/internal/artifacts",
+        "//server/internal/devicetransfer",
+        "//server/internal/resourceref",
+        "//server/internal/runlifecycle",
         "//server/internal/runtimeauth",
         "//server/internal/runtimechannel",
         "//server/internal/environments/model",
@@ -33,9 +45,41 @@ go_library(
 )
 
 go_test(
+    name = "httpapi_run_test",
+    srcs = ["run_observe_test.go"],
+    embed = [":httpapi"],
+    deps = [
+        "//server/internal/runlifecycle",
+        "//server/internal/store",
+    ],
+)
+
+go_test(
+    name = "httpapi_device_test",
+    srcs = ["device_transfer_test.go"],
+    embed = [":httpapi"],
+    deps = [
+        "//server/internal/devicetransfer",
+        "//server/internal/store",
+    ],
+)
+
+go_test(
+    name = "httpapi_paper_test",
+    srcs = ["resource_read_test.go"],
+    embed = [":httpapi"],
+    deps = [
+        "//server/internal/resourceref",
+        "//server/internal/store",
+    ],
+)
+
+go_test(
     name = "httpapi_test",
     srcs = [
+        "campaigns_test.go",
         "clients_test.go",
+        "run_desktop_test.go",
         "project_sources_test.go",
         "artifacts_test.go",
         "isolated_process_test.go",
@@ -47,10 +91,11 @@ go_test(
         "desktop_connector_test.go",
         "github_test.go",
         "integration_test.go",
+        "run_observe_store_test.go",
         "runtime_browser_test.go",
     ],
     env = {"PERO_REQUIRE_TEST_DATABASE": "1"},
-    env_inherit = ["PERO_TEST_DATABASE_URL", "PERO_ISOLATED_PROCESS_E2E", "PERO_SANDBOX_WORKER_BINARY", "PERO_REMOTE_BRIDGE_BINARY", "PERO_REMOTE_CONNECT_BINARY", "PERO_TEST_CLOUD_BROWSER_ELECTRON", "PERO_TEST_SHARED_SOURCES_NATIVE", "PERO_TEST_SHARED_SOURCES_APP"],
+    env_inherit = ["PERO_TEST_DATABASE_URL", "PERO_TEST_TEMPORAL", "PERO_TEST_TEMPORAL_CLI", "PERO_TEST_TEMPORAL_HISTORY", "PERO_ISOLATED_PROCESS_E2E", "PERO_SANDBOX_WORKER_BINARY", "PERO_REMOTE_BRIDGE_BINARY", "PERO_REMOTE_CONNECT_BINARY", "PERO_TEST_CLOUD_BROWSER_ELECTRON", "PERO_TEST_SHARED_SOURCES_NATIVE", "PERO_TEST_SHARED_SOURCES_APP"],
     tags = [
         "external",  # Always rerun against the current database, including locally.
         "local",
@@ -61,6 +106,8 @@ go_test(
     visibility = ["//server:__pkg__"],
     deps = [
         ":httpapi",
+        "//server/internal/campaign",
+        "//server/internal/campaignruntime",
         "//server/internal/github",
         "//server/internal/store",
         "//server/internal/sandbox",
@@ -72,5 +119,15 @@ go_test(
         "//server/internal/runtimegateway",
         "@com_github_jackc_pgx_v5//:pgx",
         "@com_github_jackc_pgx_v5//pgxpool",
+        "@io_temporal_go_api//common/v1:common",
+        "@io_temporal_go_api//enums/v1:enums",
+        "@io_temporal_go_api//history/v1:history",
+        "@io_temporal_go_api//serviceerror",
+        "@io_temporal_go_api//workflowservice/v1:workflowservice",
+        "@io_temporal_go_sdk//client",
+        "@io_temporal_go_sdk//testsuite",
+        "@io_temporal_go_sdk//worker",
+        "@io_temporal_go_sdk//workflow",
+        "@org_golang_google_protobuf//encoding/protojson",
     ],
 )

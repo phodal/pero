@@ -20,6 +20,7 @@ export const McpPanelCommandSchema=z.discriminatedUnion('action',[
   z.object({action:z.literal('resources'),server:z.string(),generation:z.number().int().nonnegative(),cursor:z.string().optional()}).strict(),
   z.object({action:z.literal('templates'),server:z.string(),generation:z.number().int().nonnegative(),cursor:z.string().optional()}).strict(),
   z.object({action:z.literal('attach_resource'),server:z.string(),generation:z.number().int().nonnegative(),uri:z.string()}).strict(),
+  z.object({action:z.literal('update_model_context'),binding:z.string(),text:z.string().max(64_000)}).strict(),
   z.object({action:z.literal('read'),server:z.string(),generation:z.number().int().nonnegative(),uri:z.string()}).strict(),
   z.object({action:z.literal('cancel_open'),operation:z.string().min(1).max(128)}).strict(),
   z.object({action:z.literal('close'),binding:z.string()}).strict(),

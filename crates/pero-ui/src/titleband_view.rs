@@ -9,6 +9,13 @@ use gpui_kit::{component::Icon, prelude::*, *};
 use serde_json::json;
 
 impl Workbench {
+    pub(crate) fn run_desktop_active(&self) -> bool {
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        { self.remote.run_desktop.attached.is_none() && self.remote.run_desktop.view.is_some() }
+        #[cfg(not(all(feature = "native", target_os = "macos")))]
+        { false }
+    }
+
     pub(crate) fn focused_app(&self) -> Option<(String, String)> {
         match self.focused_item()? {
             WorkspaceItem::App { name, panel } => Some((name, panel)),
@@ -49,6 +56,9 @@ impl Workbench {
     }
 
     fn resource_band_claimed(&self, cx: &App) -> bool {
+        if self.run_desktop_active() {
+            return false;
+        }
         // A conversation leaf inside a pane split is not a workbench column; its toolbar stays in the pane.
         if self.navigation.pane_layout_visible()
             && self
@@ -158,14 +168,23 @@ impl Workbench {
             titleband::ResourcesColumn {
                 width: column.width,
                 primary: match column.primary {
+                    pero_chat_ui::ResourcePrimary::Launcher => titleband::ResourcePrimary::Launcher,
                     pero_chat_ui::ResourcePrimary::Files => titleband::ResourcePrimary::Files,
                     pero_chat_ui::ResourcePrimary::Artifacts => titleband::ResourcePrimary::Artifacts,
                     pero_chat_ui::ResourcePrimary::Changes => titleband::ResourcePrimary::Changes,
+                    pero_chat_ui::ResourcePrimary::Desktop => titleband::ResourcePrimary::Desktop,
                 },
             }
         }).or_else(|| self.project_inspector_width(viewport_width, cx).map(|width| {
             titleband::ResourcesColumn { width, primary: titleband::ResourcePrimary::Project }
         }));
+        let resources = resources.or_else(|| self.run_desktop_active().then(|| {
+            let width = self.clamp_inspector_width(self.chat.read(cx).artifact_pane_width(), viewport_width);
+            titleband::ResourcesColumn { width, primary: titleband::ResourcePrimary::Run }
+        }));
+        let resource_launcher = self.conversation_resources_in_titleband();
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        let resource_launcher = resource_launcher || self.run_desktop_available();
         titleband::project(&titleband::WorkbenchColumns {
             sidebar_width: self.layout.sidebar_width,
             main: titleband::MainColumn {
@@ -179,9 +198,13 @@ impl Workbench {
                 } else {
                     self.focused_column_app(cx)
                 },
+                toggle_sessions: self.sessions_available()
+                    && pero_contracts::workbench::LayoutPreferences::sessions_fit(
+                        viewport_width - self.layout.sidebar_width,
+                    ),
                 open_chat: self.titleband_open_chat(),
                 close_chat: self.titleband_close_chat(cx),
-                conversation_resources: self.conversation_resources_in_titleband(),
+                resource_launcher,
             },
             resources,
         })
@@ -277,7 +300,7 @@ impl Workbench {
         let bg = resources_surface(&segment, &self.ui(cx).palette);
         let border = self.ui(cx).palette.border;
         let height = self.ui(cx).chrome().control(pero_theme::WINDOW_TITLEBAR);
-        let toolbar_width = if segment.actions.contains(&Action::Artifacts) {
+        let toolbar_width = if segment.actions.contains(&Action::RightPanel) {
             let button: f32 = self.ui(cx).chrome().control(pero_theme::GHOST_ICON_BUTTON).into();
             width - button - pero_theme::SPACE_8
         } else {
@@ -285,6 +308,12 @@ impl Workbench {
         };
         let body = if segment.primary == Primary::Resource(titleband::ResourcePrimary::Project) {
             self.project_context_body(cx)
+        } else if segment.primary == Primary::Resource(titleband::ResourcePrimary::Run) {
+            #[cfg(all(feature = "native", target_os = "macos"))]
+            let body = self.remote.run_desktop.view.clone().map(IntoElement::into_any_element);
+            #[cfg(not(all(feature = "native", target_os = "macos")))]
+            let body: Option<AnyElement> = None;
+            body.unwrap_or_else(|| div().into_any_element())
         } else {
             self.chat.update(cx, |chat, cx| chat.resource_column_body(toolbar_width, cx))
         };
@@ -309,9 +338,9 @@ impl Workbench {
                     .child(self.resources_segment(&segment, toolbar_width, dragging, window, cx)),
             )
             .child(div().flex_1().min_h_0().min_w_0().overflow_hidden().bg(bg)
-                .when(segment.primary == Primary::Resource(titleband::ResourcePrimary::Project), |el| el.flex().flex_col())
+                .when(matches!(segment.primary, Primary::Resource(titleband::ResourcePrimary::Project | titleband::ResourcePrimary::Run)), |el| el.flex().flex_col())
                 .child(body))
-            .when(segment.primary == Primary::Resource(titleband::ResourcePrimary::Project), |el| el.child(self.inspector_splitter(width, cx)))
+            .when(matches!(segment.primary, Primary::Resource(titleband::ResourcePrimary::Project | titleband::ResourcePrimary::Run)), |el| el.child(self.inspector_splitter(width, cx)))
             .into_any_element()
     }
 
@@ -394,6 +423,18 @@ impl Workbench {
             _ => div().into_any_element(),
         }};
         let actions = self.titleband_actions(&segment.actions, cx);
+        let sessions_toggle = segment.actions.contains(&Action::SessionsToggle).then(|| {
+            let open = self.preferences.layout.sessions_open;
+            let label = self.t(if open { "sessions.hide_list" } else { "sessions.show_list" });
+            keep_click(div()).flex_shrink_0().ml(px(pero_theme::SPACE_4)).child(
+                pero_theme::ghost_icon_button("sessions-list-toggle", pero_theme::Chrome::from_app(cx), cx)
+                    .icon(Icon::default().path("icons/layout-list.svg"))
+                    .toggled(open)
+                    .tooltip(label)
+                    .accessibility_label(label)
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_sessions(cx))),
+            )
+        });
         window_drag(
             div()
                 .id("titleband-main")
@@ -417,6 +458,7 @@ impl Workbench {
                             .children(controls),
                     )
                 })
+                .children(sessions_toggle)
                 .child(
                     div()
                         .flex_1()
@@ -455,6 +497,12 @@ impl Workbench {
             Some(keep_click(div().size_full()
                 .child(self.project_context_toolbar(px(toolbar_width - 1.), window, cx)))
                 .into_any_element())
+        } else if segment.primary == Primary::Resource(titleband::ResourcePrimary::Run) {
+            #[cfg(all(feature = "native", target_os = "macos"))]
+            let toolbar = self.run_desktop_toolbar(cx);
+            #[cfg(not(all(feature = "native", target_os = "macos")))]
+            let toolbar = None;
+            toolbar
         } else {
             segment.actions.contains(&Action::ResourceToolbar)
                 .then(|| self.chat.update(cx, |chat, cx| chat.resource_column_toolbar(toolbar_width, cx)))
@@ -509,7 +557,12 @@ impl Workbench {
         let mut painted = Vec::new();
         for action in actions {
             match action {
-                Action::Artifacts => {
+                Action::RightPanel => {
+                    #[cfg(all(feature = "native", target_os = "macos"))]
+                    if self.run_desktop_available() {
+                        painted.push(self.run_desktop_toggle(cx));
+                        continue;
+                    }
                     painted.extend(self.chat.update(cx, |chat, cx| chat.titlebar_artifacts(cx)));
                 }
                 Action::Search => {
@@ -582,7 +635,7 @@ impl Workbench {
                     painted.push(button);
                 }
                 Action::SidebarToggle => painted.push(self.sidebar_toggle_button(cx).into_any_element()),
-                Action::ResourceToolbar => {}
+                Action::SessionsToggle | Action::ResourceToolbar => {}
             }
         }
         painted

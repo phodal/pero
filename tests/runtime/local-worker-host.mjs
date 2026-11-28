@@ -1,4 +1,4 @@
-// Opt-in shell verification: actual Host + Worker, loopback Cloud, no Agent prompt.
+// Opt-in shell verification with the actual Host + Worker and loopback fixtures.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -14,16 +14,61 @@ const root=await mkdtemp(join(tmpdir(),'pero-local-worker-host-'));
 const workspace=join(root,'workspace');
 await mkdir(workspace);
 const agents=join(root,'agents.json');
-await writeFile(agents,JSON.stringify([{id:'fixture',name:'Installed fixture',command:'/usr/bin/true'}]));
+const providerAgent=join(root,'provider-agent.mjs');
+const providerKey='saved-provider-fixture-key';
+const providerEndpoint='https://example.invalid/saved-route';
+const providerModel='saved-fixture-model';
+await writeFile(providerAgent,`
+  import { createInterface } from 'node:readline';
+  const arg = name => process.argv[process.argv.indexOf(name) + 1];
+  if (arg('--endpoint') !== ${JSON.stringify(providerEndpoint)}
+    || arg('--model') !== ${JSON.stringify(providerModel)}
+    || process.env.DEEPSEEK_API_KEY !== ${JSON.stringify(providerKey)}
+    || process.env.PERO_LOCAL_WORKER_DEEPSEEK_API_KEY) process.exit(1);
+  const results = {
+    initialize: { protocolVersion: 1, agentCapabilities: {} },
+    'session/new': { sessionId: 'provider-fixture' },
+    'session/prompt': { stopReason: 'end_turn' },
+  };
+  createInterface({ input: process.stdin }).on('line', line => {
+    const { id, method } = JSON.parse(line);
+    if (id !== undefined) console.log(JSON.stringify({ jsonrpc: '2.0', id, result: results[method] }));
+  });
+`);
+await writeFile(agents,JSON.stringify([
+  {id:'fixture',name:'Installed fixture',command:'/usr/bin/true'},
+  {id:'pero',name:'Built-in provider fixture',command:process.execPath,
+    args:[providerAgent,'--endpoint','https://example.invalid/initial-route','--model','initial-model',
+      '--api-key-env','DEEPSEEK_API_KEY']},
+]));
 const token='private-worker-fixture-token';
 let claims=0;
+let providerRun;
 const cloud=createServer(async (request,response)=>{
-  for await (const _chunk of request) {}
+  const chunks=[];
+  for await (const chunk of request) chunks.push(chunk);
+  const requestBody=Buffer.concat(chunks).toString();
+  assert.ok(!requestBody.includes(providerKey));
+  const body=requestBody ? JSON.parse(requestBody) : {};
   assert.equal(request.headers.authorization,`Bearer ${token}`);
-  assert.equal(request.url,'/api/worker/v1/claims');
-  claims++;
+  let result;
+  if (request.url==='/api/worker/v1/claims') {
+    claims++;
+    if (providerRun?.status==='pending') {
+      providerRun={...providerRun, status:'running', instance_id:body.instance_id};
+      result={run:providerRun};
+    } else result={run:null};
+  } else if (request.url.endsWith('/renew')) {
+    result={cancel_requested:false,lease_expires_at:providerRun.lease_expires_at};
+  } else if (request.url.endsWith('/events')) {
+    result={last_seq:body.events.at(-1).seq};
+  } else if (request.url.endsWith('/complete')) {
+    providerRun={...providerRun,status:body.outcome};
+    result=providerRun;
+    cloud.emit('provider-run-completed', providerRun);
+  } else assert.fail(`Unexpected Worker API path: ${request.url}`);
   response.writeHead(200,{'Content-Type':'application/json'});
-  response.end(JSON.stringify({run:null}));
+  response.end(JSON.stringify(result));
 });
 cloud.listen(0,'127.0.0.1');await once(cloud,'listening');
 const url=`http://127.0.0.1:${cloud.address().port}`;
@@ -32,7 +77,7 @@ const settings=join(root,'profile/settings.json');
 const workerPath=process.env.PERO_WORKER_BIN || join(repository,'target/debug/pero-worker');
 function launch() {
   const child=spawn(process.env.PERO_HOST_PATH || join(repository,'target/debug/pero-host'),['--stdio'],{
-    cwd:workspace,env:{...process.env,PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:join(root,'history.jsonl'),PERO_AGENTS_FILE:agents,PERO_WORKER_BIN:workerPath},stdio:['pipe','pipe','pipe'],
+    cwd:workspace,env:{...process.env,DEEPSEEK_API_KEY:'initial-provider-fixture-key',PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:join(root,'history.jsonl'),PERO_AGENTS_FILE:agents,PERO_WORKER_BIN:workerPath},stdio:['pipe','pipe','pipe'],
   });
   children.add(child);
   const exited=once(child,'exit');
@@ -63,6 +108,26 @@ try {
   assert.equal(idle.data.configuration.bindings[0].project_id,'project');
   first.send({action:'local_worker_stop',request_id:'stop'});
   assert.equal((await first.until(event=>event.request_id==='stop' && event.data.status==='stopped')).data.enabled,false);
+  first.send({method:'settings.harness',id:'save-provider',api_key:providerKey,
+    settings:{endpoint:providerEndpoint,model:providerModel,encrypted_api_key:'fixture-ciphertext'}});
+  assert.equal((await first.until(event=>event.request_id==='save-provider')).kind,'harness_settings_saved');
+  providerRun={id:'run-provider-fixture',generation:1,status:'pending',
+    lease_expires_at:new Date(Date.now()+60_000).toISOString(),
+    spec:{title:'Provider fixture',prompt:'Check the saved provider',workspace_key:'workspace',
+      agent_id:'pero',acceptance:''}};
+  const completed=once(cloud,'provider-run-completed',{signal:AbortSignal.timeout(10_000)});
+  const firstProviderEvent=first.events.length;
+  first.send({action:'local_worker_start',request_id:'provider-run',worker:{...config,
+    bindings:[{...config.bindings[0],agent_ids:['pero']}]}});
+  assert.equal((await completed)[0].status,'succeeded');
+  await first.until(event=>event.kind==='local_worker_state' && event.data.status==='idle'
+    && first.events.indexOf(event)>=firstProviderEvent);
+  first.send({action:'local_worker_stop',request_id:'provider-stop'});
+  await first.until(event=>event.request_id==='provider-stop' && event.data.status==='stopped');
+  const directory=join(root,'profile/workers/fixture-device');
+  for (const name of await readdir(directory)) {
+    if (name.endsWith('.json')) assert.ok(!(await readFile(join(directory,name),'utf8')).includes(providerKey));
+  }
   first.send({action:'local_worker_start',request_id:'restart',worker:config});
   await first.until(event=>event.request_id==='restart');
   await first.close(); // EOF must stop and reap the independently running Worker.
@@ -71,7 +136,7 @@ try {
   const cold=(await second.until(event=>event.request_id==='cold')).data;
   assert.equal(cold.enabled,false);assert.equal(cold.status,'stopped');assert.equal(cold.configuration.id,'fixture-device');
   assert.ok(!JSON.stringify([...first.events,...second.events]).includes(token));
-  const directory=join(root,'profile/workers/fixture-device');
+  assert.ok(!JSON.stringify([...first.events,...second.events]).includes(providerKey));
   for(const name of await readdir(directory)) {if(name.endsWith('.json')) assert.ok(!(await readFile(join(directory,name),'utf8')).includes(token));}
   assert.equal((await stat(directory)).mode & 0o777,0o700);
   await second.close();
@@ -87,7 +152,7 @@ try {
     assert.ok(Date.now()<deadline,'Worker survived a crashed Host');
     await new Promise(resolve=>setTimeout(resolve,20));
   }
-  console.log(JSON.stringify({passed:true,claims,states:['missing_agent','idle','stopped','restart','cold_stopped','host_crash_cleanup'],credentials_excluded:true}));
+  console.log(JSON.stringify({passed:true,claims,states:['missing_agent','idle','stopped','saved_provider','restart','cold_stopped','host_crash_cleanup'],credentials_excluded:true}));
 } finally {
   for (const child of children) {child.kill();}
   await new Promise(resolve=>cloud.close(resolve));

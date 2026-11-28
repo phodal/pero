@@ -1,4 +1,8 @@
 //! Local research identity and links to App-owned, versioned objects.
+pub mod device_files;
+pub mod resource_identity;
+pub mod run_lifecycle;
+
 use serde::{Deserialize, Serialize};
 
 const MAX_PROJECTS: usize = 128;

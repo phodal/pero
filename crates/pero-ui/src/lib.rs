@@ -118,6 +118,10 @@ mod native_browser_probe;
 mod native_web_probe;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
 mod native_cloud;
+#[cfg(all(feature = "native", target_os = "macos"))]
+mod native_desktop_chooser;
+#[cfg(all(feature = "native", target_os = "macos"))]
+mod native_run_desktop;
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod local_execution;
@@ -176,6 +180,7 @@ mod spotlight;
 
 #[cfg(all(feature="native",not(target_family="wasm")))]
 mod native_apps;
+mod capability_dispatch;
 #[cfg(all(not(target_family = "wasm"), any(test, feature = "native")))]
 mod native_docling;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]

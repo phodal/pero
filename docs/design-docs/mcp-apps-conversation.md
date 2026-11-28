@@ -67,7 +67,10 @@ Managed views advertise text `ui/message`. A bound view sends text through
 the existing prompt owner. The acknowledgement means submission, including the
 existing visible busy queue, rather than completion. Model replies and other
 conversation content are never returned to the iframe. Unsupported non-text
-messages are rejected. `ui/update-model-context` is not advertised.
+messages are rejected. Managed views can also use text `ui/update-model-context`
+to replace the draft attachment for their tool call. An empty update clears it.
+The Composer shows the attachment for review before the user sends it. The Host
+checks its source session and server generation when admitting the prompt.
 
 After renderer restoration, a still-live original receipt can be adopted again.
 After process/session replacement, an expired receipt cannot grant interaction:
@@ -80,6 +83,11 @@ MCP Apps brand header, persistent server sidebar or installation UI. Connections
 remain in Connectors. Parameter input and tool descriptions are preparation
 controls; they disappear while the result is displayed. Official example HTML
 is loaded unchanged, with its own UI and assets, through the shared sandbox.
+**Open in workbench** gives the same view more room. **Back to chat** moves it
+back and preserves its current selection. The expanded view shows any pending
+conversation approval using the existing approval card. Notebook's saved
+revision link opens the Notebook App at that exact revision.
+
 In a recorded conversation view, **Open view** restores the captured original
 result after **Close view**. It does not repeat the tool or the model turn.
 

@@ -31,7 +31,8 @@ pub(crate) struct ArtifactCollection {
     pub bottom: bool,
     pub bottom_height: Option<f32>,
     pub maximized: bool,
-    pub show_changes: bool,
+    pub resource_view: ResourceView,
+    pub panel_tabs: crate::resource_panel::PanelTabs,
     pub selected: Option<(String, u64)>,
     pub preview_request: Option<u64>,
     pub chart: Option<crate::chart_view::ChartView>,
@@ -45,9 +46,19 @@ pub(crate) struct ArtifactCollection {
     pub path_input: Option<Entity<InputState>>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ResourceView {
+    #[default]
+    Contents,
+    Launcher,
+    Changes,
+    Desktop,
+}
+
 impl ArtifactCollection {
     /// The pane replaces an inline reader. Closing the pane does not put it back.
-    pub fn show_pane(&mut self) {
+    pub fn show_pane(&mut self, view: ResourceView) {
+        self.resource_view = view;
         self.open = true;
         self.inline_open = false;
     }
@@ -142,7 +153,7 @@ impl ChatPanel {
             .entry(thread.into())
             .or_default();
         state.preview_request = Some(self.next_request);
-        state.show_changes = false;
+        state.resource_view = ResourceView::Contents;
         self.read_artifact(thread, id, version, false, cx);
         if self.compact {
             cx.emit(ChatAction::CompactNeedsSpace);
@@ -251,7 +262,7 @@ impl ChatPanel {
             .conversations
             .entry(thread.into())
             .or_default();
-        state.show_pane();
+        state.show_pane(ResourceView::Contents);
         state.selected = Some((id.into(), version));
         state.chart = None;
         state.chart_source_open = false;
@@ -327,7 +338,7 @@ impl ChatPanel {
             .conversations
             .entry(thread.into())
             .or_default();
-        state.show_pane();
+        state.show_pane(ResourceView::Contents);
         state.mutation = Some(request_id.clone());
         state.error = None;
         cx.emit(ChatAction::Artifacts(ArtifactRequest::RegisterText {
@@ -383,7 +394,7 @@ impl ChatPanel {
             .conversations
             .entry(thread.into())
             .or_default();
-        state.show_pane();
+        state.show_pane(ResourceView::Contents);
         state.error = None;
         state.mutation = Some(request_id.clone());
         cx.emit(ChatAction::Artifacts(ArtifactRequest::RegisterText {

@@ -38,12 +38,12 @@ func Open(ctx context.Context, url string, lease time.Duration) (*Store, error) 
 func (s *Store) Close()                         { s.pool.Close() }
 func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
 
-const runColumns = `id,task_id,generation,COALESCE(worker_id,''),COALESCE(instance_id,''),status,lease_expires_at,spec,summary`
+const runColumns = `id,task_id,generation,COALESCE(worker_id,''),COALESCE(instance_id,''),status,lease_expires_at,spec,summary,desktop_profile,desktop_handoff,reconciliation`
 
 func readRun(row pgx.Row) (*Run, error) {
 	var r Run
-	var spec []byte
-	err := row.Scan(&r.ID, &r.TaskID, &r.Generation, &r.WorkerID, &r.InstanceID, &r.Status, &r.LeaseExpiresAt, &spec, &r.Summary)
+	var spec, reconciliation []byte
+	err := row.Scan(&r.ID, &r.TaskID, &r.Generation, &r.WorkerID, &r.InstanceID, &r.Status, &r.LeaseExpiresAt, &spec, &r.Summary, &r.DesktopProfile, &r.DesktopHandoff, &reconciliation)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -52,6 +52,11 @@ func readRun(row pgx.Row) (*Run, error) {
 	}
 	if err = json.Unmarshal(spec, &r.Spec); err != nil {
 		return nil, err
+	}
+	if len(reconciliation) > 0 {
+		if err := json.Unmarshal(reconciliation, &r.reconciliation); err != nil {
+			return nil, err
+		}
 	}
 	return &r, nil
 }
@@ -108,12 +113,10 @@ func (s *Store) Workers(ctx context.Context) ([]Worker, error) {
 
 // Idempotency keys are scoped to their original operation and canonical payload.
 func receipt(ctx context.Context, tx pgx.Tx, key, operation string, payload any) (string, string, error) {
-	data, err := json.Marshal(payload)
+	digest, err := inputDigest(payload)
 	if err != nil {
 		return "", "", err
 	}
-	hash := sha256.Sum256(data)
-	digest := hex.EncodeToString(hash[:])
 	if key == "" {
 		return "", digest, nil
 	}
@@ -132,6 +135,15 @@ func receipt(ctx context.Context, tx pgx.Tx, key, operation string, payload any)
 		return "", "", ErrConflict
 	}
 	return id, digest, nil
+}
+
+func inputDigest(payload any) (string, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:]), nil
 }
 
 func saveReceipt(ctx context.Context, tx pgx.Tx, key, operation, digest, id string) error {

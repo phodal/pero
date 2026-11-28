@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "capabilitywire",
+    srcs = ["wire.go"],
+    importpath = "github.com/phodal/pero/server/internal/capabilitywire",
+    visibility = ["//server:__subpackages__"],
+)
+
+go_test(
+    name = "capabilitywire_test",
+    srcs = ["wire_test.go"],
+    data = ["//:capability_wire_corpus"],
+    embed = [":capabilitywire"],
+)
