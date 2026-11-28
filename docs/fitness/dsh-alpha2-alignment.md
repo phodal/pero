@@ -472,7 +472,11 @@ It exercises three real Pero processes with the same assertions as the
 upstream baseline: four uploads, three model requests, reuse after
 restart, credential separation and full inline fallback. The inline and
 signed lanes still run independently. See below for bounded provider
-stale-ID recovery. Quota reclamation, adaptive backoff, cross-process
+stale-ID recovery. A provider upload timeout skips future cache-miss requests within that
+endpoint/credential adapter, with a bounded 1/2/4/8-request cooldown. Cached
+files remain usable, skips do not consume an upload attempt, and a successful
+upload resets the cooldown. User cancellation does not start backoff and
+the inference fallback remains fully inline. Quota reclamation, cross-process
 concurrent upload deduplication and full upstream vision budget/offload
 parity are not implemented. Live provider and Desktop Host acceptance are still unverified.
 

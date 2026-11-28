@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/phodal/pero/harness/go/providers/messages"
@@ -24,10 +25,43 @@ const messagesFilesBeta = "files-api-2025-04-14"
 const messagesFileLifetime = 7 * 24 * time.Hour
 const messagesFilesDeadline = 20 * time.Second
 const maxMessagesFileRecord = 4096
+const maxMessagesFilesBackoff = 8
 
 type messagesFiles struct {
 	client    *http.Client
 	url, root string
+
+	backoffMu                         sync.Mutex
+	backoffVersion                    uint64
+	backoffInterval, backoffRemaining int
+}
+
+// beginUpload is called on cache misses only.
+// Cached references never consume the cooldown; a skipped miss makes the
+// existing all-inline fallback preserve the request without a Files attempt.
+func (f *messagesFiles) beginUpload() (uint64, bool) {
+	f.backoffMu.Lock()
+	defer f.backoffMu.Unlock()
+	if f.backoffRemaining > 0 {
+		f.backoffRemaining--
+		return 0, false
+	}
+	return f.backoffVersion, true
+}
+
+func (f *messagesFiles) finishUpload(version uint64, timeout bool) {
+	f.backoffMu.Lock()
+	defer f.backoffMu.Unlock()
+	if version != f.backoffVersion {
+		return // overlapping responses cannot double or clear a newer interval
+	}
+	f.backoffVersion++
+	if timeout {
+		f.backoffInterval = min(maxMessagesFilesBackoff, max(1, 2*f.backoffInterval))
+		f.backoffRemaining = f.backoffInterval
+	} else {
+		f.backoffInterval, f.backoffRemaining = 0, 0
+	}
 }
 
 type messagesFileRecord struct {
@@ -65,17 +99,25 @@ func (a *Adapter) preferMessagesFiles(ctx context.Context, wire *messages.Reques
 		record := readMessagesFileRecord(location)
 		if !validMessagesFileID(record.ID) || !record.Expires.After(now.Add(time.Hour)) ||
 			record.Expires.After(now.Add(messagesFileLifetime)) || files.isStale(record.ID) {
+			version, proceed := files.beginUpload()
+			if !proceed {
+				return "", errors.New("messages: Files upload skipped after timeout")
+			}
 			if err := a.reserveHTTPRequest(); err != nil {
 				return "", err
 			}
 			var err error
 			record, err = files.upload(bounded, a.messagesKey, src, now)
 			if err != nil {
+				if ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
+					files.finishUpload(version, true)
+				}
 				return "", err
 			}
 			if files.isStale(record.ID) {
 				return "", errors.New("messages: upload returned a previously rejected file ID")
 			}
+			files.finishUpload(version, false)
 			// A read-only or unavailable cache must not break online use.
 			writeMessagesFileRecord(location, record)
 		}
@@ -197,8 +239,13 @@ func (f *messagesFiles) upload(ctx context.Context, key string, source messages.
 		Bytes   int       `json:"size_bytes"`
 		Created time.Time `json:"created_at"`
 	}
-	if json.NewDecoder(io.LimitReader(resp.Body, maxMessagesFileRecord)).Decode(&uploaded) != nil ||
-		!validMessagesFileID(uploaded.ID) || uploaded.Type != "file" || uploaded.MIME != source.MediaType ||
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxMessagesFileRecord)).Decode(&uploaded); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return zero, context.DeadlineExceeded
+		}
+		return zero, errors.New("messages: invalid Files upload receipt")
+	}
+	if !validMessagesFileID(uploaded.ID) || uploaded.Type != "file" || uploaded.MIME != source.MediaType ||
 		uploaded.Bytes != len(source.Data) || uploaded.Created.IsZero() || uploaded.Created.Before(now.Add(-time.Hour)) {
 		return zero, errors.New("messages: invalid Files upload receipt")
 	}

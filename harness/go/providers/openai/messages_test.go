@@ -372,3 +372,105 @@ func TestDeepSeekFilesRecoversOnlyConfirmedStaleID(t *testing.T) {
 		})
 	}
 }
+
+// Observe actual local multipart attempts and inline/file inference fallback.
+func TestDeepSeekFilesBacksOffOnlyUploadTimeouts(t *testing.T) {
+	type observation struct {
+		uploads, audits int32
+		source          string
+	}
+	var uploads, audits atomic.Int32
+	var shouldTimeout, inferenceInline atomic.Bool
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/files" {
+			n := uploads.Add(1)
+			reader, err := r.MultipartReader()
+			if err != nil {
+				t.Errorf("multipart: %v", err)
+				w.WriteHeader(400)
+				return
+			}
+			part, err := reader.NextPart()
+			if err != nil {
+				t.Errorf("read file part: %v", err)
+				w.WriteHeader(400)
+				return
+			}
+			raw, err := io.ReadAll(part)
+			if err != nil {
+				t.Errorf("read file bytes: %v", err)
+				w.WriteHeader(400)
+				return
+			}
+			_, _ = io.Copy(io.Discard, r.Body)
+			w.Header().Set("Content-Type", "application/json")
+			if shouldTimeout.Load() {
+				<-r.Context().Done()
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": fmt.Sprintf("file-%d", n), "type": "file",
+				"mime_type": part.Header.Get("Content-Type"), "size_bytes": len(raw), "created_at": time.Now().UTC()})
+			return
+		}
+		var request struct {
+			Messages []struct {
+				Content []struct{ Source struct{ Type string } }
+			}
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || len(request.Messages) != 1 || len(request.Messages[0].Content) != 1 {
+			t.Errorf("invalid inference: %v", err)
+		} else {
+			source := request.Messages[0].Content[0].Source.Type
+			if source != "file" && source != "base64" {
+				t.Errorf("unexpected image encoding %q", source)
+			}
+			inferenceInline.Store(source == "base64")
+		}
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer provider.Close()
+	dir := t.TempDir()
+	adapter := func(credential string) *Adapter {
+		t.Helper()
+		a, err := New(Config{APIFormat: DeepSeekMessages, Endpoint: provider.URL + "/v1/messages", APIKey: credential, ProviderName: "fixture",
+			Models:                 []ModelConfig{{ID: "vision", MaxTokens: 128, InputModalities: []string{"text", "image"}}},
+			MessagesFilesDirectory: dir, MessagesFilesKey: make([]byte, 32), BeforeHTTPAttempt: func() error { audits.Add(1); return nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.messagesFiles.client.Timeout = 200 * time.Millisecond
+		return a
+	}
+	a, other := adapter("key-a"), adapter("key-b")
+	check := func(phase string, use *Adapter, dimension int, timeout bool, want observation) {
+		t.Helper()
+		shouldTimeout.Store(timeout)
+		req := harness.GenerateRequest{Provider: "fixture", Model: "vision", Messages: []harness.Message{{Role: harness.RoleUser,
+			Content: []harness.ContentBlock{{Type: harness.BlockImage, MIMEType: "image/png", Data: ownedPNG(t, dimension, dimension)}}}}}
+		startUploads, startAudits := uploads.Load(), audits.Load()
+		_, _ = use.Generate(t.Context(), req, nil)
+		source := "file"
+		if inferenceInline.Load() {
+			source = "base64"
+		}
+		if got := (observation{uploads.Load() - startUploads, audits.Load() - startAudits, source}); got != want {
+			t.Fatalf("%s: got %+v, want %+v", phase, got, want)
+		}
+	}
+	file := observation{1, 2, "file"}
+	cached := observation{0, 1, "file"}
+	timedOut := observation{1, 2, "base64"}
+	skipped := observation{0, 1, "base64"}
+	check("warm cache", a, 4, false, file)
+	check("first timeout", a, 5, true, timedOut)
+	check("cached image bypasses cooldown", a, 4, false, cached)
+	check("credential scoped", other, 5, false, file)
+	check("skip one miss", a, 5, false, skipped)
+	check("second timeout", a, 5, true, timedOut)
+	check("skip two misses (1)", a, 5, false, skipped)
+	check("skip two misses (2)", a, 5, false, skipped)
+	check("successful probe clears backoff", a, 5, false, file)
+	check("timeout restarts at one", a, 6, true, timedOut)
+	check("skip once", a, 6, false, skipped)
+	check("probe after reset", a, 6, false, file)
+}
