@@ -44,6 +44,7 @@
       "normalizeAppLocale",
       "parseOptions",
       "readAppExample",
+      "readPaperResource",
       "scopedApiPath",
       "stripKeepVisibleMarker",
       "stripOptionMarkers",
