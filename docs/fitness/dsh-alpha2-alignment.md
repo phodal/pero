@@ -254,8 +254,13 @@ the request and discard them after a session switch or reconnect.
 Off returns an empty list; re-enabling reveals the same saved IDs, revisions and
 owners. Summaries exclude descriptions and deleted tasks. This ACP read does not
 mutate the journal, dispatch a prompt, or let children inspect a root via their
-own session ID. Model-side Team tools for owned members are unchanged. The
-desktop task panel and reconnect flow are not part of this transport slice.
+own session ID. Model-side Team tools for owned members are unchanged. Desktop reads reuse that endpoint only after the live Host connection
+negotiates the root Team selector. The Host resolves the ACP identity and
+labels each reply with the original thread and connection incarnation.
+The shared Desktop chat offers a read-only Team board from the composer.
+Switching chats, reconnecting, or changing Team mode invalidates pending
+reads. A previously read snapshot remains visible on a failed refresh
+within that connection. Task mutations still belong to the Agent board.
 
 For Host callers that already reopen a saved ACP session, `session/load`
 keeps the session's model and reasoning effort instead of reapplying the

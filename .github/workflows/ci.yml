@@ -1046,6 +1046,8 @@ jobs:
           node scripts/build/desktop.mjs
       - name: Ordinary chat reconnect through Host and ACP
         run: node tests/contracts/desktop-chat-reconnect.mjs
+      - name: DSH Team board through Host and ACP
+        run: node tests/runtime/dsh-team-board.mjs "$PWD/target/debug/pero-host" "$PWD/target/debug/pero-agent-acp"
       - name: Project Agent Messages Files contract
         run: node tests/contracts/dsh-messages-files.mjs
       - name: Paper source provenance over Messages Files
