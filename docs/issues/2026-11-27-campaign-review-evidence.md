@@ -34,15 +34,31 @@ Campaign Workflow closes.
 
 - [ ] A researcher can open the exact Run evidence in the shared Project,
   review the checker result, and accept or reject the predeclared follow-up.
-- [ ] Restart while waiting for the decision, reopen the Project, and confirm
+- [x] Restart while waiting for the decision, reopen the Project API, and confirm
   it shows the same gate, plan revision and evidence. A duplicate approval
   produces one receipt and only one follow-up Run.
-- [ ] A stale gate, an expired decision or an unauthorized reviewer cannot
+- [x] A stale gate, an expired decision or an unauthorized reviewer cannot
   advance the workflow. The workflow exposes the actual reason.
-- [ ] A successful process with missing, altered or failing evidence remains
+- [x] A successful process with missing, altered or failing evidence remains
   distinct from verified. Failed, cancelled and missing trials remain visible.
-- [ ] A completed Campaign can be reopened to inspect the immutable decision
+- [x] A completed Campaign can be reopened to inspect the immutable decision
   and evidence after its live Workflow state is unavailable.
+
+## Verified implementation — 2026-11-28
+
+The shared Project API exposes exact verification receipts and Run events,
+the review gate, and the authenticated decision operation. The decision
+identity belongs to the authenticated Project Client and original request key.
+The runner can persist only a matching authenticated request. It cannot
+approve the follow-up on its own. The control plane stores the decision before
+the Workflow admits the next trial.
+
+A real Worker and Temporal acceptance checked the same review gate after a
+process restart. Concurrent identical submissions returned one durable receipt
+and started one follow-up. The pre-approval stale gate, another-project Client,
+runner Client and a changed retry could not advance the Workflow. Domain and
+checker tests cover deadline, rejection, altered output and missing evidence.
+The dedicated Desktop Project review controls are still pending.
 
 Requires the [finite Campaign runtime](2026-11-27-temporal-campaign-runtime.md)
 and [exact Run operations](2026-11-27-campaign-run-control.md). See

@@ -1,9 +1,10 @@
 # 0037 — Temporal for durable shared research campaigns
 
-**Status** Accepted on 2026-11-27. Exact Run control, trial receipts and the
-opt-in single-round Temporal runtime are implemented. Local automated
-acceptance covers the control plane and Workflow. Authenticated review,
-independent verification and the real two-round PyBaMM acceptance remain open.
+**Status** Accepted on 2026-11-27. The opt-in runtime supports a single ordered
+round and a two-round PyBaMM campaign. The reviewed workflow uses its own
+versioned queue, frozen checker and reference bundle, and a project-authorized
+decision before admitting the second trial. See the
+[local acceptance](../issues/2026-11-27-temporal-pybamm-acceptance.md).
 
 **Parent** [Compute Epic #249](https://github.com/phodal/pero/issues/249)
 

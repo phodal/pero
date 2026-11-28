@@ -218,7 +218,8 @@ reconciliation. The result records execution and exact Run references.
 Provision a dedicated existing Client with the Projects it may run. Use its
 logical Client ID on the control plane and its token only on the orchestrator.
 Both processes connect to the same private Temporal endpoint and namespace.
-The production task queue is `pero-research-campaigns-v1`.
+The orchestrator polls `pero-research-campaigns-v1` and
+`pero-research-campaigns-v2`.
 
 | Process | Environment |
 | --- | --- |
@@ -248,6 +249,35 @@ Changing the payload for that key returns `409`. Project Clients can read the
 Campaign. The creator can request cancellation with an empty JSON object. The
 control plane saves the request before waking the Workflow. Cancellation waits
 for its original trial receipt and confirmation from the execution owner.
+
+Enable the reviewed two-round mode by setting the control plane's
+`PERO_PYBAMM_METHOD_DIR` to the absolute locked `scripts/science/pybamm-sweep`
+directory and `PERO_PYBAMM_CHECKER_PYTHON` to an absolute Python 3.12 executable.
+The checker uses the standard library. The executor uses the separate locked
+PyBaMM environment. Keep the checker script, reference and method bundle
+available at the recorded digest until its campaigns finish.
+
+Start with `"mode":"pybamm_reviewed_v1"` and two ordered
+`pybamm-sweep-v1` trials with explicit Worker IDs. Read the active
+`review_gate` in Campaign progress. Evidence can be reopened through
+`GET /api/client/v1/projects/{project}/campaigns/{campaign}/evidence/{index}`
+with a zero-based trial index. The response includes the exact Run reference,
+method, checker, result and observed environment digests, and bounded Run
+events. Execution status and numerical consistency are separate.
+
+A project Client sends the decision using its own bearer credential and a
+stable Idempotency-Key. The runner Client cannot submit a human decision.
+
+```text
+POST /api/client/v1/projects/{project}/campaigns/{campaign}/review
+Idempotency-Key: <stable decision key>
+{"gate_id":"...","plan_digest":"...","evidence_digest":"...","choice":"approve"}
+```
+
+A decision can also be `reject`. The gate expires after 24 hours.
+The original decision receipt is returned for an identical request even after
+the Workflow closes. A stale or expired gate returns `409`. The reviewed
+Workflow keeps the next trial unsubmitted until an approval is persisted.
 
 The Workflow definition name is versioned. Preserve the current definition and
 run the committed history replay before replacing workers that may receive

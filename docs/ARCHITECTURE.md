@@ -356,7 +356,7 @@ Swift / Rust 只在确有原生能力需求时引入。列入按需语言不代�
 
 ## Daemon、环境与首版服务拓扑
 
-首版按 **Cloud 协调 → Host 执行 → 环境绑定 → 产物验证与复核** 组合。Go 服务负责共享执行协调，daemon 部署在执行机器上。环境和验证适配器先作为模块接入。下图为目标接线，虚线标记后续扩展。Temporal 单轮试验编排已可选择启用。
+首版按 **Cloud 协调 → Host 执行 → 环境绑定 → 产物验证与复核** 组合。Go 服务负责共享执行协调，daemon 部署在执行机器上。下图为目标接线，虚线标记后续扩展。Temporal 可选择启用单轮编排及带独立验证和人审的 PyBaMM 双轮流程。
 
 ```mermaid
 flowchart TB
@@ -406,9 +406,9 @@ flowchart TB
     UI <-->|"HTTP / SSE"| API
     GH <-->|"获准的事件与状态同步"| API
     API -->|"共享项目：启动 / 观察 / 取消"| TEMPORAL
-    API -.->|"认证审批"| TEMPORAL
+    API -->|"认证审批 Update"| TEMPORAL
     ORCHESTRATOR -->|"项目授权：幂等提交 / 精确 Run 观察和取消"| API
-    ORCHESTRATOR -.->|"独立验证"| API
+    ORCHESTRATOR -->|"独立验证和审批回执"| API
     PR <-->|"认证执行通道：请求 / 事件 / 原 ID 对账"| ENTRY
     BACKEND -->|"产物与执行回执"| ART
     ART -->|"精确候选引用"| VERIFY
@@ -423,8 +423,9 @@ flowchart TB
 Go 控制面记录冻结计划、审批、精确 Run 与证据引用。启动和审批通过 Pero 鉴权。
 计算继续由现有 Rust Worker、Host 和获准环境执行。本地 Project 和 Automation
 沿 [ADR 0028](adr/0028-local-research-projects.md) 与 [ADR 0024](adr/0024-event-driven-automation.md)
-运行。已接入的首版支持一次冻结轮次，按顺序运行最多八个试验，并在结果未知时等待原
-Run 对账。独立验证、审批和跨轮次推进由后续任务接入。首个用例和验收任务见
+运行。普通 Campaign 支持一次冻结轮次，按顺序运行最多八个试验，并在结果未知时等待原
+Run 对账。PyBaMM 双轮流程用独立 checker 验证两次原 Run 的结果，第一轮证据通过后等待
+项目成员审批，落库后推进第二轮。首个用例和验收任务见
 [Compute Epic #249](https://github.com/phodal/pero/issues/249)。
 
 ### 状态与权限归属
