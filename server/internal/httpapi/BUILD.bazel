@@ -13,6 +13,7 @@ go_library(
         "contributions.go",
         "github.go",
         "device_transfer.go",
+        "protocol_ready.go",
         "resource_read.go",
         "run_observe.go",
         "routes.go",
@@ -61,6 +62,15 @@ go_test(
     deps = [
         "//server/internal/devicetransfer",
         "//server/internal/store",
+    ],
+)
+
+go_test(
+    name = "httpapi_protocol_test",
+    srcs = ["protocol_ready_test.go"],
+    embed = [":httpapi"],
+    deps = [
+        "//server/internal/resourceref",
     ],
 )
 

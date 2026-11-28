@@ -46,3 +46,4 @@
 - [0041: Owner-qualified resource identity and Paper read](0041-resource-identity.md) — P0.4 a reference is not a grant; Paper evidence stays with its owner
 - [0042: Run and session projection](0042-run-lifecycle.md) — P0.5 observe an existing Run; do not invent its lifecycle
 - [0043: Portable device files and Paper import](0043-device-files.md) — P0.6 pick and transfer a PDF; 0042 is the separate P0.5 projection
+- [0044: Protocol harness for a browser client](0044-protocol-ready-harness.md) — P0.7 conformance corpus and browser slice; leave issue 256 open; reference it only with Refs
