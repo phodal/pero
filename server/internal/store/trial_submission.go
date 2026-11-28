@@ -100,7 +100,7 @@ func (s *Store) EnsureTrialRun(ctx context.Context, op TrialOperation, input Tri
 		}
 		return receipt, err
 	}
-	task, err := createTaskTx(ctx, tx, input.Task, "", &op.client)
+	task, err := createTaskTx(ctx, tx, input.Task, "", &op.client, false)
 	if err != nil {
 		return TrialReceipt{}, err
 	}

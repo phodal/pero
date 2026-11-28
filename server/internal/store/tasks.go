@@ -16,7 +16,7 @@ func (s *Store) CreateTask(ctx context.Context, spec Spec, key string) (*Task, e
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	task, err := createTaskTx(ctx, tx, spec, key, nil)
+	task, err := createTaskTx(ctx, tx, spec, key, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -26,13 +26,24 @@ func (s *Store) CreateTask(ctx context.Context, spec Spec, key string) (*Task, e
 	return task, nil
 }
 
-func createTaskTx(ctx context.Context, tx pgx.Tx, spec Spec, key string, creator *TaskClaimant) (*Task, error) {
+func createTaskTx(ctx context.Context, tx pgx.Tx, spec Spec, key string, creator *TaskClaimant, requireWorkerCapability bool) (*Task, error) {
 	id, digest, err := receipt(ctx, tx, key, "create-task", spec)
 	if err != nil {
 		return nil, err
 	}
 	if id != "" {
 		return taskIn(ctx, tx, id)
+	}
+	if requireWorkerCapability {
+		capability := []WorkerCapability{{ProjectID: spec.ProjectID, WorkspaceKey: spec.WorkspaceKey, AgentID: spec.AgentID}}
+		var available bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM worker_devices d JOIN workers w ON w.id=d.worker_id
+			WHERE d.enabled AND $1=ANY(w.projects) AND d.capabilities @> $2::jsonb)`, spec.ProjectID, capability).Scan(&available); err != nil {
+			return nil, err
+		}
+		if !available {
+			return nil, ErrWorkerIneligible
+		}
 	}
 	id = newID("task")
 	data, _ := json.Marshal(spec)

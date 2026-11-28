@@ -229,6 +229,20 @@ func (s *Store) CommunitySession(ctx context.Context, token string) (*CommunityS
 	}
 	return &v, err
 }
+
+// CommunityClient resolves the same logical Client used by Desktop OAuth.
+// A web session never receives or mints a Desktop bearer credential.
+func (s *Store) CommunityClient(ctx context.Context, session *CommunitySession) (*Client, error) {
+	if session == nil || session.Operator || session.ID <= 0 {
+		return nil, ErrForbidden
+	}
+	client := &Client{Role: "client"}
+	err := s.pool.QueryRow(ctx, `SELECT c.id,c.name,c.projects FROM community_users u JOIN clients c ON c.id=u.client_id WHERE u.id=$1`, session.ID).Scan(&client.ID, &client.Name, &client.Projects)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrForbidden
+	}
+	return client, err
+}
 func (s *Store) CommunityDeleteSession(ctx context.Context, token string) error {
 	hash := sha256.Sum256([]byte(token))
 	_, err := s.pool.Exec(ctx, `DELETE FROM community_sessions WHERE digest=$1`, hash[:])
