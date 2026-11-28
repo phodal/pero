@@ -88,6 +88,7 @@ pub struct StoredReceipt {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OwnerView {
+    pub project: String,
     pub owner_host: String,
     pub live: bool,
     pub known: bool,
@@ -124,6 +125,33 @@ pub fn observe(
     } else {
         "not_applicable"
     };
+    for value in [
+        &binding.owner_host,
+        &binding.id,
+        &binding.scope,
+        &binding.project,
+        &request.request_id,
+        &request.input_hash,
+    ] {
+        if traversed(value) {
+            return quiet(RunOutcome::Traversal, continuation);
+        }
+    }
+    if !member {
+        return quiet(RunOutcome::Revoked, continuation);
+    }
+    if owner.project != project || binding.project != owner.project {
+        return quiet(RunOutcome::WrongProject, continuation);
+    }
+    if binding.owner_host != owner.owner_host {
+        return quiet(RunOutcome::StaleBinding, continuation);
+    }
+    if binding.generation == 0
+        || binding.generation != owner.generation
+        || (request.generation != 0 && request.generation != binding.generation)
+    {
+        return quiet(RunOutcome::GenerationChanged, continuation);
+    }
     let status = owner.status.clone();
     if request.consumer_closed {
         return done(
@@ -138,63 +166,6 @@ pub fn observe(
         return done(
             status,
             RunOutcome::Timeout,
-            RunEffect::None,
-            owner,
-            continuation,
-        );
-    }
-    if !member {
-        return done(
-            status,
-            RunOutcome::Revoked,
-            RunEffect::None,
-            owner,
-            continuation,
-        );
-    }
-    if binding.project != project || traversed(&binding.project) {
-        let outcome = if traversed(&binding.project) {
-            RunOutcome::Traversal
-        } else {
-            RunOutcome::WrongProject
-        };
-        return done(status, outcome, RunEffect::None, owner, continuation);
-    }
-    for value in [
-        &binding.owner_host,
-        &binding.id,
-        &binding.scope,
-        &request.request_id,
-        &request.input_hash,
-    ] {
-        if traversed(value) {
-            return done(
-                status,
-                RunOutcome::Traversal,
-                RunEffect::None,
-                owner,
-                continuation,
-            );
-        }
-    }
-    if binding.owner_host != owner.owner_host {
-        return done(
-            status,
-            RunOutcome::StaleBinding,
-            RunEffect::None,
-            owner,
-            continuation,
-        );
-    }
-    if request.generation != 0 && request.generation != owner.generation {
-        let shown = if owner.live {
-            status
-        } else {
-            "interrupted".into()
-        };
-        return done(
-            shown,
-            RunOutcome::GenerationChanged,
             RunEffect::None,
             owner,
             continuation,
@@ -221,13 +192,16 @@ pub fn observe(
         .iter()
         .find(|item| item.request_id == request.request_id)
     {
-        let outcome =
-            if stored.input_hash == request.input_hash && stored.operation == request.operation {
-                RunOutcome::Duplicate
-            } else {
-                RunOutcome::Conflict
-            };
-        return done(status, outcome, RunEffect::None, owner, continuation);
+        if stored.input_hash == request.input_hash && stored.operation == request.operation {
+            return done(
+                status,
+                RunOutcome::Duplicate,
+                RunEffect::None,
+                owner,
+                continuation,
+            );
+        }
+        return quiet(RunOutcome::Conflict, continuation);
     }
     if !owner.live && (owner.restarted || !owner.known) {
         let outcome = if owner.restarted {
@@ -389,6 +363,17 @@ fn events(
     observation
 }
 
+fn quiet(outcome: RunOutcome, continuation: &'static str) -> Observation {
+    Observation {
+        status: String::new(),
+        outcome,
+        effect: RunEffect::None,
+        cursor: 0,
+        events: Vec::new(),
+        continuation,
+    }
+}
+
 fn done(
     status: String,
     outcome: RunOutcome,
@@ -439,6 +424,7 @@ mod tests {
 
     fn owner() -> OwnerView {
         OwnerView {
+            project: "lab".into(),
             owner_host: "host-a".into(),
             live: true,
             known: false,

@@ -11,7 +11,7 @@ func request(operation string) Request {
 }
 
 func owner() Owner {
-	return Owner{OwnerHost: "host-a", Live: true, Status: "running", Events: []uint64{1, 2, 3}, RetainedFrom: 1, Generation: 2, SupportsCancel: true, SupportsApprove: true}
+	return Owner{Project: "lab", OwnerHost: "host-a", Live: true, Status: "running", Events: []uint64{1, 2, 3}, RetainedFrom: 1, Generation: 2, SupportsCancel: true, SupportsApprove: true}
 }
 
 func see(operation string, view Owner) Observation {
@@ -28,6 +28,9 @@ func TestSameRunIsOnlyObserved(t *testing.T) {
 func TestReconnectRetryAndReplayStayDistinct(t *testing.T) {
 	closed := request(OpCancel)
 	closed.ConsumerClosed = true
+	if outsider := Observe(false, "lab", binding(KindControlPlane), closed, owner(), nil); outsider.Outcome != OutcomeRevoked || outsider.Status != "" || outsider.Cursor != 0 || outsider.Effect != EffectNone {
+		t.Fatalf("closed outsider %+v", outsider)
+	}
 	abort := Observe(true, "lab", binding(KindControlPlane), closed, owner(), nil)
 	if abort.Outcome != OutcomeAbort || abort.Effect != EffectNone || abort.Status != "running" {
 		t.Fatalf("%+v", abort)
@@ -109,8 +112,15 @@ func TestDuplicatesRestartsAndApprovalsDoNotInventWork(t *testing.T) {
 	}
 	stale := request(OpStatus)
 	stale.Generation = 1
-	if Observe(true, "lab", binding(KindControlPlane), stale, owner(), nil).Outcome != OutcomeGeneration {
-		t.Fatal("generation")
+	if got := Observe(true, "lab", binding(KindControlPlane), stale, owner(), nil); got.Outcome != OutcomeGeneration || got.Status != "" || got.Effect != EffectNone {
+		t.Fatalf("generation %+v", got)
+	}
+	old := binding(KindControlPlane)
+	old.Generation = 1
+	blind := request(OpCancel)
+	blind.Generation = 0
+	if got := Observe(true, "lab", old, blind, owner(), nil); got.Outcome != OutcomeGeneration || got.Effect != EffectNone || got.Status != "" {
+		t.Fatalf("stale binding %+v", got)
 	}
 	if Observe(false, "lab", binding(KindControlPlane), request(OpStatus), owner(), nil).Outcome != OutcomeRevoked {
 		t.Fatal("revoked")

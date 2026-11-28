@@ -71,6 +71,7 @@ type Receipt struct {
 }
 
 type Owner struct {
+	Project          string
 	OwnerHost        string
 	Live             bool
 	Known            bool
@@ -98,37 +99,29 @@ func Observe(member bool, project string, binding Binding, request Request, owne
 	if binding.Kind == KindACP {
 		continuation = "unsupported"
 	}
+	for _, value := range []string{binding.OwnerHost, binding.ID, binding.Scope, binding.Project, request.RequestID, request.InputHash} {
+		if traversed(value) {
+			return quiet(OutcomeTraversal, continuation)
+		}
+	}
+	if !member {
+		return quiet(OutcomeRevoked, continuation)
+	}
+	if owner.Project != project || binding.Project != owner.Project {
+		return quiet(OutcomeProject, continuation)
+	}
+	if binding.OwnerHost != owner.OwnerHost {
+		return quiet(OutcomeStale, continuation)
+	}
+	if binding.Generation == 0 || binding.Generation != owner.Generation || (request.Generation != 0 && request.Generation != binding.Generation) {
+		return quiet(OutcomeGeneration, continuation)
+	}
 	status := owner.Status
 	if request.ConsumerClosed {
 		return done(status, OutcomeAbort, EffectNone, owner, continuation)
 	}
 	if request.TimedOut {
 		return done(status, OutcomeTimeout, EffectNone, owner, continuation)
-	}
-	if !member {
-		return done(status, OutcomeRevoked, EffectNone, owner, continuation)
-	}
-	if binding.Project != project || traversed(binding.Project) {
-		outcome := OutcomeProject
-		if traversed(binding.Project) {
-			outcome = OutcomeTraversal
-		}
-		return done(status, outcome, EffectNone, owner, continuation)
-	}
-	for _, value := range []string{binding.OwnerHost, binding.ID, binding.Scope, request.RequestID, request.InputHash} {
-		if traversed(value) {
-			return done(status, OutcomeTraversal, EffectNone, owner, continuation)
-		}
-	}
-	if binding.OwnerHost != owner.OwnerHost {
-		return done(status, OutcomeStale, EffectNone, owner, continuation)
-	}
-	if request.Generation != 0 && request.Generation != owner.Generation {
-		shown := status
-		if !owner.Live {
-			shown = OutcomeInterrupted
-		}
-		return done(shown, OutcomeGeneration, EffectNone, owner, continuation)
 	}
 	if binding.Kind == KindACP && (request.Operation == OpStart || request.Operation == OpRetry || request.Operation == OpCancel || request.Operation == OpApprove) {
 		return done(status, OutcomeUnsupported, EffectNone, owner, continuation)
@@ -137,11 +130,10 @@ func Observe(member bool, project string, binding Binding, request Request, owne
 		if stored.RequestID != request.RequestID {
 			continue
 		}
-		outcome := OutcomeConflict
 		if stored.InputHash == request.InputHash && stored.Operation == request.Operation {
-			outcome = OutcomeDuplicate
+			return done(status, OutcomeDuplicate, EffectNone, owner, continuation)
 		}
-		return done(status, outcome, EffectNone, owner, continuation)
+		return quiet(OutcomeConflict, continuation)
 	}
 	if !owner.Live && (owner.Restarted || !owner.Known) {
 		outcome := OutcomeUnknown
@@ -224,6 +216,10 @@ func events(status string, request Request, owner Owner, continuation string) Ob
 		observation.Cursor = cursor
 	}
 	return observation
+}
+
+func quiet(outcome, continuation string) Observation {
+	return Observation{Outcome: outcome, Effect: EffectNone, Events: []uint64{}, Continuation: continuation}
 }
 
 func done(status, outcome, effect string, owner Owner, continuation string) Observation {

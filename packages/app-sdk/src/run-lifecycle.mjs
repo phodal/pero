@@ -13,6 +13,11 @@ export async function observeRun(transport, request) {
     error.code = 'spoofed';
     throw error;
   }
+  if (!Number.isInteger(request.binding.generation) || request.binding.generation < 1) {
+    const error = new Error('generation_changed');
+    error.code = 'generation_changed';
+    throw error;
+  }
   let value;
   try {
     value = await transport.observe(request);

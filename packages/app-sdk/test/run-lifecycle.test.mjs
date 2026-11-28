@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { observeRun } from '../src/run-lifecycle.mjs';
 
-const binding = { kind: 'control_plane_run', ownerHost: 'host-a', project: 'lab', id: 'run-1' };
+const binding = { kind: 'control_plane_run', ownerHost: 'host-a', project: 'lab', id: 'run-1', generation: 2 };
 const snapshot = { status: 'running', outcome: 'observed', effect: 'none', cursor: 3, events: [1, 2, 3], continuation: 'not_applicable', ownerHost: 'host-a', bindingId: 'run-1' };
 
 test('two clients see one run and a closed client does not cancel it', async () => {
@@ -24,5 +24,7 @@ test('two clients see one run and a closed client does not cancel it', async () 
     binding: { ...binding, kind: 'acp_session' }, request: { operation: 'status', requestId: 'f', inputHash: 'h' },
   });
   assert.equal(acp.continuation, 'unsupported');
+  assert.equal(calls, 2);
+  await assert.rejects(observeRun(transport, { binding: { ...binding, generation: 0 }, request: { operation: 'cancel', requestId: 'g', inputHash: 'h' } }), error => error.code === 'generation_changed');
   assert.equal(calls, 2);
 });

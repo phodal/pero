@@ -1,5 +1,5 @@
 export interface RunObservationRequest {
-  binding: { kind: string; ownerHost: string; project: string; id: string; path?: string };
+  binding: { kind: string; ownerHost: string; project: string; id: string; generation: number; path?: string };
   request: { operation: string; requestId: string; inputHash: string; consumerClosed?: boolean };
   prompt?: string;
   fallbackHost?: string;

@@ -79,6 +79,7 @@ go_test(
         "desktop_connector_test.go",
         "github_test.go",
         "integration_test.go",
+        "run_observe_store_test.go",
         "runtime_browser_test.go",
     ],
     env = {"PERO_REQUIRE_TEST_DATABASE": "1"},

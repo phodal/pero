@@ -18,7 +18,7 @@ Closing the consumer is `transport_abort`. The run status is unchanged and no ca
 
 Event reads use the existing sequence cursor. A duplicate sequence is ignored. A hole is `gap` and is not filled. A cursor older than the retained tail is `expired_cursor`. A generation change is `generation_changed`. If the owner restarts and loses live state, the projection is `interrupted`. It does not invent a resumed session.
 
-The route is `POST /api/client/v1/projects/{project}/runs/observe`. The client credential is the caller. A prompt, a path, or an owner header is refused. There is no SSE stream and no fallback host. Poll and event tail remain the carriers.
+The route is `POST /api/client/v1/projects/{project}/runs/observe`. The production handler reads the Run through the existing project-scoped control-plane query, then compares the binding generation with that Run. A missing or stale generation does not cancel. Membership is checked before a closed connection or a timeout is reported, and a refusal does not include the owner status or cursor. The same request id is decided once under one lock. Start and approval stay with their existing owners; this route does not create a Run. A prompt, a path, or an owner header is refused. There is no SSE stream and no fallback host. Poll and event tail remain the carriers.
 
 ## What this does not do
 

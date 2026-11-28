@@ -15,6 +15,7 @@ import (
 
 type memoryRun struct {
 	mu       sync.Mutex
+	project  string
 	owner    runlifecycle.Owner
 	ledger   []runlifecycle.Receipt
 	applies  int
@@ -22,32 +23,34 @@ type memoryRun struct {
 	approves int
 }
 
-func (m *memoryRun) View(string) (runlifecycle.Owner, []runlifecycle.Receipt, bool) {
+func (m *memoryRun) Decide(_ context.Context, _ *store.Client, project string, member bool, binding runlifecycle.Binding, request runlifecycle.Request) (runlifecycle.Observation, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.project != project {
+		return runlifecycle.Observation{}, false
+	}
 	owner := m.owner
+	owner.Project = m.project
 	owner.ApprovalRecorded = m.approves > 0
 	ledger := append([]runlifecycle.Receipt(nil), m.ledger...)
-	return owner, ledger, true
-}
-
-func (m *memoryRun) Commit(_ string, receipt runlifecycle.Receipt, effect string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.ledger = append(m.ledger, receipt)
-	switch effect {
-	case runlifecycle.EffectApply:
-		m.applies++
-		m.owner.Known = true
-	case runlifecycle.EffectCancel:
-		m.cancels++
-	case runlifecycle.EffectApprove:
-		m.approves++
+	observation := runlifecycle.Observe(member, project, binding, request, owner, ledger)
+	if observation.Effect != runlifecycle.EffectNone {
+		m.ledger = append(m.ledger, runlifecycle.Receipt{RequestID: request.RequestID, Operation: request.Operation, InputHash: request.InputHash, Outcome: observation.Outcome})
+		switch observation.Effect {
+		case runlifecycle.EffectApply:
+			m.applies++
+			m.owner.Known = true
+		case runlifecycle.EffectCancel:
+			m.cancels++
+		case runlifecycle.EffectApprove:
+			m.approves++
+		}
 	}
+	return observation, true
 }
 
 func TestTwoClientsObserveOneRun(t *testing.T) {
-	source := &memoryRun{owner: runlifecycle.Owner{
+	source := &memoryRun{project: "lab", owner: runlifecycle.Owner{
 		OwnerHost: "host-a", Live: true, Status: "running", Events: []uint64{1, 2, 3},
 		RetainedFrom: 1, Generation: 2, SupportsCancel: true, SupportsApprove: true,
 	}}
@@ -82,13 +85,46 @@ func TestTwoClientsObserveOneRun(t *testing.T) {
 	if approved["effect"] != "approve_owner" || repeat["outcome"] != "duplicate" || source.approves != 1 {
 		t.Fatalf("approve %#v repeat %#v count %d", approved, repeat, source.approves)
 	}
-	code, body = postRunStatus(t, api, "other", []string{"lab", "other"}, runBody("status", "watch-3", "hash-a", false))
-	if code != 403 || body["outcome"] != "wrong_project" {
+	forgedProject := runBody("status", "watch-3", "hash-a", false)
+	forgedProject["binding"].(map[string]any)["project"] = "nope"
+	code, body = postRunStatus(t, api, "lab", []string{"lab"}, forgedProject)
+	if code != 403 || body["outcome"] != "wrong_project" || body["status"] != nil {
 		t.Fatalf("project %d %#v", code, body)
 	}
-	code, body = postRunStatus(t, api, "lab", nil, runBody("status", "watch-4", "hash-a", false))
-	if code != 403 || body["outcome"] != "revoked" {
-		t.Fatalf("revoked %d %#v", code, body)
+	code, body = postRunStatus(t, api, "lab", nil, runBody("cancel", "close-outsider", "hash-a", true))
+	if code != 403 || body["outcome"] != "revoked" || body["status"] != nil || body["cursor"] != nil || source.cancels != 1 {
+		t.Fatalf("closed outsider %d %#v cancels %d", code, body, source.cancels)
+	}
+	foreign := &memoryRun{project: "other", owner: source.owner}
+	foreignAPI := &API{runs: foreign}
+	forged := runBody("cancel", "steal", "hash-a", false)
+	forged["binding"].(map[string]any)["project"] = "lab"
+	code, body = postRunStatus(t, foreignAPI, "lab", []string{"lab"}, forged)
+	if code != 404 || body["status"] != nil || foreign.cancels != 0 {
+		t.Fatalf("forged %d %#v", code, body)
+	}
+	stale := runBody("cancel", "stale-gen", "hash-a", false)
+	stale["binding"].(map[string]any)["generation"] = 0
+	code, body = postRunStatus(t, api, "lab", []string{"lab"}, stale)
+	if code != 409 || body["outcome"] != "generation_changed" || body["status"] != nil || source.cancels != 1 {
+		t.Fatalf("generation %d %#v cancels %d", code, body, source.cancels)
+	}
+	raceSource := &memoryRun{project: "lab", owner: runlifecycle.Owner{
+		OwnerHost: "host-a", Live: true, Status: "running", Events: []uint64{1, 2, 3},
+		RetainedFrom: 1, Generation: 2, SupportsCancel: true,
+	}}
+	raceAPI := &API{runs: raceSource}
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			postRunStatus(t, raceAPI, "lab", []string{"lab"}, runBody("start", "race-1", "hash-a", false))
+		}()
+	}
+	wg.Wait()
+	if raceSource.applies != 1 {
+		t.Fatalf("applies %d", raceSource.applies)
 	}
 }
 
