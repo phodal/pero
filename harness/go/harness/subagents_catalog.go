@@ -460,25 +460,45 @@ func (r *SubagentRegistry) notifyProviderWatchers() {
 	}
 }
 
-// IsContinuableDescendant checks assignment identity against the exact live
-// root's topology. Persisted descriptors can establish identity without
-// recreating an agent. Diagnostic, one-shot and archived rows grant no access.
+// IsContinuableDescendant checks only an exact session ID.
 func (r *SubagentRegistry) IsContinuableDescendant(ctx context.Context, root *Agent, target SessionID) (bool, error) {
+	id, err := r.resolveContinuableDescendant(ctx, root, string(target), false)
+	return id != "" && id == target, err
+}
+
+// ResolveContinuableDescendant resolves an exact ID or a unique saved label
+// inside the live root's topology without waking any member. A label never
+// shadows an exact ID, and diagnostic, one-shot and archived rows grant no access.
+func (r *SubagentRegistry) ResolveContinuableDescendant(ctx context.Context, root *Agent, target string) (SessionID, error) {
+	return r.resolveContinuableDescendant(ctx, root, target, true)
+}
+
+func (r *SubagentRegistry) resolveContinuableDescendant(ctx context.Context, root *Agent, target string, labels bool) (SessionID, error) {
 	if err := r.requireLiveParent(root); err != nil {
-		return false, err
+		return "", err
 	}
 	entries, err := r.Catalog(ctx, root, true)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.disposed || !r.parentAdmitsLocked(root) {
-		return false, ErrSubagentAdmissionClosed
+		return "", ErrSubagentAdmissionClosed
 	}
 	// Catalog is parent-first. A descendant of an unavailable or noncontinuable
 	// parent cannot be cold-reached and should not be selected as a new owner.
 	reachable := map[SessionID]bool{root.ID(): true}
+	var labelMatch SessionID
+	var ambiguous bool
+	// Mark exact-ID selectors independent of the traversal order.
+	exact := false
+	for _, entry := range entries {
+		if string(entry.ID) == target {
+			exact = true
+			break
+		}
+	}
 	for _, entry := range entries {
 		if !reachable[entry.Parent] || entry.Kind != SubagentCatalogChild || entry.Mode != SubagentDescriptorContinuable {
 			continue
@@ -501,9 +521,16 @@ func (r *SubagentRegistry) IsContinuableDescendant(ctx context.Context, root *Ag
 			}
 		}
 		reachable[entry.ID] = true
-		if entry.ID == target {
-			return true, nil
+		if string(entry.ID) == target {
+			return entry.ID, nil
+		}
+		if labels && !exact && target != "" && entry.Label == target {
+			ambiguous = ambiguous || labelMatch != ""
+			labelMatch = entry.ID
 		}
 	}
-	return false, nil
+	if ambiguous {
+		return "", fmt.Errorf("harness: more than one continuable child uses label %q; select an exact session ID", target)
+	}
+	return labelMatch, nil
 }

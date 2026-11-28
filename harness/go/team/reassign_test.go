@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -82,7 +83,7 @@ func TestLeadReassignsOnlyReachableContinuableMembers(t *testing.T) {
 	if !ok {
 		t.Fatal("missing one-shot member")
 	}
-	b, err := claude.Start(ctx, lead, subagents.ClaudeInvocation{Definition: "checker", Prompt: "work", Background: true})
+	b, err := claude.Start(ctx, lead, subagents.ClaudeInvocation{Definition: "checker", Prompt: "work", Description: "receipt checker", Background: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +93,7 @@ func TestLeadReassignsOnlyReachableContinuableMembers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := claude.Start(ctx, foreign, subagents.ClaudeInvocation{Definition: "checker", Prompt: "other work", Background: true})
+	other, err := claude.Start(ctx, foreign, subagents.ClaudeInvocation{Definition: "checker", Prompt: "other work", Description: "receipt checker", Background: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +124,7 @@ func TestLeadReassignsOnlyReachableContinuableMembers(t *testing.T) {
 	}
 	out, err := h.Tools().Execute(ctx, harness.ToolRequest{
 		Agent: lead, Name: "team_task_update", CallID: "transfer",
-		Arguments: json.RawMessage(fmt.Sprintf(`{"task_id":"%d","expected_revision":%d,"action":"reassign","owner":%q}`, task.ID, ref.Revision, b.ChildID)),
+		Arguments: json.RawMessage(fmt.Sprintf(`{"task_id":"%d","expected_revision":%d,"action":"reassign","owner":%q}`, task.ID, ref.Revision, "receipt checker")),
 	})
 	var transferred Task
 	if err != nil || out.Result.IsError || len(out.Result.Content) != 1 ||
@@ -150,7 +151,7 @@ func TestLeadReassignsOnlyReachableContinuableMembers(t *testing.T) {
 	if err := detach(); err != nil {
 		t.Fatal(err)
 	}
-	fresh, freshDisk, _ := boot()
+	fresh, freshDisk, freshClaude := boot()
 	history, err := freshDisk.Load(ctx, lead.ID())
 	if err != nil {
 		t.Fatal(err)
@@ -174,13 +175,33 @@ func TestLeadReassignsOnlyReachableContinuableMembers(t *testing.T) {
 		t.Fatalf("Lead could not unassign: %+v, %v", unassigned, err)
 	}
 	unarchive := fresh.Subagents().RegisterArchivedSessionCheck(func(id harness.SessionID) bool { return id == b.ChildID })
-	if _, err := board.Reassign(ctx, reopened, TaskRef{task.ID, 4}, b.ChildID); !errors.Is(err, ErrMemberNotFound) {
+	if _, err := board.Reassign(ctx, reopened, TaskRef{task.ID, 4}, "receipt checker"); !errors.Is(err, ErrMemberNotFound) {
 		t.Fatalf("archived child was eligible: %v", err)
 	}
 	unarchive()
-	cold, err := board.Reassign(ctx, reopened, TaskRef{task.ID, 4}, b.ChildID)
+	cold, err := board.Reassign(ctx, reopened, TaskRef{task.ID, 4}, "receipt checker")
 	_, woke := fresh.Agents().Get(b.ChildID)
 	if err != nil || cold.Owner != b.ChildID || cold.Revision != 5 || woke || attempts.Load() != 3 {
 		t.Fatalf("cold transfer = %+v, err=%v, woke=%t, requests=%d", cold, err, woke, attempts.Load())
+	}
+	list, err := fresh.Tools().Execute(ctx, harness.ToolRequest{
+		Agent: reopened, Name: "team_task_list", CallID: "owners",
+		Arguments: json.RawMessage(`{"owner":"receipt checker"}`),
+	})
+	var page taskPage
+	if err != nil || list.Result.IsError || len(list.Result.Content) != 1 ||
+		json.Unmarshal([]byte(list.Result.Content[0].Text), &page) != nil ||
+		len(page.Tasks) != 1 || page.Tasks[0].Owner != b.ChildID || attempts.Load() != 3 {
+		t.Fatalf("label filter woke a member or lost the exact owner: %+v, %v", list.Result, err)
+	}
+	if _, err := freshClaude.Start(ctx, reopened, subagents.ClaudeInvocation{Definition: "checker", Prompt: "Duplicate label control", Description: "receipt checker", Background: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := board.Reassign(ctx, reopened, TaskRef{task.ID, 5}, "receipt checker"); err == nil || !strings.Contains(err.Error(), "more than one continuable child") {
+		t.Fatalf("ambiguous label silently selected an owner: %v", err)
+	}
+	exact, err := board.Reassign(ctx, reopened, TaskRef{task.ID, 5}, b.ChildID)
+	if err != nil || exact.Owner != b.ChildID || exact.Revision != 6 {
+		t.Fatalf("ambiguous label changed the original revision or exact ID route: %+v, %v", exact, err)
 	}
 }

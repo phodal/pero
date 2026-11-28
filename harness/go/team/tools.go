@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/phodal/pero/harness/go/harness"
@@ -31,7 +32,7 @@ const teamPolicy = `Agent Teams is available in this session.
 
 The root and its owned children share a task board, not a grant of workspace access. Split write work into disjoint scopes. Record expected workspace-relative write scopes and dependencies on tasks. An overlap warning is advisory, not a lock.
 
-List or read a task, claim a ready revision, do the work, then complete the current revision. Only the Lead can reassign to itself (lead) or an eligible continuable child by exact session ID. Changing a task never wakes its owner or sends a message. Wait for required delegated work using the available subagent controls before reporting a final result.`
+List or read a task, claim a ready revision, do the work, then complete the current revision. Only the Lead can reassign to itself (lead) or an eligible continuable child by exact session ID or unique saved label. Changing a task never wakes its owner or sends a message. Wait for required delegated work using the available subagent controls before reporting a final result.`
 
 // Mount contributes opt-in Team tools and a trusted host command. Mode is
 // stored per root; mounting does not enable any new or restored session.
@@ -165,9 +166,9 @@ func (b Board) tools() map[string]harness.Tool {
 			}
 			return b.Create(ctx, caller, input)
 		})
-	add("list", "Filter shared task summaries by status, owner (lead or exact session ID), unowned, or readiness, then page through the results. Read full details using team_task_get.",
+	add("list", "Filter shared task summaries by status, owner (lead, exact session ID, or unique saved label), unowned, or readiness, then page through the results. Read full details using team_task_get.",
 		`"status":{"enum":["pending","in_progress","completed"]},"owner":{"type":"string","minLength":1,"maxLength":256},"unowned":{"type":"boolean"},"ready":{"type":"boolean"},"cursor":{"type":"integer","minimum":0,"maximum":9007199254740991},"limit":{"type":"integer","minimum":1,"maximum":100}`,
-		"", func(_ context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
+		"", func(ctx context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
 			if in.Owner != nil && in.Unowned != nil {
 				return nil, fmt.Errorf("%w: owner and unowned cannot be combined", ErrArgument)
 			}
@@ -183,6 +184,16 @@ func (b Board) tools() map[string]harness.Tool {
 				q.owner = *in.Owner
 				if q.owner == "lead" {
 					q.owner = root.ID()
+				} else if q.owner != root.ID() && !slices.ContainsFunc(s.tasks, func(task Task) bool {
+					return task.Owner == q.owner
+				}) {
+					id, err := b.Registry.ResolveContinuableDescendant(ctx, root, string(q.owner))
+					if err != nil {
+						return nil, err
+					}
+					if id != "" {
+						q.owner = id
+					}
 				}
 			}
 			return s.page(q), nil
@@ -202,7 +213,7 @@ func (b Board) tools() map[string]harness.Tool {
 		}
 		return s.view(task), nil
 	})
-	add("update", "Change a shared task using its latest revision. Edit subject, description and/or write_scopes (use [] to clear scopes); set_dependencies replaces blocked_by (use [] to clear). The owner or Lead can edit, rewire, reopen completed tasks, or delete tasks without dependents. Only the Lead can reassign to lead or a continuable child session ID; omit owner to unassign. Never starts an agent.",
+	add("update", "Change a shared task using its latest revision. Edit subject, description and/or write_scopes (use [] to clear scopes); set_dependencies replaces blocked_by (use [] to clear). The owner or Lead can edit, rewire, reopen completed tasks, or delete tasks without dependents. Only the Lead can reassign to lead, a continuable child session ID, or its unique saved label; omit owner to unassign. Never starts an agent.",
 		taskID+`,"expected_revision":{"type":"integer","minimum":1},"action":{"enum":["claim","release","complete","reassign","edit","set_dependencies","reopen","delete"]},"owner":{"type":"string","minLength":1,"maxLength":256}`+","+taskText+","+dependencies+","+writeScopes, `"task_id","expected_revision","action"`, func(ctx context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
 			id, err := parseTaskID(in.TaskID)
 			if err != nil {

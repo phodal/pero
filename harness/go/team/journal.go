@@ -157,22 +157,26 @@ func (b Board) Reassign(ctx context.Context, caller *harness.Agent, ref TaskRef,
 		if !s.enabled {
 			return change{}, ErrDisabled
 		}
+		if caller != root {
+			return change{}, ErrLeadRequired
+		}
 		assignee := target
 		if assignee == "lead" {
 			assignee = root.ID()
 		}
-		task, err := s.reassign(ref, assignee, caller == root)
-		if err != nil {
-			return change{}, err
-		}
 		if assignee != "" && assignee != root.ID() {
-			ok, err := b.Registry.IsContinuableDescendant(ctx, root, assignee)
+			resolved, err := b.Registry.ResolveContinuableDescendant(ctx, root, string(assignee))
 			if err != nil {
 				return change{}, err
 			}
-			if !ok {
+			if resolved == "" {
 				return change{}, fmt.Errorf("%w: %q", ErrMemberNotFound, assignee)
 			}
+			assignee = resolved
+		}
+		task, err := s.reassign(ref, assignee)
+		if err != nil {
+			return change{}, err
 		}
 		return change{Task: &task}, nil
 	})

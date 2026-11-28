@@ -356,13 +356,10 @@ func (s state) ready(task Task) error {
 	return nil
 }
 
-func (s state) reassign(ref TaskRef, target harness.SessionID, lead bool) (Task, error) {
+func (s state) reassign(ref TaskRef, target harness.SessionID) (Task, error) {
 	task, err := s.current(ref)
 	if err != nil {
 		return Task{}, err
-	}
-	if !lead {
-		return Task{}, ErrLeadRequired
 	}
 	if task.Status != Pending && task.Status != InProgress {
 		return Task{}, ErrTransition

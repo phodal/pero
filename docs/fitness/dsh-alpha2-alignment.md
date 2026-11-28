@@ -99,7 +99,7 @@ use a real provider key, user profile, or private research data.
 | Messages and Files | Text/tool SSE, signed replay at the same credential and route, explicit image upload/reuse, fallback and stale-ID handling; Rust Host restart and Paper source-provenance contracts. | Live DeepSeek round trip, broader DSH Files file lifecycle/quota/budget behavior, and real Desktop Paper link navigation remain open. Pero deliberately avoids widening uploads or retrying ambiguous stale IDs. |
 | Compaction, Skills and policy | Latest-request pressure, explicit summary override, frozen source identity; existing Skill catalog/permission tests and separately pinned AST comparison. | Pero intentionally does not choose a last-answered model implicitly or adopt DSH's dynamic filesystem Skill roots. Source/AST extraction is not whole-runtime execution. |
 | Goal | Explicit ACP start/status/edit/resume/complete, durable admission, cancellation, scoped descendant waits, and model stop with configurable blocker threshold. One-shot `/goal delegate` enables the model to create, edit, pause, complete or block the exact Goal; it can resume only an active checkpoint. | Pero requires explicit delegation instead of inferring permission from ordinary chat. Upstream's separate model wrap-up is not ported. Shipped Electron/Native controls and live-model acceptance remain open. |
-| Team / subagents | Root mode and exact-ID board reads, optimistic claims/reassignment, dependencies and advisory scopes. Model guidance follows the effective Board tools. | Named member routing and the DSH subagent control tool family are not equivalent, and there is no shipped Desktop Team panel. Existing delegation and board state do not imply those features. |
+| Team / subagents | Root mode, exact-ID board reads and unique saved-label assignment/filtering, optimistic claims/reassignment, dependencies and advisory scopes. Model guidance follows the effective Board tools. | DSH's hierarchical name registry and subagent control tool family are not equivalent, and there is no shipped Desktop Team panel. Existing delegation and board state do not imply those features. |
 | DSH product/runtime distribution | Go has its own composition; Pero already owns permissions, Host/Project research workflows and Task/Run. | DSH Web/live settings, compatible Cordis plugin loading/hot reload, SDK distribution and PTC execution are not supplied by this PR. Do not claim parity for them based on the ACP wire suite. |
 
 Treat “implemented,” “verified locally,” and “verified on a shipped surface”
@@ -225,8 +225,7 @@ counters. Activation is live, not durable authorization: an owned automatic
 round reports armed, while an ordinary prompt after restoring the journal
 reports disarmed. Reading never reserves a round, resumes a goal, or changes the
 revision. Another root, a child, or a disabled runtime cannot use it to read
-this Goal. This does not implement model-mediated create, edit, resume, or
-the DSH wrap-up turn.
+this Goal. Mutations require the separate operator-delegated path below.
 
 ## Team task board: opt-in native slice
 
@@ -279,7 +278,7 @@ it. The prepared tool policy remains separate from prompt text.
   The saved owner is the exact caller's session ID, never supplied by the
   model. The owner or Lead can release or complete an in-progress task. The Lead
   can also assign a ready pending or in-progress task to itself (`lead`) or a
-  reachable continuable child by exact session ID, or omit the target to
+  reachable continuable child by exact session ID or unique saved label, or omit the target to
   unassign. One-shot and archived children are not eligible. Selected Claude
   continuations can be resolved from their saved descriptors without waking
   them, even after restart.
@@ -310,12 +309,14 @@ it. The prepared tool policy remains separate from prompt text.
   warning without changing this task's revision. Scopes neither lock files
   nor block claims, grant tools, or modify file permissions.
 
-List filters by status, exact owner session ID or `lead`, unowned, and
+List filters by status, exact owner session ID, unique saved label or `lead`, unowned, and
 readiness before applying a zero-based cursor. Owner and unowned cannot be
 combined. The default is 50 summaries, with an explicit limit of 1–100;
 get returns the full description. Readiness and write-scope warnings are
-still calculated against the whole board. DSH agent-name aliases beyond
-`lead` and a Desktop task panel remain open. The ACP setting is ready for
+still calculated against the whole board. Labels resolve only inside the owning tree, including cold members.
+Duplicate labels require exact IDs; the board stores exact IDs and never
+wakes a member during routing. DSH hierarchical aliases and a Desktop
+task panel remain open. The ACP setting is ready for
 clients that surface generic settings; the shipped Desktop launch and GUI
 are not verified here. The Team regression transfers
 A's claim to a continuable B, rejects A's late completion, and reassigns to B again
@@ -472,8 +473,8 @@ It exercises three real Pero processes with the same assertions as the
 upstream baseline: four uploads, three model requests, reuse after
 restart, credential separation and full inline fallback. The inline and
 signed lanes still run independently. See below for bounded provider
-stale-ID recovery. A provider upload timeout skips future cache-miss requests within that
-endpoint/credential adapter, with a bounded 1/2/4/8-request cooldown. Cached
+stale-ID recovery. A provider upload timeout skips future cache-miss requests
+within that endpoint/credential adapter, with a bounded 1/2/4/8-request cooldown. Cached
 files remain usable, skips do not consume an upload attempt, and a successful
 upload resets the cooldown. User cancellation does not start backoff and
 the inference fallback remains fully inline. Quota reclamation, cross-process
