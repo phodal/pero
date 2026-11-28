@@ -616,8 +616,10 @@ impl Workbench {
         });
         let available = width - (padding + action_width + gap) * 2.;
         let visible = current.inspector_tabs(tabs.each_ref().map(|(_, width)| f32::from(*width)), available.into(), gap.into());
+        let shared = self.current_project(cx).is_some_and(|project| project.shared_id.is_some());
+        let available_view = |view| view != ProjectTab::Deliveries || shared;
         let hidden: Vec<_> = ProjectTab::ALL.into_iter().zip(visible)
-            .filter_map(|(view, shown)| (!shown).then(|| (view, self.t(view.label_key()))))
+            .filter_map(|(view, shown)| (!shown && available_view(view)).then(|| (view, self.t(view.label_key()))))
             .collect();
         let has_hidden = !hidden.is_empty();
         let tabs = div()
@@ -626,7 +628,7 @@ impl Workbench {
             .aria_label(self.t("project.actions"))
             .flex_1().min_w_0().h_full().flex().items_center().gap(gap)
             .children(ProjectTab::ALL.into_iter().zip(tabs).zip(visible).filter_map(|((view, (button, _)), shown)| {
-                shown.then(|| {
+                (shown && available_view(view)).then(|| {
                     let key = view.label_key();
                     let label = self.t(key);
                     button.accessibility_label(label).tooltip(label)
