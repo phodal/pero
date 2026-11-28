@@ -1,5 +1,8 @@
 # Quality gates
 
+Protocol corpus, browser harness, and separate device columns:
+[Protocol Ready harness](protocol-ready.md).
+
 Combined shared computation, provenance, Reviewer and P1 workflow verification:
 [Scientific workflow integration](science-p0-p1-integration.md).
 
