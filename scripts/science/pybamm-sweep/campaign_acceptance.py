@@ -160,7 +160,7 @@ def acceptance(args):
         workspace.mkdir(mode=0o700)
         agents, config = output / 'agents.json', output / 'worker.json'
         save(agents, [{'id': 'pybamm-sweep-v1', 'name': 'Locked CPU method', 'command': args.python,
-                       'args': [str(ROOT / 'acp.py'), '--workspace', str(workspace)], 'env': {}}])
+                       'supervision': 'gate', 'args': [str(ROOT / 'acp.py'), '--workspace', str(workspace)], 'env': {}}])
         save(config, {'workspaces': {'battery': str(workspace)}, 'agents_file': str(agents)})
         def worker(name):
             process, _ = launch(args.worker, name, PERO_CLOUD_URL=origin, PERO_WORKER_TOKEN=machine['token'],
@@ -191,15 +191,32 @@ def acceptance(args):
         stale = status_error(409, lambda: human.request(review_path, {**approval, 'gate_id': 'stale'}, 'stale'))
         assert 'changed' in stale['error'], stale
         status_error(404, lambda: service.request(trial_path + '2'))
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            attempts = [pool.submit(human.request, review_path, approval, 'decision') for _ in range(2)]
-            accepted, repeated = (attempt.result() for attempt in attempts)
+        decision_key = 'decision'
+        if args.desktop_review:
+            decision_key = 'desktop-' + gate['id'] + '-approve'
+            display = {key: os.environ[key] for key in ('DISPLAY', 'XAUTHORITY', 'XDG_RUNTIME_DIR')
+                       if key in os.environ}
+            with (output / 'desktop-review.log').open('w') as desktop_log:
+                run = subprocess.run(['node', args.desktop_review], stdout=desktop_log, stderr=subprocess.STDOUT,
+                                     env={**env, **display, 'PERO_TEST_HEADED': os.environ.get('PERO_TEST_HEADED', '0'),
+                                          'PERO_TEST_SOFTWARE_GL': os.environ.get('PERO_TEST_SOFTWARE_GL', '0'),
+                                          'PERO_CAMPAIGN_LOCALE': os.environ.get('PERO_CAMPAIGN_LOCALE', 'en'),
+                                          'PERO_CAMPAIGN_ORIGIN': origin, 'PERO_CAMPAIGN_REVIEWER': reviewer['token'],
+                                          'PERO_CAMPAIGN_PROJECT': project, 'PERO_CAMPAIGN_ID': campaign,
+                                          'PERO_CAMPAIGN_OUTPUT': str(output)}, timeout=300)
+            assert run.returncode == 0, (output / 'desktop-review.log').read_text()
+            accepted = owner.request(path)['decision']
+            repeated = human.request(review_path, approval, decision_key)
+        else:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                attempts = [pool.submit(human.request, review_path, approval, decision_key) for _ in range(2)]
+                accepted, repeated = (attempt.result() for attempt in attempts)
         assert accepted == repeated and accepted['reviewer_id'] == reviewer['client']['id']
-        status_error(409, lambda: human.request(review_path, {**approval, 'choice': 'reject'}, 'decision'))
+        status_error(409, lambda: human.request(review_path, {**approval, 'choice': 'reject'}, decision_key))
         done = wait_for(lambda: owner.request(path).get('result'), 'two verified rounds', timeout=85)
         assert done['outcome'] == 'execution_completed' and done['decision'] == accepted, done
         assert len(done['trials']) == len(done['evidence']) == 2
-        assert human.request(review_path, approval, 'decision') == accepted
+        assert human.request(review_path, approval, decision_key) == accepted
         assert service.request(trial_path + '1')['run'] == first_run
         assert len(list(workspace.glob('pybamm-results/*/result.jsonl'))) == 2
         starts = []
@@ -310,4 +327,5 @@ if __name__ == '__main__':
         parser.add_argument('--' + name, required=True, type=Path)
     for name in ('database', 'python', 'checker-python'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--desktop-review', type=Path)
     acceptance(parser.parse_args())

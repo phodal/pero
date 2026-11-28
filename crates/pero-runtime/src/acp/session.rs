@@ -1,5 +1,5 @@
 use super::app_use::APP_TOOL_LOADING_CAPABILITY;
-use super::configuration::Configuration;
+use super::configuration::{Configuration, SupervisedPermission};
 use super::prompt::{
     project_prompt_blocks, prompt_blocks, PromptLayers, ReceiptMode, APP_USE_CONTEXT_CAPABILITY,
     TURN_RECEIPT_CAPABILITY,
@@ -64,6 +64,7 @@ pub struct SessionStartOptions {
     pub initial_settings: Vec<SettingSelection>,
     pub project_prompt: Option<ProjectAgentPrompt>,
     pub app_tool_loading: Option<AppToolLoading>,
+    pub supervised_permission: Option<SupervisedPermission>,
 }
 
 pub struct SessionHandle {
@@ -117,8 +118,10 @@ pub fn start_supervised(
     cwd: PathBuf,
     thread: String,
     tx: Sender<HostEvent>,
+    permission: SupervisedPermission,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, false, None, None, false, SessionStartOptions::default())
+    let options = SessionStartOptions { supervised_permission: Some(permission), ..Default::default() };
+    start_with_workspace_access(config, cwd, thread, tx, false, None, None, false, options)
 }
 
 /// Explicitly resume an existing ACP Session; never fall back to session/new.
@@ -294,7 +297,7 @@ async fn run(
     options: SessionStartOptions,
 ) -> Result<(), String> {
     config.validate_mcp()?;
-    let SessionStartOptions { initial_settings, project_prompt, app_tool_loading, quiet_reconnect } = options;
+    let SessionStartOptions { mut initial_settings, project_prompt, app_tool_loading, quiet_reconnect, supervised_permission } = options;
     let project_prompt = project_prompt.as_ref().map(project_prompt_blocks).transpose()
         .map_err(|error| error.to_string())?;
     event(
@@ -459,6 +462,10 @@ async fn run(
                 (true, false) => ReceiptMode::Record,
             };
             let initialized: InitializeResponse = serde_json::from_value(initialized).map_err(agent_client_protocol::Error::into_internal_error)?;
+            if let Some(permission) = supervised_permission
+                && let Some(mode) = permission.admit(initialized.agent_info.as_ref().map(|info| info.name.as_str()), config.gate_only()).map_err(|message| failure(message))? {
+                initial_settings.push(SettingSelection { id: "permission".into(), value: mode.into() });
+            }
             // Never start a session under a protocol version this client does not implement.
             if initialized.protocol_version != ProtocolVersion::V1 {
                 return Err(failure("Agent negotiated an unsupported ACP protocol version"));
@@ -574,9 +581,7 @@ async fn run(
                     &mut commands, &mut deferred, &tx, &thread, "Inherited session permission",
                 ).await? else {return Ok(());};
                 configuration.lock().unwrap().acknowledged(&mut session_data, response, &selection)?;
-                if !configuration.lock().unwrap().settings.options.iter().any(|option| option.id == inherited.id && option.current == inherited.value) {
-                    return Err(failure("Agent did not acknowledge the inherited permission; no prompt was started"));
-                }
+                configuration.lock().unwrap().retain(&inherited.id, &inherited.value).map_err(|message| failure(message))?;
             }
             session_data["peroSettings"] = serde_json::to_value(&configuration.lock().unwrap().settings).unwrap_or_default();
             *model_api.lock().unwrap() = ModelApi::from_session(&session_data);
@@ -593,6 +598,7 @@ async fn run(
                 configuration.lock().unwrap().refresh(&session_data)?;
                 session_data["peroSettings"] = serde_json::to_value(&configuration.lock().unwrap().settings).unwrap_or_default();
             }
+            configuration.lock().unwrap().retained().map_err(|message| failure(message))?;
             event(&tx, &thread, "session_ready", "会话已就绪", session_data.clone());
             let mut needs_authentication = false;
             loop {
@@ -604,6 +610,7 @@ async fn run(
                             SessionCommand::PromptWithContext { text, context } => (text, context),
                             _ => unreachable!("matched prompt command"),
                         };
+                        if let Err(message) = configuration.lock().unwrap().retained() { event(&tx, &thread, "session_error", message, Value::Null); continue; }
                         if needs_authentication {
                             event(&tx, &thread, "session_auth_required", "Provider authentication required", json!({ "authMethods": auth_methods }));
                             continue;

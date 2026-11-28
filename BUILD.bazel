@@ -8,6 +8,21 @@ npm_link_all_packages(name = "node_modules")
 exports_files(["ROADMAP.md"])
 
 filegroup(
+    name = "protocol_ready_harness",
+    srcs = [
+        "protocol/fixtures/protocol-ready/corpus.json",
+        "web/protocol-harness/index.html",
+        "web/protocol-harness/session.mjs",
+        "web/protocol-harness/session.test.mjs",
+        "packages/app-sdk/src/capability-client.mjs",
+        "packages/app-sdk/src/device-files.mjs",
+        "packages/app-sdk/src/resource-read.mjs",
+        "packages/app-sdk/src/run-lifecycle.mjs",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
     name = "capability_wire_corpus",
     srcs = glob([
         "protocol/fixtures/capability-wire/**",

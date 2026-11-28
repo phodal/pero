@@ -60,6 +60,8 @@ mod local_roadmap;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod project_view;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod project_deliveries;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod project_insights;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod research_projects;

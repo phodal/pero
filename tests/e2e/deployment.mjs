@@ -81,7 +81,7 @@ try {
   });
   const agents = resolve(temp, 'agents.json');
   await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'ACP acceptance fixture', command: process.execPath,
-    args: [resolve(root, 'tests/fixtures/acp-agent.mjs')], env: {} }]));
+    args: [resolve(root, 'tests/fixtures/acp-agent.mjs')], env: {}, supervision: 'gate' }]));
   const workerConfig = resolve(temp, 'worker.json');
   await writeFile(workerConfig, JSON.stringify({ workspaces: { acceptance: temp }, agents_file: agents }));
   for (const cancel of [false, true]) {

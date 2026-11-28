@@ -89,7 +89,18 @@ so retained callbacks cannot write into later attempts or reused sessions.
 `--model a --selectable-model b` enables the ACP v1 `model` select option.
 Repeat `--selectable-model` for at most 32 additional model IDs. The default
 single-model launch still returns no model selector. Every session also
-advertises a `permission` selector, defaulting to `auto-review`. These are
+advertises a `permission` selector, defaulting to `auto-review`. `read-only`
+rejects native file changes and commands that require approval. An MCP tool
+enters that gate when it has annotations and `readOnlyHint` is not true, matching
+`Annotations != nil && !ReadOnlyHint`. A tool with no annotations does not enter
+the gate. `readOnlyHint: true` does not either. The server hint is not verified. Negotiated
+`pero.mcpToolPolicy` can deny a tool, require an ask (which `read-only` then
+rejects), or leave the annotation gate in place. `full-access` asks before native
+file changes and commands and does not
+put commands in an OS sandbox; only an explicit launch `--sandbox` does.
+When a Worker peer initializes as `pero-agent-acp`, it must acknowledge
+`read-only`, or `full-access` when a native approval binding is pinned, before
+the first prompt. These are
 operator declarations, not model discovery: the existing compatible adapter
 returns detached metadata from its configured catalog without HTTP requests.
 The existing ProviderRegistry validates metadata and Agent.SelectModel validates

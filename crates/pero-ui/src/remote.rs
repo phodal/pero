@@ -252,8 +252,17 @@ impl Workbench {
         {
             self.remote.target_worker = None;
         }
+        let account_changed = self.remote.data["connection"]["url"] != event.data["connection"]["url"]
+            || self.remote.data["identity"] != event.data["identity"]
+            || self.remote.data["configured"] != event.data["configured"];
+        if account_changed {
+            self.reset_project_deliveries();
+        }
         self.remote.data = event.data.clone();
         self.reconcile_project_selection(cx);
+        if account_changed && self.project_tab == crate::projects::ProjectTab::Deliveries {
+            self.load_project_deliveries(cx);
+        }
         if !self.remote.loading() {
             self.task_more_pending = false;
         }

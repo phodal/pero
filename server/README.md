@@ -14,6 +14,10 @@ Set `PERO_GITHUB_REPOSITORIES` to a JSON array of explicit repository bindings:
 [{"project_id":"default","owner":"acme","repo":"repo","workspace_key":"default","agent_id":"codex","acceptance":"Run the project checks and report their results","auto_dispatch":false,"required_label":"pero:ready","roadmap_path":"auto"}]
 ```
 
+`agent_id` selects an agent already configured on the Worker. The shipped Codex
+entry admits that peer only because its agents file sets `"supervision": "gate"`.
+A Worker copy of this binding must keep that field; the agent id alone does not.
+
 `PERO_GITHUB_TOKEN` optionally supplies a server-only fine-grained token with
 Metadata/Issues read access for private repositories or higher public quotas.
 Without it, the connector reads public repositories. The production origin is
@@ -264,6 +268,12 @@ Start with `"mode":"pybamm_reviewed_v1"` and two ordered
 with a zero-based trial index. The response includes the exact Run reference,
 method, checker, result and observed environment digests, and bounded Run
 events. Execution status and numerical consistency are separate.
+
+In Desktop, open the shared Project and select **Campaigns** to see both rounds,
+expand the independent evidence and reopen the recorded approval. The tab uses
+`GET /api/client/v1/projects/{project}/campaigns` to discover up to 50 of the
+project's latest reviewed Campaigns. The control plane decides whether the
+signed-in Client can approve the displayed gate.
 
 A project Client sends the decision using its own bearer credential and a
 stable Idempotency-Key. The runner Client cannot submit a human decision.

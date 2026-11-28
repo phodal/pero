@@ -82,4 +82,4 @@ AI Scientist-v2 已有实验摘要、绘图和引用进入 LaTeX 写作、编译
 
 新增官方源码 checkout：`/Users/phodal/test/paper-agent-research/zotero-reader`，origin `https://github.com/zotero/reader.git`，SHA `678994c4928ea5d2e9384137683c27c333d980b8`，许可 AGPL-3.0。只读研究，未复制进 Pero；原 12 仓 manifest 保持上一轮快照。([固定提交](https://github.com/zotero/reader/commit/678994c4928ea5d2e9384137683c27c333d980b8)、[许可](https://github.com/zotero/reader/blob/678994c4928ea5d2e9384137683c27c333d980b8/COPYING#L1-L6))
 
-调研笔记：[继续发现](</Users/phodal/workspaces/pero/research_notes/Paper 用户旅程与产品对照/related-discovery.md>)、[图文与笔记](</Users/phodal/workspaces/pero/research_notes/Paper 用户旅程与产品对照/figures-notes.md>)、[写作产物](</Users/phodal/workspaces/pero/research_notes/Paper 用户旅程与产品对照/writing-outputs.md>)。
+调研笔记：[继续发现](related-discovery.md)、[图文与笔记](figures-notes.md)、[写作产物](writing-outputs.md)。

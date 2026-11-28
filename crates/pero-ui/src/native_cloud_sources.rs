@@ -6,6 +6,18 @@ use pero_contracts::{
 use serde_json::{Value, json};
 
 impl CloudSession {
+    pub(super) fn shared_project_route(&self, target: &SharedWebSourceTarget) -> Result<String, String> {
+        if !self.configured() || !self.client_mode || self.identity["role"] != "client"
+            || target.origin != self.base || self.identity["id"].as_str() != Some(target.account_id.as_str())
+            || !self.identity["projects"].as_array().is_some_and(|items| {
+                items.iter().any(|item| item.as_str() == Some(&target.project_id))
+            })
+        {
+            return Err("The shared Project or Cloud account changed. Select the destination again.".into());
+        }
+        target.project_route().ok_or_else(|| "Invalid shared Project identity".into())
+    }
+
     pub(crate) fn shared_web_sources(&self, command: &Value) -> HostEvent {
         let id = command["request_id"].as_str().map(str::to_owned);
         let mut event = HostEvent::new("project_sources_result", id, String::new());
@@ -26,25 +38,7 @@ impl CloudSession {
             && self.identity["role"] == "client"
             && account.is_some();
         let projects = self.identity["projects"].as_array();
-        let route = |target: SharedWebSourceTarget| -> Result<String, String> {
-            if !signed_in
-                || target.origin != self.base
-                || account != Some(target.account_id.as_str())
-                || !projects.is_some_and(|items| {
-                    items
-                        .iter()
-                        .any(|item| item.as_str() == Some(&target.project_id))
-                })
-            {
-                return Err(
-                    "The shared Project or Cloud account changed. Select the destination again."
-                        .into(),
-                );
-            }
-            target
-                .route()
-                .ok_or_else(|| "Invalid shared Project identity".into())
-        };
+        let route = |target: SharedWebSourceTarget| self.shared_project_route(&target).map(|path| format!("{path}/web-sources"));
         match request {
             SharedWebSourceRequest::Projects {} => {
                 let mut choices = Vec::new();

@@ -11,17 +11,21 @@ import (
 )
 
 func TestProductionHandlerObservesPersistentRun(t *testing.T) {
-	var lab, other string
+	var lab, observer, other string
 	var runID string
 	var generation int64
 	var foreignID string
 	server := testAPI(t, func(db *store.Store) http.Handler {
 		ctx := context.Background()
-		_, token, err := db.CreateClient(ctx, "Lab", []string{"lab"})
+		labClient, token, err := db.CreateClient(ctx, "Lab", []string{"lab"})
 		if err != nil {
 			t.Fatal(err)
 		}
 		lab = token
+		_, observer, err = db.CreateClient(ctx, "Lab observer", []string{"lab"})
+		if err != nil {
+			t.Fatal(err)
+		}
 		_, token, err = db.CreateClient(ctx, "Other", []string{"other"})
 		if err != nil {
 			t.Fatal(err)
@@ -32,11 +36,15 @@ func TestProductionHandlerObservesPersistentRun(t *testing.T) {
 			t.Fatal(err)
 		}
 		spec := store.Spec{Title: "Watch", Prompt: "Watch the run", Acceptance: "Seen", ProjectID: "lab", WorkspaceKey: "lab", AgentID: "fixture"}
-		task, err := db.CreateTask(ctx, spec, "watch")
+		draft, err := spec.ForClient(&labClient)
 		if err != nil {
 			t.Fatal(err)
 		}
-		run, err := db.Dispatch(ctx, task.ID, worker.ID, "watch")
+		task, err := db.ClientCreateTask(ctx, draft, "watch")
+		if err != nil {
+			t.Fatal(err)
+		}
+		run, err := db.Dispatch(ctx, task.ID, worker.ID, "dispatch-watch")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -47,7 +55,7 @@ func TestProductionHandlerObservesPersistentRun(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		foreign, err := db.Dispatch(ctx, foreignTask.ID, worker.ID, "foreign")
+		foreign, err := db.Dispatch(ctx, foreignTask.ID, worker.ID, "dispatch-foreign")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -61,7 +69,7 @@ func TestProductionHandlerObservesPersistentRun(t *testing.T) {
 		}
 	}
 	first := decodeRun(t, request(t, server, "POST", "/api/client/v1/projects/lab/runs/observe", lab, body(runID, generation, "status", "lab", false), "", 200))
-	second := decodeRun(t, request(t, server, "POST", "/api/client/v1/projects/lab/runs/observe", lab, body(runID, generation, "lookup", "lab", false), "", 200))
+	second := decodeRun(t, request(t, server, "POST", "/api/client/v1/projects/lab/runs/observe", observer, body(runID, generation, "lookup", "lab", false), "", 200))
 	if first["status"] == "" || first["status"] == "unknown" || first["status"] != second["status"] || first["effect"] != "none" {
 		t.Fatalf("production observation %#v %#v", first, second)
 	}
@@ -73,6 +81,10 @@ func TestProductionHandlerObservesPersistentRun(t *testing.T) {
 	closed := decodeRun(t, request(t, server, "POST", "/api/client/v1/projects/lab/runs/observe", other, body(runID, generation, "cancel", "lab", true), "", 403))
 	if closed["outcome"] != "revoked" || closed["status"] != nil || closed["cursor"] != nil {
 		t.Fatalf("closed %#v", closed)
+	}
+	nonOwner := decodeRun(t, request(t, server, "POST", "/api/client/v1/projects/lab/runs/observe", observer, body(runID, generation, "cancel", "lab", false), "", 404))
+	if nonOwner["effect"] != "none" || nonOwner["outcome"] != "unknown" || nonOwner["status"] != nil {
+		t.Fatalf("non-owner cancellation %#v", nonOwner)
 	}
 	staleBody := body(runID, 0, "cancel", "lab", false)
 	stale := decodeRun(t, request(t, server, "POST", "/api/client/v1/projects/lab/runs/observe", lab, staleBody, "", 409))

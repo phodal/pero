@@ -92,7 +92,7 @@ runtime: PaperQA's tool loop, Feynman's working ledger, NVIDIA's findings/gaps
 contract and FS-Researcher's recoverable source workspace. The nine actual Git
 clones, versions and license observations are recorded in
 [the source manifest](../../research_notes/Research%20Agent%20源码研究/manifest.json).
-Detailed comparison is in [the source review](../../reports/Research%20Agent%20源码研究与%20Pero%20接入建议.md).
+Detailed comparison is in [the source review](../../research_notes/Research%20Agent%20源码研究/Research%20Agent%20源码研究与%20Pero%20接入建议.md).
 
 Verification: [Paper research Agent](../fitness/paper-research-agent.md).
 

@@ -609,15 +609,23 @@ impl Workbench {
         let padding = chrome.geo(pero_theme::SPACE_8);
         let action_width = chrome.control(pero_theme::GHOST_ICON_BUTTON);
         let current = self.project_tab;
-        let tabs = ProjectTab::ALL.map(|view| {
-            pero_theme::pane_view_tab(
+        let shared = self.current_project(cx).is_some_and(|project| project.shared_id.is_some());
+        let mut views = ProjectTab::ALL.into_iter()
+            .filter(|view| *view != ProjectTab::Deliveries || shared).collect::<Vec<_>>();
+        if self.shared_web_source_target(cx).is_some() {
+            views.insert(1, ProjectTab::Campaigns);
+        }
+        let tabs = views.into_iter().map(|view| {
+            let (button, width) = pero_theme::pane_view_tab(
                 view.label_key(), self.t(view.compact_label_key()), current == view, chrome, window, cx,
-            )
-        });
+            );
+            (view, button, f32::from(width))
+        }).collect::<Vec<_>>();
         let available = width - (padding + action_width + gap) * 2.;
-        let visible = current.inspector_tabs(tabs.each_ref().map(|(_, width)| f32::from(*width)), available.into(), gap.into());
-        let hidden: Vec<_> = ProjectTab::ALL.into_iter().zip(visible)
-            .filter_map(|(view, shown)| (!shown).then(|| (view, self.t(view.label_key()))))
+        let widths = tabs.iter().map(|(view, _, width)| (*view, *width)).collect::<Vec<_>>();
+        let visible = current.inspector_tabs(&widths, available.into(), gap.into());
+        let hidden: Vec<_> = tabs.iter().zip(&visible)
+            .filter_map(|((view, _, _), shown)| (!shown).then(|| (*view, self.t(view.label_key()))))
             .collect();
         let has_hidden = !hidden.is_empty();
         let tabs = div()
@@ -625,7 +633,7 @@ impl Workbench {
             .role(Role::TabList)
             .aria_label(self.t("project.actions"))
             .flex_1().min_w_0().h_full().flex().items_center().gap(gap)
-            .children(ProjectTab::ALL.into_iter().zip(tabs).zip(visible).filter_map(|((view, (button, _)), shown)| {
+            .children(tabs.into_iter().zip(visible).filter_map(|((view, button, _), shown)| {
                 shown.then(|| {
                     let key = view.label_key();
                     let label = self.t(key);

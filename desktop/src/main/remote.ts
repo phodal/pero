@@ -29,6 +29,16 @@ const sharedSourceRead = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('read'), target: sourceTarget,
     id: z.string().regex(/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/) }),
 ]);
+const campaignID = z.string().regex(/^[A-Za-z0-9_-]{1,96}$/);
+const campaignDigest = z.string().regex(/^[a-f0-9]{64}$/);
+const campaignRequest = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('list'), target: sourceTarget }),
+  z.strictObject({ kind: z.literal('read'), target: sourceTarget, id: campaignID }),
+  z.strictObject({ kind: z.literal('review'), target: sourceTarget, id: campaignID, decision: z.strictObject({
+    gate_id: campaignID, plan_digest: campaignDigest, evidence_digest: campaignDigest,
+    choice: z.enum(['approve', 'reject']),
+  }) }),
+]);
 const ajv = new Ajv2020({ strict: false, allErrors: true });
 ajv.addSchema(schema);
 function checked<T>(name: string, value: unknown): T {
@@ -210,14 +220,24 @@ export class RemoteAdapter {
   get contributionIdentity() { return this.state.identity; }
   async sharedWebSource(input: unknown): Promise<unknown> {
     const request = sharedSourceRead.parse(input);
+    const path = await this.sharedProjectRoute(request.target) + '/web-sources';
+    return this.request(request.kind === 'read' ? `${path}/${request.id}` : path);
+  }
+  async sharedCampaign(input: unknown): Promise<unknown> {
+    const request = campaignRequest.parse(input);
+    const path = await this.sharedProjectRoute(request.target) + '/campaigns';
+    if (request.kind === 'list') return this.request(path);
+    if (request.kind === 'read') return this.request(`${path}/${request.id}`);
+    const { decision } = request;
+    return this.request(`${path}/${request.id}/review`, 'POST', decision, `desktop-${decision.gate_id}-${decision.choice}`);
+  }
+  private async sharedProjectRoute(target: z.infer<typeof sourceTarget>) {
     await this.initialize();
-    const { target } = request;
     const identity = this.state.identity;
     if (this.closed || !this.clientMode || !this.token || this.base !== target.origin ||
         identity?.role !== 'client' || identity.id !== target.accountId || !identity.projects.includes(target.projectId))
       throw new Error('The shared Project or Cloud account changed. Select the destination again.');
-    const path = `/api/client/v1/projects/${target.projectId}/web-sources`;
-    return this.request(request.kind === 'read' ? `${path}/${request.id}` : path);
+    return `/api/client/v1/projects/${target.projectId}`;
   }
   async contributionRequest(path: string, method = 'GET', body?: unknown): Promise<unknown> {
     await this.initialize();
@@ -338,6 +358,39 @@ export class RemoteAdapter {
     const command = input as Record<string, unknown>;
     if (!command || typeof command !== 'object' || JSON.stringify(command).length > 260_000) throw new Error('Invalid remote command');
     const action = String(command.action);
+    if (['remote_delivery_list', 'remote_delivery_more', 'remote_delivery_create', 'remote_delivery_read', 'remote_delivery_evidence'].includes(action)) {
+      let project = '';
+      let delivery = '';
+      let responseID: string | null = null;
+      let result;
+      try {
+        project = id(command.project);
+        responseID = id(command.response_id);
+        if (!this.clientMode || !this.state.configured) throw new Error('Connect as a Project client');
+        const route = `/api/client/v1/projects/${project}/coding-deliveries`;
+        if (action === 'remote_delivery_list') result = await this.request(route);
+        else if (action === 'remote_delivery_more') result = await this.request(`${route}?before=${id(command.before)}`);
+        else if (action === 'remote_delivery_create') {
+          result = await this.request(route, 'POST', command.manifest, id(command.request_id));
+        } else {
+          delivery = id(command.id);
+          let suffix = '';
+          if (action === 'remote_delivery_evidence') {
+            const kind = id(command.kind);
+            if (!['proposal', 'candidate', 'approval', 'report'].includes(kind)) throw new Error('Invalid evidence');
+            suffix = `/evidence/${kind}`;
+          }
+          result = await this.request(`${route}/${delivery}${suffix}`);
+        }
+      } catch (error) {
+        this.emit({ version: 1, kind: 'project_delivery', request_id: responseID, text: '',
+          data: { project, action, id: delivery, error: this.error(error) } });
+        return;
+      }
+      this.emit({ version: 1, kind: 'project_delivery', request_id: responseID, text: '',
+        data: { project, action, id: delivery, value: result } });
+      return;
+    }
     if (!['remote_refresh', 'remote_more', 'remote_select', 'remote_create', 'remote_dispatch', 'remote_cancel', 'remote_claim', 'remote_release', 'remote_sync_issues', 'remote_open_source', 'remote_configure', 'remote_disconnect', 'remote_filter', 'remote_login', 'remote_login_cancel'].includes(action)) throw new Error('Unknown remote action');
     clearTimeout(this.timer);
     this.state.loading = true;

@@ -699,13 +699,14 @@ app.whenReady().then(async () => {
         host.stdin.write(JSON.stringify(command)+'\n',error=>{if(error){clearTimeout(timer);preferenceWrites.delete(id);rejectWrite(error);}});
       });return;
     }
-    if (method === 'shared_project_sources') {
+    if (method === 'shared_project_sources' || method === 'shared_project_campaigns') {
       const { request_id, request } = command as { request_id?: unknown; request?: unknown };
       if (typeof request_id !== 'string' || !request_id || request_id.length > 128 || JSON.stringify(command).length > 4096)
         throw new Error('Invalid shared Project source reader request');
-      const data = await remote.sharedWebSource(request)
-        .then(value => ({ ok: true, value }), error => ({ ok: false, error: error instanceof Error ? error.message : 'Project sources are unavailable' }));
-      send({ version: 1, kind: 'project_sources_result', request_id, data, text: '' });
+      const campaigns = method === 'shared_project_campaigns';
+      const data = await (campaigns ? remote.sharedCampaign(request) : remote.sharedWebSource(request))
+        .then(value => ({ ok: true, value }), error => ({ ok: false, error: error instanceof Error ? error.message : 'Shared Project request failed' }));
+      send({ version: 1, kind: campaigns ? 'project_campaigns_result' : 'project_sources_result', request_id, data, text: '' });
       return;
     }
     if (method === 'project_sources') {

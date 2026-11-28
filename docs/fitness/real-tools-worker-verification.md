@@ -17,9 +17,12 @@ Checks cover:
 
 - Actual `read_file`, `list_directory`, and `search_files` success, without
   per-call permission prompts under the explicitly granted read workspace.
-- Actual `write_file`, `edit_file`, and `shell` permission requests refused by
-  the unattended Worker. Existing content stays unchanged and the shell marker
-  is never created.
+- The Worker explicitly selects and verifies the Go ACP `read-only` setting
+  before producing session readiness or sending the first prompt.
+- Actual `write_file`, `edit_file`, and `shell` attempts fail in the Go
+  session. Existing content stays unchanged and the shell marker is never
+  created. The Agent rejects these calls before asking the Worker to approve
+  them.
 - File tools reject absolute/outside paths, `..`, and both internal and escaping
   symlinks. Search skips an escaping symlink and exposes no outside sentinel.
 - Files larger than 1 MiB fail explicitly. A supported read whose encoded result
@@ -34,12 +37,19 @@ The report separates the actual tool status from the Run outcome. A Run can
 finish successfully after the model receives and acknowledges a denied/failed
 tool call; that does not mean the tool ran or the task was accepted.
 
-The Worker deliberately cannot approve calls, so this suite does not establish
-successful writes, edits, shell execution, or cancellation of an already running
-shell. Those require the separate real ACP-client allow-once tests. File-tool
+This suite exercises the default read-only Worker policy. Approved writes,
+edits, shell execution, and cancellation of an already running shell have
+separate real ACP-client allow-once tests. File-tool
 workspace containment is not an OS sandbox: an approved shell may access outside
 the workspace or the network. Database authorization/concurrency and production
 deployment are not tested by the loopback Cloud fixture.
+
+Append `--pinned` to also exercise a pinned DSH Worker. The test copies the
+production Go executable to an operator-owned temporary directory under the
+current home, outside the fixture workspace. It verifies that the explicit
+native shell policy requires an ACP decision and rejects writes, edits, and
+shell calls that lack a valid native descriptor. The same file and shell
+marker checks verify that the rejected calls have no effects.
 
 All executable hashes are checked before and after the suite. A rebuilt runtime
 must be retested; an earlier passing binary is not evidence for a changed one.

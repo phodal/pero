@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "migrations",
@@ -24,8 +24,17 @@ go_library(
         "023_run_reconciliation.sql",
         "024_research_campaigns.sql",
         "025_campaign_review.sql",
+        "026_campaign_inventory.sql",
+        "027_paper_revisions.sql",
+        "028_project_deliveries.sql",
     ],
     importpath = "github.com/phodal/pero/server/migrations",
     visibility = ["//server:__subpackages__"],
     deps = ["@com_github_jackc_pgx_v5//pgxpool"],
+)
+
+go_test(
+    name = "migrations_test",
+    srcs = ["migrate_test.go"],
+    embed = [":migrations"],
 )

@@ -1,6 +1,6 @@
 # 优先采用 Wry 与 GPUI Kit 生态
 
-**从开源生态看，Wry 是 Rust 系统 WebView 的稳妥基础，GPUI Kit 是 Pero 最直接的集成入口；GPUI Fast 值得验证，但尚属实验后端。** CEF 有成熟的嵌入生态，Rust bindings 与 GPUI 组件的社区则小得多。下面列出 2026-10-30 的 GitHub API 快照，补充前一份[技术评估](</Users/phodal/workspaces/pero/reports/Rust GPUI 原生 WebView 方案评估.md>)；本次没有编译或运行候选项目。
+**从开源生态看，Wry 是 Rust 系统 WebView 的稳妥基础，GPUI Kit 是 Pero 最直接的集成入口；GPUI Fast 值得验证，但尚属实验后端。** CEF 有成熟的嵌入生态，Rust bindings 与 GPUI 组件的社区则小得多。下面列出 2026-10-30 的 GitHub API 快照，补充前一份[技术评估](<../Rust GPUI 原生 WebView 方案评估/Rust GPUI 原生 WebView 方案评估.md>)；本次没有编译或运行候选项目。
 
 表内日期均为 2026 年 UTC。Stars/forks 是整个仓库的累计数字；最近 push 可能包含分支和标签更新，不能直接当作开发产出。未收集历史快照，因此不判断增长率、用户量或市场份额。
 
@@ -33,4 +33,4 @@ CEF 的成熟采用可以由 [OBS Browser](https://github.com/obsproject/obs-bro
 
 另有几个容易混淆的候选：[webview/webview](https://github.com/webview/webview) 有 14,328 stars / 1,095 forks，但本体是 C/C++；历史 Rust binding [Boscop/web-view](https://github.com/Boscop/web-view) 默认分支最近已见 commit 停在 2023 年，不建议新选。旧 [Julusian/rust-cef](https://github.com/Julusian/rust-cef) 已归档，应与当前 tauri-apps 项目区分。Ultralight 核心 SDK 是商业专有软件，开源 bindings 不改变这一点，不能列入开源引擎候选。([Ultralight 协议](https://ultralig.ht/terms))
 
-**对 Pero 的选择顺序仍然是：现有 Kit/Wry → 受控验证 Fast 合成 → 明确需要统一 Chromium 时验证 cef-rs/gpui-cef。** 社区调查加强了保留现有基础栈的理由，也表明 CEF 的引擎成熟度与 GPUI 接线成熟度必须分别判断。详细 API 快照与源码证据保存在[研究笔记](</Users/phodal/workspaces/pero/research_notes/Rust GPUI WebView 开源生态与社区/gpui-ecosystem.md>)及同目录指标 JSON。
+**对 Pero 的选择顺序仍然是：现有 Kit/Wry → 受控验证 Fast 合成 → 明确需要统一 Chromium 时验证 cef-rs/gpui-cef。** 社区调查加强了保留现有基础栈的理由，也表明 CEF 的引擎成熟度与 GPUI 接线成熟度必须分别判断。详细 API 快照与源码证据保存在[研究笔记](gpui-ecosystem.md)及同目录指标 JSON。

@@ -135,6 +135,9 @@ the ACP client when a prompt is required. The `auto-review` mode permits ordinar
 gated operations without a prompt; it is not an independent model review.
 In auto-review, explicit mandatory asks still reach an answerer; `--approval never` rejects
 gated operations even in auto-review mode. Modes do not install an OS sandbox.
+A Worker that selects `full-access` for a pinned native approval still runs the
+command in this process: confinement is only an explicit `--sandbox` preset.
+The Worker matches the resulting descriptor and does not add its own sandbox.
 
 This policy is **not a universal tool sandbox**. Without an operator tool policy,
 MCP tools with explicit mutating annotations enter approval; read-only hints and

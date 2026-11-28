@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "campaign_review.go",
         "campaigns.go",
+        "deliveries.go",
         "clients.go",
         "project_sources.go",
         "artifacts.go",
@@ -13,6 +14,8 @@ go_library(
         "contributions.go",
         "github.go",
         "device_transfer.go",
+        "persisted_paper.go",
+        "protocol_ready.go",
         "resource_read.go",
         "run_observe.go",
         "routes.go",
@@ -34,6 +37,7 @@ go_library(
         "//server/internal/runtimebinding",
         "//server/internal/artifacts",
         "//server/internal/devicetransfer",
+        "//server/internal/paperdomain",
         "//server/internal/resourceref",
         "//server/internal/runlifecycle",
         "//server/internal/runtimeauth",
@@ -65,6 +69,16 @@ go_test(
 )
 
 go_test(
+    name = "httpapi_protocol_test",
+    srcs = ["protocol_ready_test.go"],
+    data = ["//:protocol_ready_harness"],
+    embed = [":httpapi"],
+    deps = [
+        "//server/internal/resourceref",
+    ],
+)
+
+go_test(
     name = "httpapi_paper_test",
     srcs = ["resource_read_test.go"],
     embed = [":httpapi"],
@@ -91,6 +105,7 @@ go_test(
         "desktop_connector_test.go",
         "github_test.go",
         "integration_test.go",
+        "production_paper_test.go",
         "run_observe_store_test.go",
         "runtime_browser_test.go",
     ],
@@ -109,6 +124,7 @@ go_test(
         "//server/internal/campaign",
         "//server/internal/campaignruntime",
         "//server/internal/github",
+        "//server/internal/paperdomain",
         "//server/internal/store",
         "//server/internal/sandbox",
         "//server/internal/runtimebinding",

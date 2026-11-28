@@ -156,6 +156,13 @@ impl Workbench {
         if self.project_agent_active() {
             self.focus_project_composer(window, cx);
         }
+        // Leaving the Project lets the one-shot poll expire. Reopening restores
+        // this tab without a click, so start the read again.
+        match self.project_tab {
+            ProjectTab::Campaigns => self.refresh_campaigns(cx),
+            ProjectTab::Deliveries => self.load_project_deliveries(cx),
+            _ => {}
+        }
         cx.notify();
     }
 
@@ -207,6 +214,12 @@ impl Workbench {
         if tab == ProjectTab::ResearchResources {
             self.refresh_project_web_sources(cx);
         }
+        if tab == ProjectTab::Deliveries {
+            self.load_project_deliveries(cx);
+        }
+        if tab == ProjectTab::Campaigns {
+            self.refresh_campaigns(cx);
+        }
         if tab == ProjectTab::Sources {
             if let Some(repository) = self.listed_repositories(cx).into_iter().next() {
                 self.request_pull_request_list(&repository, self.pull_request_index.state, cx);
@@ -225,8 +238,10 @@ impl Workbench {
             .items_center()
             .gap_x(px(pero_theme::SPACE_4))
             .flex_shrink_0().flex_wrap().border_b(px(0.5)).border_color(p.border)
-            .children(ProjectTab::ALL.into_iter().enumerate()
+            .children(ProjectTab::ALL.into_iter().chain(
+                    self.shared_web_source_target(cx).map(|_| ProjectTab::Campaigns)).enumerate()
                 .filter(|(_, tab)| *tab != ProjectTab::ResearchResources || research)
+                .filter(|(_, tab)| *tab != ProjectTab::Deliveries || self.current_project(cx).is_some_and(|project| project.shared_id.is_some()))
                 .map(|(i, tab)| {
                     let label = self.t(tab.label_key());
                     let selected = self.project_tab == tab;
@@ -247,6 +262,8 @@ impl Workbench {
             ProjectTab::ResearchResources => div().id("project-resource-tab").flex_1().min_h_0()
                 .flex().flex_col().overflow_y_scroll().child(self.research_resources(cx)).into_any_element(),
             ProjectTab::Tasks => self.project_tasks(narrow, cx).into_any_element(),
+            ProjectTab::Deliveries => self.coding_delivery_panel(cx).into_any_element(),
+            ProjectTab::Campaigns => self.campaign_view(narrow, cx),
             ProjectTab::Sources => self.project_sources(cx).into_any_element(),
             ProjectTab::Execution => self.project_execution(cx).into_any_element(),
             ProjectTab::Settings => self.project_settings(cx).into_any_element(),

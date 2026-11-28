@@ -69,9 +69,13 @@ locally, as described in the [Worker runtime guide](../../crates/pero-worker/REA
 
 ```json
 [
-  { "id": "codex", "name": "Codex", "command": "/usr/local/bin/codex-acp", "args": [], "env": {} }
+  { "id": "codex", "name": "Codex", "command": "/usr/local/bin/codex-acp", "args": [], "env": {}, "supervision": "gate" }
 ]
 ```
+
+`"supervision": "gate"` admits this non-DSH agent without a DSH permission
+selector. Unattended permission requests stay denied. The agent id alone does
+not opt in; omit the field and the Worker refuses the session before the prompt.
 
 For foreground execution, set the runtime's four environment variables and run
 the installed binary directly. The `--once` option can acquire and execute one

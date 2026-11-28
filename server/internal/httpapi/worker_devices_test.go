@@ -64,13 +64,17 @@ func TestAgentWorkerReconciliationReleasesOnlyTheOriginalFence(t *testing.T) {
 		return parse[struct{ Token string }](t, request(t, api, "POST", "/api/v1/clients", "test-operator", map[string]any{"name": project, "projects": []string{project}}, "", 201)).Token
 	}
 	owner, outsider := client("team"), client("private")
-	device := parse[struct {
+	type enrolled struct {
 		Worker store.Worker
 		Token  string
-	}](t, request(t, api, "POST", "/api/client/v1/workers", owner, store.WorkerEnrollmentRequest{
-		DeviceID: "device", RequestID: "enroll", Name: "Agent Worker", Projects: []string{"team"},
-		Capabilities: []store.WorkerCapability{{ProjectID: "team", WorkspaceKey: "repo", AgentID: "fixture"}}, EnrollmentSecret: strings.Repeat("ab", 32),
-	}, "", 200))
+	}
+	enroll := func(identity, secret string) enrolled {
+		return parse[enrolled](t, request(t, api, "POST", "/api/client/v1/workers", owner, store.WorkerEnrollmentRequest{
+			DeviceID: identity, RequestID: "enroll", Name: identity, Projects: []string{"team"},
+			Capabilities: []store.WorkerCapability{{ProjectID: "team", WorkspaceKey: "repo", AgentID: "fixture"}}, EnrollmentSecret: strings.Repeat(secret, 32),
+		}, "", 200))
+	}
+	device, successor := enroll("original-device", "ab"), enroll("successor-device", "cd")
 	input := store.TrialInput{WorkerID: device.Worker.ID, Task: store.Spec{
 		Title: "Recovery", Prompt: "Run fixture", Acceptance: "Observed", ProjectID: "team", WorkspaceKey: "repo", AgentID: "fixture",
 	}}
@@ -80,10 +84,10 @@ func TestAgentWorkerReconciliationReleasesOnlyTheOriginalFence(t *testing.T) {
 		t.Fatal("missing original Run")
 	}
 	ref := *original.Run
-	claim := func(key, instance string) *store.Run {
-		return parse[struct{ Run *store.Run }](t, request(t, api, "POST", "/api/worker/v1/claims", device.Token, map[string]string{"request_id": key, "instance_id": instance}, "", 200)).Run
+	claim := func(token, key, instance string) *store.Run {
+		return parse[struct{ Run *store.Run }](t, request(t, api, "POST", "/api/worker/v1/claims", token, map[string]string{"request_id": key, "instance_id": instance}, "", 200)).Run
 	}
-	if run := claim("original-claim", "old-instance"); run == nil || run.Ref() != ref {
+	if run := claim(device.Token, "original-claim", "old-instance"); run == nil || run.Ref() != ref {
 		t.Fatalf("original execution was not claimed: %+v", run)
 	}
 	operatorPath := fmt.Sprintf("/api/v1/tasks/%s/runs/%s/reconciliation?generation=%d", ref.TaskID, ref.RunID, ref.Generation)
@@ -97,7 +101,13 @@ func TestAgentWorkerReconciliationReleasesOnlyTheOriginalFence(t *testing.T) {
 	request(t, api, "GET", clientPath, outsider, nil, "", 404)
 	request(t, api, "PUT", operatorPath, "test-operator", store.RunReconciliationDecision{Disposition: "unknown", Evidence: "host unreachable"}, "", 400)
 	request(t, api, "POST", disablePath, owner, struct{}{}, "", 409)
-	if run := claim("quarantined", "next-instance"); run != nil {
+	dispatchPath := "/api/client/v1/tasks/" + ref.TaskID + "/dispatch"
+	destination := map[string]string{"worker_id": successor.Worker.ID}
+	request(t, api, "POST", dispatchPath, owner, destination, "explicit-next-generation", 409)
+	if run := claim(successor.Token, "no-automatic-takeover", "successor-instance"); run != nil {
+		t.Fatalf("unresolved execution was automatically assigned to the successor: %+v", run)
+	}
+	if run := claim(device.Token, "quarantined", "next-instance"); run != nil {
 		t.Fatalf("unresolved Run released the Worker: %+v", run)
 	}
 	read := func() *store.RunReconciliation {
@@ -110,15 +120,19 @@ func TestAgentWorkerReconciliationReleasesOnlyTheOriginalFence(t *testing.T) {
 	if got := read(); got == nil || got.Run != ref || got.RunReconciliationDecision != decision || !got.RecordedAt.Equal(recorded.RecordedAt) {
 		t.Fatalf("wrong reconciliation receipt: %+v", got)
 	}
-	if run := claim("after-review", "next-instance"); run != nil {
+	if run := claim(device.Token, "after-review", "next-instance"); run != nil {
 		t.Fatalf("reconciliation implicitly requeued an execution: %+v", run)
 	}
-	if run := claim("original-claim", "old-instance"); run == nil || run.Ref() != ref || run.Status != "reconcile" || run.Summary != "Execution result was lost" {
+	if run := claim(device.Token, "original-claim", "old-instance"); run == nil || run.Ref() != ref || run.Status != "reconcile" || run.Summary != "Execution result was lost" {
 		t.Fatalf("historical Run was rewritten: %+v", run)
 	}
-	next := parse[store.Run](t, request(t, api, "POST", "/api/client/v1/tasks/"+ref.TaskID+"/dispatch", owner, map[string]string{"worker_id": device.Worker.ID}, "explicit-next-generation", 200))
-	if run := claim("new-generation", "next-instance"); run == nil || run.ID != next.ID || run.Generation != ref.Generation+1 {
-		t.Fatalf("Workspace could not accept the new generation: %+v", run)
+	next := parse[store.Run](t, request(t, api, "POST", dispatchPath, owner, destination, "explicit-next-generation", 200))
+	if run := claim(successor.Token, "new-generation", "successor-instance"); run == nil || run.ID != next.ID || run.ID == ref.RunID || run.TaskID != ref.TaskID || run.Generation != ref.Generation+1 || run.WorkerID != successor.Worker.ID {
+		t.Fatalf("Successor did not claim the new generation: %+v", run)
+	}
+	nextReplay := parse[store.Run](t, request(t, api, "POST", dispatchPath, owner, destination, "explicit-next-generation", 200))
+	if nextReplay.Ref() != next.Ref() {
+		t.Fatalf("retrying dispatch forked the next generation: %+v", nextReplay)
 	}
 	replay := parse[store.RunReconciliation](t, request(t, api, "PUT", operatorPath, "test-operator", decision, "", 200))
 	if replay.Run != ref || !replay.RecordedAt.Equal(recorded.RecordedAt) {
@@ -126,6 +140,10 @@ func TestAgentWorkerReconciliationReleasesOnlyTheOriginalFence(t *testing.T) {
 	}
 	request(t, api, "PUT", operatorPath, "test-operator", store.RunReconciliationDecision{Disposition: store.RunConfirmedNotStarted, Evidence: "different evidence"}, "", 409)
 	request(t, api, "POST", completePath, device.Token, map[string]any{"generation": ref.Generation, "instance_id": "old-instance", "outcome": "succeeded"}, "", 409)
-	request(t, api, "POST", "/api/worker/v1/runs/"+next.ID+"/complete", device.Token, map[string]any{"generation": next.Generation, "instance_id": "next-instance", "outcome": "succeeded"}, "", 200)
+	request(t, api, "POST", "/api/worker/v1/runs/"+ref.RunID+"/renew", device.Token, map[string]any{"generation": ref.Generation, "instance_id": "old-instance"}, "", 409)
+	request(t, api, "POST", "/api/worker/v1/runs/"+next.ID+"/complete", successor.Token, map[string]any{"generation": next.Generation, "instance_id": "successor-instance", "outcome": "succeeded"}, "", 200)
+	if saved := read(); saved == nil || saved.Run != ref || !saved.RecordedAt.Equal(recorded.RecordedAt) {
+		t.Fatalf("completing the new generation replaced the original receipt: %+v", saved)
+	}
 	request(t, api, "POST", disablePath, owner, struct{}{}, "", 200)
 }
