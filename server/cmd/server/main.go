@@ -14,11 +14,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/phodal/pero/server/internal/campaignruntime"
 	"github.com/phodal/pero/server/internal/community"
 	"github.com/phodal/pero/server/internal/github"
 	"github.com/phodal/pero/server/internal/httpapi"
 	"github.com/phodal/pero/server/internal/sandbox"
 	"github.com/phodal/pero/server/internal/store"
+	"go.temporal.io/sdk/client"
 )
 
 func main() {
@@ -79,10 +81,23 @@ func run() error {
 		runtime = profile.Runtime
 		runtime.Start(ctx)
 	}
-	api := httpapi.HandlerWithSandbox(db, token, runtime, sources)
+	options := httpapi.ServerOptions{Runtime: runtime, GitHub: sources}
 	if profile != nil && profile.Gateway != nil {
-		api = httpapi.HandlerWithIsolatedRuntime(db, token, runtime, profile.Gateway, profile.Reviewer, profile.Objects, sources)
+		options.Gateway, options.Reviewer, options.Objects = profile.Gateway, profile.Reviewer, profile.Objects
 	}
+	if addr := os.Getenv("PERO_TEMPORAL_ADDRESS"); addr != "" {
+		runner := os.Getenv("PERO_CAMPAIGN_RUNNER_CLIENT_ID")
+		if runner == "" {
+			return fmt.Errorf("PERO_CAMPAIGN_RUNNER_CLIENT_ID is required with PERO_TEMPORAL_ADDRESS")
+		}
+		temporalClient, err := client.NewLazyClient(client.Options{HostPort: addr, Namespace: os.Getenv("PERO_TEMPORAL_NAMESPACE")})
+		if err != nil {
+			return err
+		}
+		defer temporalClient.Close()
+		options.Campaigns = &httpapi.ResearchCampaigns{Temporal: campaignruntime.Temporal{Client: temporalClient}, RunnerClientID: runner}
+	}
+	api := httpapi.ServerHandler(db, token, options)
 	handler, err := community.Handler(db, token, community.FromEnv(), api)
 	if err != nil {
 		return err

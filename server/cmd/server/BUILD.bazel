@@ -6,11 +6,13 @@ go_library(
     importpath = "github.com/phodal/pero/server/cmd/server",
     visibility = ["//visibility:private"],
     deps = [
+        "//server/internal/campaignruntime",
         "//server/internal/community",
         "//server/internal/github",
         "//server/internal/httpapi",
         "//server/internal/store",
         "//server/internal/sandbox",
+        "@io_temporal_go_sdk//client",
     ],
 )
 
