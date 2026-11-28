@@ -36,7 +36,8 @@ pub(crate) struct DeliveryState {
     detail: Value,
     evidence: Value,
     error: String,
-    waiting: bool,
+    next_cursor: String,
+    pending: Option<String>,
     request: Option<String>,
     runs: [Option<DeliveryRunChoice>; 3],
     title: Entity<InputState>,
@@ -67,7 +68,8 @@ impl DeliveryState {
             detail: Value::Null,
             evidence: Value::Null,
             error: String::new(),
-            waiting: false,
+            next_cursor: String::new(),
+            pending: None,
             request: None,
             runs: Default::default(),
             title,
@@ -87,13 +89,36 @@ impl DeliveryState {
         self.detail = Value::Null;
         self.evidence = Value::Null;
         self.error.clear();
+        self.next_cursor.clear();
+        self.pending = None;
         self.request = None;
         self.runs = Default::default();
     }
 }
 
 impl Workbench {
+    pub(crate) fn reset_project_deliveries(&mut self) {
+        self.deliveries.select_project(String::new());
+    }
+
+    pub(crate) fn fail_delivery_request(&mut self, request: &str) {
+        if self.deliveries.pending.as_deref() == Some(request) {
+            self.deliveries.pending = None;
+            self.deliveries.error = self.t("error.connection").to_owned();
+        }
+    }
+
+    fn send_delivery(&mut self, mut command: Value, cx: &mut Context<Self>) {
+        let id = uuid::Uuid::new_v4().to_string();
+        command["response_id"] = json!(id);
+        self.deliveries.pending = Some(id);
+        self.command(command, cx);
+    }
+
     pub(crate) fn load_project_deliveries(&mut self, cx: &mut Context<Self>) {
+        if !self.remote.client() {
+            return;
+        }
         let Some(project) = self
             .current_project(cx)
             .and_then(|project| project.shared_id)
@@ -101,8 +126,7 @@ impl Workbench {
             return;
         };
         self.deliveries.select_project(project.clone());
-        self.deliveries.waiting = true;
-        self.command(
+        self.send_delivery(
             json!({"action":"remote_delivery_list","project":project}),
             cx,
         );
@@ -116,10 +140,10 @@ impl Workbench {
         if event.kind != "project_delivery" {
             return false;
         }
-        if string(&event.data, "project") != self.deliveries.project {
+        if self.deliveries.pending.is_none() || event.request_id != self.deliveries.pending {
             return true;
         }
-        self.deliveries.waiting = false;
+        self.deliveries.pending = None;
         self.deliveries.error = string(&event.data, "error").to_owned();
         let value = &event.data["value"];
         if self.deliveries.error.is_empty() {
@@ -127,14 +151,17 @@ impl Workbench {
                 "remote_delivery_list" => {
                     self.deliveries.records =
                         value["deliveries"].as_array().cloned().unwrap_or_default();
+                    self.deliveries.next_cursor = string(value, "next_cursor").to_owned();
                     self.deliveries.choices = value["runs"].as_array().into_iter().flatten().map(|run| {
                         let title = string(run, "title");
                         let worker = string(run, "worker_name").to_owned();
                         let generation = run["generation"].as_i64().unwrap_or_default();
+                        let id = string(run, "run_id");
+                        let display_id = id.trim_start_matches("run_").chars().take(10).collect::<String>();
                         let label = if worker.is_empty() {
-                            format!("{title} · #{generation}")
+                            format!("{title} · #{generation} · {display_id}")
                         } else {
-                            format!("{title} · {worker} · #{generation}")
+                            format!("{title} · {worker} · #{generation} · {display_id}")
                         };
                         DeliveryRunChoice {
                             label, worker,
@@ -144,6 +171,16 @@ impl Workbench {
                     if !self.deliveries.selected.is_empty() {
                         self.open_delivery(self.deliveries.selected.clone(), cx);
                     }
+                }
+                "remote_delivery_more" => {
+                    self.deliveries.next_cursor = string(value, "next_cursor").to_owned();
+                    self.deliveries.records.extend(
+                        value["deliveries"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .cloned(),
+                    );
                 }
                 "remote_delivery_create" => {
                     self.deliveries.request = None;
@@ -179,8 +216,7 @@ impl Workbench {
             self.deliveries.detail = Value::Null;
             self.deliveries.evidence = Value::Null;
         }
-        self.deliveries.waiting = true;
-        self.command(
+        self.send_delivery(
             json!({"action":"remote_delivery_read","project":self.deliveries.project,"id":id}),
             cx,
         );
@@ -230,7 +266,7 @@ impl Workbench {
                                                 .projects
                                                 .probe("delivery:refresh".into()),
                                         )
-                                        .disabled(self.deliveries.waiting)
+                                        .disabled(self.deliveries.pending.is_some())
                                         .on_click(cx.listener(|this, _, _, cx| {
                                             this.load_project_deliveries(cx)
                                         })),
@@ -240,7 +276,7 @@ impl Workbench {
                                         .primary()
                                         .small()
                                         .label(self.t("delivery.link"))
-                                        .disabled(self.deliveries.waiting)
+                                        .disabled(self.deliveries.pending.is_some())
                                         .on_click(cx.listener(|this, _, window, cx| {
                                             this.deliveries.request =
                                                 Some(uuid::Uuid::new_v4().to_string());
@@ -265,7 +301,7 @@ impl Workbench {
                                     .child(self.deliveries.error.clone()),
                             )
                         })
-                        .when(self.deliveries.waiting, |el| {
+                        .when(self.deliveries.pending.is_some(), |el| {
                             el.child(
                                 div()
                                     .text_color(palette.text_muted)
@@ -278,7 +314,7 @@ impl Workbench {
                         .when(self.deliveries.request.is_none(), |el| {
                             el.when(
                                 self.deliveries.records.is_empty()
-                                    && !self.deliveries.waiting
+                                    && self.deliveries.pending.is_none()
                                     && self.deliveries.error.is_empty(),
                                 |el| {
                                     el.child(
@@ -304,7 +340,7 @@ impl Workbench {
                                             .justify_start()
                                             .label(string(record, "title").to_owned())
                                             .toggled(id == self.deliveries.selected)
-                                            .disabled(self.deliveries.waiting)
+                                            .disabled(self.deliveries.pending.is_some())
                                             .relative()
                                             .child(
                                                 self.view_bounds
@@ -317,6 +353,15 @@ impl Workbench {
                                     },
                                 ),
                             ))
+                            .when(!self.deliveries.next_cursor.is_empty(), |el| {
+                                el.child(Button::new("more-deliveries").ghost().small()
+                                    .label(self.t("project.show_more")).disabled(self.deliveries.pending.is_some())
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.send_delivery(json!({"action":"remote_delivery_more",
+                                            "project":this.deliveries.project,"before":this.deliveries.next_cursor}), cx);
+                                        cx.notify();
+                                    })))
+                            })
                             .when(self.deliveries.detail.is_object(), |el| {
                                 el.child(self.delivery_detail(cx))
                             })
@@ -333,7 +378,7 @@ impl Workbench {
             && base
                 .bytes()
                 .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c));
-        let disabled = self.deliveries.waiting
+        let disabled = self.deliveries.pending.is_some()
             || title.is_empty()
             || !valid_base
             || self.deliveries.runs[0].is_none();
@@ -352,7 +397,7 @@ impl Workbench {
                 let current = self.deliveries.runs[slot].as_ref();
                 let selected = current.map(|choice| choice.label.clone()).unwrap_or_else(|| self.t(label).to_owned());
                 let clear = self.t("delivery.clear");
-                let busy = self.deliveries.waiting;
+                let busy = self.deliveries.pending.is_some();
                 Button::new(("delivery-stage-choice", slot)).outline().small()
                     .label(selected).accessibility_label(self.t(label))
                     .dropdown_caret(true).disabled(busy || choices.is_empty())
@@ -392,8 +437,7 @@ impl Workbench {
                                 manifest[*key] = choice.reference.clone();
                             }
                         }
-                        this.deliveries.waiting = true;
-                        this.command(json!({"action":"remote_delivery_create","project":this.deliveries.project,"request_id":request,"manifest":manifest}), cx);
+                        this.send_delivery(json!({"action":"remote_delivery_create","project":this.deliveries.project,"request_id":request,"manifest":manifest}), cx);
                         cx.notify();
                     })))
                 .child(Button::new("cancel-delivery-link").ghost().small().label(self.t("delivery.cancel"))
@@ -459,11 +503,10 @@ impl Workbench {
                 .child(div().flex().flex_wrap().gap(px(6.)).children(EVIDENCE.into_iter().enumerate().filter_map(|(index, (key,label))| {
                     if !detail[key].is_object() { return None; }
                     Some(Button::new(("delivery-evidence", index)).outline().small().label(self.t(label))
-                        .disabled(self.deliveries.waiting)
+                        .disabled(self.deliveries.pending.is_some())
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.deliveries.evidence = Value::Null;
-                            this.deliveries.waiting = true;
-                            this.command(json!({"action":"remote_delivery_evidence","project":this.deliveries.project,"id":this.deliveries.selected,"kind":key}), cx);
+                            this.send_delivery(json!({"action":"remote_delivery_evidence","project":this.deliveries.project,"id":this.deliveries.selected,"kind":key}), cx);
                             cx.notify();
                         })))
                 }))))

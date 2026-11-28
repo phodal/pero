@@ -358,15 +358,18 @@ export class RemoteAdapter {
     const command = input as Record<string, unknown>;
     if (!command || typeof command !== 'object' || JSON.stringify(command).length > 260_000) throw new Error('Invalid remote command');
     const action = String(command.action);
-    if (['remote_delivery_list', 'remote_delivery_create', 'remote_delivery_read', 'remote_delivery_evidence'].includes(action)) {
+    if (['remote_delivery_list', 'remote_delivery_more', 'remote_delivery_create', 'remote_delivery_read', 'remote_delivery_evidence'].includes(action)) {
       let project = '';
       let delivery = '';
+      let responseID: string | null = null;
       let result;
       try {
         project = id(command.project);
+        responseID = id(command.response_id);
         if (!this.clientMode || !this.state.configured) throw new Error('Connect as a Project client');
         const route = `/api/client/v1/projects/${project}/coding-deliveries`;
         if (action === 'remote_delivery_list') result = await this.request(route);
+        else if (action === 'remote_delivery_more') result = await this.request(`${route}?before=${id(command.before)}`);
         else if (action === 'remote_delivery_create') {
           result = await this.request(route, 'POST', command.manifest, id(command.request_id));
         } else {
@@ -380,11 +383,11 @@ export class RemoteAdapter {
           result = await this.request(`${route}/${delivery}${suffix}`);
         }
       } catch (error) {
-        this.emit({ version: 1, kind: 'project_delivery', request_id: null, text: '',
+        this.emit({ version: 1, kind: 'project_delivery', request_id: responseID, text: '',
           data: { project, action, id: delivery, error: this.error(error) } });
         return;
       }
-      this.emit({ version: 1, kind: 'project_delivery', request_id: null, text: '',
+      this.emit({ version: 1, kind: 'project_delivery', request_id: responseID, text: '',
         data: { project, action, id: delivery, value: result } });
       return;
     }

@@ -560,6 +560,9 @@ impl Workbench {
             self.pending_project_workspace = false;
         }
         if session_command(&value.to_string()).is_err() {
+            if let Some(id) = value["response_id"].as_str() {
+                self.fail_delivery_request(id);
+            }
             if value["method"] == "project_agent" {
                 if let Some(id) = value["request_id"].as_str() {
                     self.fail_project_agent_request(id, cx);

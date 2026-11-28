@@ -152,7 +152,7 @@ impl CloudSession {
         if !action.starts_with("remote_") {
             return None;
         }
-        let event = if matches!(action, "remote_delivery_list" | "remote_delivery_create" | "remote_delivery_read" | "remote_delivery_evidence") {
+        let event = if matches!(action, "remote_delivery_list" | "remote_delivery_more" | "remote_delivery_create" | "remote_delivery_read" | "remote_delivery_evidence") {
             self.coding_delivery(action, value)
         } else if action.starts_with("remote_contribution_") {
             self.contribution(action, value)

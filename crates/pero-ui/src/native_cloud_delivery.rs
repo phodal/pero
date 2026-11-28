@@ -6,7 +6,11 @@ impl CloudSession {
     pub(super) fn coding_delivery(&self, action: &str, value: &Value) -> HostEvent {
         let project = identifier(value.get("project"));
         let requested_id = identifier(value.get("id"));
-        let mut event = HostEvent::new("project_delivery", None, String::new());
+        let mut event = HostEvent::new(
+            "project_delivery",
+            identifier(value.get("response_id")),
+            String::new(),
+        );
         let result = (|| {
             let project = project.as_ref().ok_or("Invalid Project")?;
             if !self.configured() || !self.client_mode {
@@ -15,6 +19,10 @@ impl CloudSession {
             let route = format!("/api/client/v1/projects/{project}/coding-deliveries");
             if action == "remote_delivery_list" {
                 return self.get(&route);
+            }
+            if action == "remote_delivery_more" {
+                let cursor = identifier(value.get("before")).ok_or("Invalid delivery cursor")?;
+                return self.get(&format!("{route}?before={cursor}"));
             }
             if action == "remote_delivery_create" {
                 let request = identifier(value.get("request_id")).ok_or("Invalid request")?;

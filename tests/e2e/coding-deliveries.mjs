@@ -62,6 +62,9 @@ try {
   const project = 'delivery-' + randomUUID().slice(0, 8);
   const other = project + '-other';
   const account = await api('/api/v1/clients', operator, { name: 'Project collaborator', projects: [project, other] });
+  const outsider = await api('/api/v1/clients', operator, {
+    name: 'Separate account', projects: [other],
+  });
   const stages = {};
   for (const [stage, worker, agent] of [
     ['analysis', 'Mac Studio', 'dsh-go'],
@@ -128,7 +131,15 @@ try {
   await click('delivery:record:' + delivery.id);
   await bounds(`delivery:status:${runId}:cancelled`);
   await page.screenshot({ path: join(output, 'coding-delivery.png'), scale: 'css' });
-  console.log('Desktop retained three exact Runs through refresh and restored the delivery tab after switching Projects.');
+  await page.evaluate(command => window.pero.remoteCommand(command), {
+    action: 'remote_configure', mode: 'client', url: origin, token: outsider.token,
+  });
+  await expect.poll(async () => (await snapshot()).remote.state.identity?.id).toBe(outsider.client.id);
+  await expect.poll(async () => {
+    const controls = (await snapshot()).projectControls;
+    return Boolean(controls['delivery:record:' + delivery.id] || controls['delivery:run:' + runId]);
+  }).toBe(false);
+  console.log('Desktop retained three exact Runs through refresh and Project switching, and cleared them on account change.');
 } catch (error) {
   await page?.screenshot({ path: join(output, 'coding-delivery-failure.png'), scale: 'css' }).catch(() => {});
   throw error;
