@@ -15,6 +15,8 @@ pub(super) struct CampaignsView {
     inventory: Option<Vec<Summary>>,
     selected: Option<String>,
     detail: Option<Detail>,
+    /// Last read replaced live progress with an outage. Cards keep the previous runs.
+    stale: bool,
     receipt: Option<Decision>,
     request: Option<(String, Request)>,
     poll: Option<Task<()>>,
@@ -40,13 +42,13 @@ struct Summary {
     title: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 struct Plan {
     id: String,
     project_id: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 struct Detail {
     plan: Plan,
     phase: String,
@@ -57,7 +59,7 @@ struct Detail {
     decision: Option<Decision>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 struct Progress {
     outcome: Option<String>,
     trials: Vec<Trial>,
@@ -66,20 +68,20 @@ struct Progress {
     review_gate: Option<Gate>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 struct Trial {
     status: String,
     run: Option<Run>,
 }
 
-#[derive(Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
 struct Run {
     run_id: String,
     task_id: String,
     generation: u64,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 struct Evidence {
     status: String,
     experiment: String,
@@ -92,7 +94,7 @@ struct Evidence {
     reason: Option<String>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 struct Gate {
     id: String,
     plan_digest: String,
@@ -100,7 +102,7 @@ struct Gate {
     expires_at: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 struct Decision {
     gate_id: String,
     choice: String,
@@ -125,6 +127,29 @@ impl Detail {
             .filter(|e| e.status == "consistent" && e.digest == gate.evidence_digest)
             .map(|_| gate)
     }
+}
+
+/// A live outage omits progress. Keep the last runs for this campaign and mark
+/// the read stale so review stays disabled until an authoritative payload returns.
+fn retain_observed_campaign(previous: Option<&Detail>, next: Detail) -> (Detail, bool) {
+    let Some(previous) = previous.filter(|item| {
+        item.plan.id == next.plan.id && (item.progress.is_some() || item.result.is_some())
+    }) else {
+        return (next, false);
+    };
+    if next.phase != "unavailable" || next.progress.is_some() || next.result.is_some() {
+        return (next, false);
+    }
+    let mut retained = next;
+    retained.progress = previous.progress.clone();
+    retained.result = previous.result.clone();
+    if retained.decision.is_none() {
+        retained.decision = previous.decision.clone();
+    }
+    if retained.trial_titles.is_empty() {
+        retained.trial_titles = previous.trial_titles.clone();
+    }
+    (retained, true)
 }
 
 impl Workbench {
@@ -222,6 +247,7 @@ impl Workbench {
                     {
                         view.selected = campaigns.first().map(|item| item.id.clone());
                         view.detail = None;
+                        view.stale = false;
                         view.receipt = None;
                         view.expanded = [false; 2];
                     }
@@ -236,7 +262,9 @@ impl Workbench {
                         && Some(detail.plan.project_id.as_str())
                             == target.as_ref().map(|value| value.project_id.as_str()) =>
                 {
-                    let live = detail.result.is_none();
+                    let (detail, stale) = retain_observed_campaign(view.detail.as_ref(), detail);
+                    let live = stale || detail.result.is_none();
+                    view.stale = stale;
                     view.detail = Some(detail);
                     if live {
                         self.schedule_campaign_poll(cx);
@@ -280,7 +308,7 @@ impl Workbench {
         if view.target.is_none() || view.target != self.shared_web_source_target(cx) {
             return Value::Null;
         }
-        json!({"detail":view.detail,"receipt":view.receipt,"expanded":view.expanded,"error":view.error})
+        json!({"detail":view.detail,"receipt":view.receipt,"expanded":view.expanded,"error":view.error,"stale":view.stale})
     }
 
     pub(crate) fn campaign_view(&self, narrow: bool, cx: &mut Context<Self>) -> AnyElement {
@@ -295,16 +323,21 @@ impl Workbench {
                 view.request.as_ref(),
                 Some((_, Request::List | Request::Review(_)))
             );
+        let stale = current && view.stale;
         let detail = view.detail.as_ref().filter(|_| current);
         let progress = detail.and_then(Detail::progress);
         let receipt = detail
             .and_then(|d| d.decision.as_ref())
             .or(view.receipt.as_ref().filter(|_| current));
-        let phase = detail.and_then(|d| {
-            progress
-                .and_then(|r| r.outcome.as_deref())
-                .or(Some(&d.phase))
-        });
+        let phase = if stale {
+            Some("unavailable")
+        } else {
+            detail.and_then(|d| {
+                progress
+                    .and_then(|r| r.outcome.as_deref())
+                    .or(Some(&d.phase))
+            })
+        };
         let header = div()
             .flex()
             .items_center()
@@ -342,6 +375,16 @@ impl Workbench {
             .flex_col()
             .gap(px(16.))
             .child(header)
+            .when(stale, |el| {
+                el.child(
+                    div()
+                        .id("campaign-stale")
+                        .role(Role::Status)
+                        .text_color(p.text_muted)
+                        .whitespace_normal()
+                        .child(self.t("campaign.stale")),
+                )
+            })
             .when_some(view.error.as_ref().filter(|_| current), |el, error| {
                 el.child(
                     div()
@@ -390,6 +433,7 @@ impl Workbench {
                                 let view = &mut this.research.campaigns;
                                 view.selected = Some(id.clone());
                                 view.detail = None;
+                                view.stale = false;
                                 view.receipt = None;
                                 view.expanded = [false; 2];
                                 this.request_campaigns(Request::Read, cx);
@@ -462,7 +506,7 @@ impl Workbench {
                 )
             })
             .when_some(
-                detail.filter(|d| d.phase == "awaiting_review" && receipt.is_none()),
+                detail.filter(|d| !stale && d.phase == "awaiting_review" && receipt.is_none()),
                 |el, detail| {
                     el.child(
                         div()
@@ -714,5 +758,104 @@ impl Workbench {
             "verifying" => "campaign.verifying",
             _ => "campaign.in_progress",
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{retain_observed_campaign, Detail};
+
+    fn detail(json: &str) -> Detail {
+        serde_json::from_str(json).expect("campaign detail")
+    }
+
+    fn observed() -> Detail {
+        detail(
+            r#"{
+            "plan":{"id":"campaign","project_id":"project"},
+            "phase":"awaiting_review",
+            "can_review":true,
+            "trial_titles":["First","Second"],
+            "progress":{
+                "trials":[
+                    {"status":"succeeded","run":{"run_id":"run-1","task_id":"task-1","generation":1}},
+                    {"status":"not_started"}
+                ],
+                "evidence":[{
+                    "status":"consistent",
+                    "experiment":"c05",
+                    "run":{"run_id":"run-1","task_id":"task-1","generation":1},
+                    "digest":"abc",
+                    "method_digest":"method",
+                    "checker_digest":"checker"
+                }],
+                "review_gate":{
+                    "id":"gate",
+                    "plan_digest":"plan",
+                    "evidence_digest":"abc",
+                    "expires_at":"2026-11-28T00:00:00Z"
+                }
+            }
+        }"#,
+        )
+    }
+
+    fn unavailable() -> Detail {
+        detail(
+            r#"{
+            "plan":{"id":"campaign","project_id":"project"},
+            "phase":"unavailable",
+            "can_review":true,
+            "trial_titles":["First","Second"]
+        }"#,
+        )
+    }
+
+    #[test]
+    fn retains_observed_runs_when_live_progress_is_unavailable() {
+        assert!(observed().review_gate().is_some());
+        let (retained, stale) = retain_observed_campaign(Some(&observed()), unavailable());
+        assert!(stale);
+        assert_eq!(retained.phase, "unavailable");
+        assert!(retained.review_gate().is_none());
+        let progress = retained.progress().expect("retained progress");
+        assert_eq!(progress.trials[0].status, "succeeded");
+        assert_eq!(progress.trials[1].status, "not_started");
+        assert_eq!(progress.evidence[0].status, "consistent");
+        assert_eq!(progress.evidence[0].digest, "abc");
+        assert!(progress.review_gate.is_some());
+    }
+
+    #[test]
+    fn leaves_campaign_empty_when_progress_was_never_observed() {
+        let (retained, stale) = retain_observed_campaign(None, unavailable());
+        assert!(!stale);
+        assert!(retained.progress.is_none());
+        assert!(retained.review_gate().is_none());
+    }
+
+    #[test]
+    fn replaces_retained_runs_when_authoritative_progress_returns() {
+        let mut returned = observed();
+        returned.phase = "waiting".into();
+        returned.progress.as_mut().unwrap().trials[0].status = "running".into();
+        let (retained, stale) = retain_observed_campaign(Some(&observed()), returned);
+        assert!(!stale);
+        assert_eq!(retained.phase, "waiting");
+        assert_eq!(
+            retained.progress.as_ref().unwrap().trials[0].status,
+            "running"
+        );
+        assert!(retained.review_gate().is_none());
+    }
+
+    #[test]
+    fn does_not_keep_runs_from_a_different_campaign() {
+        let mut other = unavailable();
+        other.plan.id = "other".into();
+        let (retained, stale) = retain_observed_campaign(Some(&observed()), other);
+        assert!(!stale);
+        assert!(retained.progress.is_none());
+        assert_eq!(retained.plan.id, "other");
     }
 }

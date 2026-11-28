@@ -6,6 +6,7 @@
   "campaign.loading": "正在加载研究流程…",
   "campaign.empty": "此共享项目暂无需要审批的研究流程。",
   "campaign.unavailable": "暂时无法获取研究流程状态",
+  "campaign.stale": "实时进度暂时不可用。仍显示上次观察到的试验和证据，状态恢复前不能审批。",
   "campaign.receipt": "审批回执",
   "campaign.approved": "已批准后续试验",
   "campaign.rejected": "已拒绝后续试验",

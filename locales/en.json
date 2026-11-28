@@ -6,6 +6,7 @@
   "campaign.loading": "Loading campaigns…",
   "campaign.empty": "There are no reviewed campaigns in this shared Project.",
   "campaign.unavailable": "Campaign status is unavailable",
+  "campaign.stale": "Live progress is unavailable. The last observed runs and evidence stay visible, and review stays off until status returns.",
   "campaign.receipt": "Approval receipt",
   "campaign.approved": "Follow-up approved",
   "campaign.rejected": "Follow-up rejected",
