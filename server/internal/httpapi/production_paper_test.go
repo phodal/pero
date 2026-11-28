@@ -24,7 +24,7 @@ func TestProductionServerKeepsAPaperAndARunReceipt(t *testing.T) {
 	server := testAPI(t, func(opened *store.Store) http.Handler {
 		db = opened
 		papers := &httpapi.PersistedPaper{DB: db}
-		_, clientToken, err := db.CreateClient(t.Context(), "Lab", []string{"lab"})
+		client, clientToken, err := db.CreateClient(t.Context(), "Lab", []string{"lab"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -35,6 +35,9 @@ func TestProductionServerKeepsAPaperAndARunReceipt(t *testing.T) {
 		}
 		task, err := db.CreateTask(t.Context(), store.Spec{Title: "Watch", Prompt: "Watch the run", Acceptance: "Seen", ProjectID: "lab", WorkspaceKey: "lab", AgentID: "fixture"}, "production-paper")
 		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = db.ClaimTask(t.Context(), &client, task.ID); err != nil {
 			t.Fatal(err)
 		}
 		run, err := db.Dispatch(t.Context(), task.ID, worker.ID, "production-paper")

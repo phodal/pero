@@ -25,7 +25,7 @@ Android Chrome and WebView are the same NOT_VERIFIED column. They are not implie
 
 - `go -C server test -count=1 ./internal/httpapi -run 'TestProtocolReadyCorpus|TestPaperPDF|TestDeviceRoutes|TestConcurrentFinalize|TestPlaceKeeps'`
 - `go -C server test -count=1 ./internal/paperdomain`
-- `TestProductionServerKeepsAPaperAndARunReceipt` skips unless `PERO_TEST_DATABASE_URL` is set. It was not run in this environment.
+- `TestProductionServerKeepsAPaperAndARunReceipt` runs in the existing Postgres job with `TestResearchCampaignTemporal`. It skips when `PERO_TEST_DATABASE_URL` is unset.
 - `node --test scripts/ci/protocol-ready.test.mjs`
 - `node` under that Go test runs `web/protocol-harness/session.test.mjs` against the live handler
 - Native: `cargo test -p pero-ui --lib protocol_ready_corpus_matches_native_dispatch` when the UI crate builds
