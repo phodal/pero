@@ -158,7 +158,7 @@ impl Fixture {
             .map(|p| p.join("node"))
             .find(|p| p.is_file())
             .unwrap();
-        std::fs::write(root.join("agents.json"),json!([{"id":"fixture","name":"Fixture","command":node,"args":[root.join("agent.mjs")],"env":{"WORKER_FIXTURE_MARKER":root.join("marker"),"WORKER_FIXTURE_DESCENDANT":root.join("descendant")}}]).to_string()).unwrap();
+        std::fs::write(root.join("agents.json"),json!([{"id":"fixture","name":"Fixture","command":node,"args":[root.join("agent.mjs")],"env":{"WORKER_FIXTURE_MARKER":root.join("marker"),"WORKER_FIXTURE_DESCENDANT":root.join("descendant")},"supervision":"gate"}]).to_string()).unwrap();
         std::fs::write(root.join("config.json"),json!({"workspaces":{"fixture":root.join("workspace")},"agents_file":root.join("agents.json")}).to_string()).unwrap();
         let state = Arc::new(Mutex::new(CloudState {
             run: json!({"id":"run_1","generation":1,"instance_id":"","status":"running","lease_expires_at":expiry(),"spec":{"title":"Fixture","prompt":prompt,"workspace_key":"fixture","agent_id":"fixture","acceptance":""}}),
@@ -350,6 +350,22 @@ fn accepts_full_unicode_prompt_and_acceptance_input() {
 }
 
 #[test]
+fn ungated_non_dsh_peer_is_refused_before_prompt() {
+    let fixture = Fixture::new("permission", false, false);
+    let path = fixture.root.join("agents.json");
+    let mut agents: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    agents[0].as_object_mut().unwrap().remove("supervision");
+    std::fs::write(&path, agents.to_string()).unwrap();
+    let output = fixture.run();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(!fixture.root.join("marker").exists(), "prompt was sent");
+    let state = fixture.state.lock().unwrap();
+    assert_eq!(state.completion.as_ref().unwrap()["outcome"], "failed");
+    assert!(state.events.iter().any(|event| event["kind"] == "session_error" && event["text"].as_str().unwrap_or("").contains("did not opt in")));
+    assert!(state.events.iter().all(|event| event["kind"] != "session_ready"));
+}
+
+#[test]
 fn unattended_permissions_are_denied() {
     let fixture = Fixture::new("permission", false, false);
     let output = fixture.run();
@@ -500,7 +516,7 @@ int main(void) {
     let workspace = fixture.root.join("workspace");
     let permission = json!({"jsonrpc":"2.0","id":900,"method":"session/request_permission","params":{"sessionId":"fixture","toolCall":{"toolCallId":"native-shell"},"options":[{"optionId":"once","kind":"allow_once","name":"Once"}],"_meta":{"pero.dev/native-approval":{"version":1,"operation":"shell","workspace":workspace,"sandbox_mode":"workspace-write","enforcement":"required","network":"deny"}}}});
     let env = json!({"FIXTURE_PERMISSION":permission.to_string()});
-    std::fs::write(fixture.root.join("agents.json"), json!([{"id":"fixture","name":"Native fixture","command":binary,"args":[],"env":env}]).to_string()).unwrap();
+    std::fs::write(fixture.root.join("agents.json"), json!([{"id":"fixture","name":"Native fixture","command":binary,"args":[],"env":env,"supervision":"gate"}]).to_string()).unwrap();
     std::fs::write(fixture.root.join("config.json"), json!({"workspaces":{"fixture":workspace},"agents_file":fixture.root.join("agents.json"),"native_approvals":{"fixture":{"agent_id":"fixture","executable":binary,"sha256":sha256,"args":[],"env":env,"operations":["shell"],"sandbox_mode":"workspace-write"}}}).to_string()).unwrap();
     let output = fixture.command().env("LD_PRELOAD", "").env("UNTRUSTED_INHERITED", "present").output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));

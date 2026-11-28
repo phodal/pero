@@ -132,6 +132,7 @@ mod tests {
             args: vec![],
             env: Default::default(),
             model: None,
+            supervision: None,
             mcp_servers: vec![],
         }
     }

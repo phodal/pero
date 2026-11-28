@@ -29,7 +29,7 @@ queue once and exits after at most one execution):
 
 ```json
 [
-  { "id": "codex", "name": "Codex", "command": "/usr/local/bin/codex-acp", "args": [], "env": {} }
+  { "id": "codex", "name": "Codex", "command": "/usr/local/bin/codex-acp", "args": [], "env": {}, "supervision": "gate" }
 ]
 ```
 
@@ -59,8 +59,22 @@ monotonic watchdog stops execution when its lease expires. The Worker first
 requests ACP cancellation, then enforces bounded cleanup of its executor and
 the Agent's separate SDK process group. The executor also detects supervisor
 death. Failure to confirm cleanup produces `reconcile` and stops task intake.
-Unattended permission requests are denied by default (see the opt-in native shell
-policy below). All `PERO_*` environment variables are
+Unattended permission requests are denied by default. A peer that initializes
+as `pero-agent-acp` must acknowledge `read-only` when the run has no native
+approval binding, or `full-access` when it has one, before the first prompt.
+A missing selector, a rejected selection, or an acknowledgement that leaves a
+different mode fails that session before the prompt. A different
+`agentInfo.name`, or a missing `agentInfo`, does not skip the selector.
+Another agent is admitted only when its agents-file entry sets
+`"supervision": "gate"`. The id and command name are not that opt-in.
+Gate-only supervision sets no DSH permission mode, and every unattended
+permission request stays denied by the Worker. Without the field, the session
+fails before `session/new`. The shipped Codex entry, including the packaged
+`codex-acp` adapter and the default local and remote agent id `codex`, carries
+`supervision: "gate"`. Built-in non-DSH agents ship with the same opt-in.
+`pero` does not: that binary must identify as `pero-agent-acp` and acknowledge
+the selector. Desktop sessions started outside the Worker keep their previous
+admission. All `PERO_*` environment variables are
 removed from the executor and Agent configuration; provider credentials should
 use the provider's own variable names.
 
@@ -104,7 +118,13 @@ workspace, may select one `allow_once` option. A version-1 descriptor under ACP
 `workspace`, matching `sandbox_mode`, `enforcement: "required"`, and
 `network: "deny"`. This describes a required plan, **not proof that a command has
 already run in a sandbox**. The native executor must refuse dispatch if actual OS
-enforcement is unavailable. Permission requests without this native shell
+enforcement is unavailable. The Worker does not apply its own OS sandbox after
+approval. `full-access` makes DSH ask before file changes and commands; that
+permission mode leaves commands unsandboxed. `sandbox_mode: workspace-write` is
+checked against the descriptor DSH attaches only when the operator launched it
+with strict `--sandbox`. DSH then runs the approved command inside that launch
+sandbox. Without the launch sandbox, DSH emits no descriptor, and the Worker
+denies the call. Permission requests without this native shell
 descriptor (including write/edit or MCP-origin approval requests) remain denied.
 This policy does not sandbox or disable separately configured MCP servers.
 Titles, model arguments, permission names, and MCP hints are never authority.

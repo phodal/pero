@@ -1,6 +1,7 @@
 // Deterministic protocol fixture. It performs no filesystem or network work.
 import readline from 'node:readline';
 const scenario = process.env.PERO_FIXTURE_SCENARIO || '';
+const dshWorker = scenario.startsWith('dsh_worker_');
 import { isDeepStrictEqual } from 'node:util';
 let authenticated = false;
 let sessionAttempts = 0;
@@ -14,12 +15,17 @@ let model = 'model-a';
 let mode = 'agent';
 let effort = 'medium';
 let approval = 'ask';
+let dshPermission = 'auto-review';
 const send = message => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...message }) + '\n');
 const reply = (id, result) => send({ id, result });
 const fail = (id, code, message) => send({ id, error: { code, message } });
 const update = text => send({ method: 'session/update', params: { sessionId: 'fixture-session', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } } } });
 const finish = reason => { if (active !== undefined) { reply(active, { stopReason: reason }); active = undefined; } };
 const configs = () => [{ id: 'provider-model', name: 'Model', category: 'model', type: 'select', currentValue: model, options: [{ value: 'model-a', name: 'Model A' }, { value: 'model-b', name: 'Model B' }] },
+ ...(dshWorker && scenario !== 'dsh_worker_no_selector' ? [{
+  id: 'permission', name: 'Permission', category: 'mode', type: 'select', currentValue: dshPermission,
+  options: [{value: 'auto-review', name: 'Auto-review'}, {value: 'read-only', name: 'View only'}, {value: 'full-access', name: 'Ask for tools'}],
+ }] : []),
  ...(scenario==='composer' ? [{id:'approval',name:'Tool permissions',category:'_permission',type:'select',currentValue:approval,options:[{value:'ask',name:'Ask before tools',description:'Request approval before using tools'},{value:'read',name:'Allow reads',description:'Allow read tools only'}]}] : []),
  ...(scenario==='settings' || scenario==='load_replay' ? [
   {id:'mode',name:'Mode',category:'mode',type:'select',currentValue:mode,options:[{value:'agent',name:'Agent'},{value:'plan',name:'Plan'}]},
@@ -37,9 +43,16 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     if (scenario === 'science') { reply(id, {protocolVersion:1,agentCapabilities:{_meta:{'pero.scienceSession':1}}}); return; }
     if (scenario === 'initialization_hangs') return;
     if (scenario === 'unsupported_protocol') { reply(id, { protocolVersion: 999, agentCapabilities: {}, authMethods: [] }); return; }
+    if (dshWorker) {
+      const agentInfo = scenario === 'dsh_worker_no_info' ? undefined : { name: scenario === 'dsh_worker_wrong_name' ? 'other-agent' : 'pero-agent-acp', version: '1' };
+      reply(id, { protocolVersion: 1, ...(agentInfo ? { agentInfo } : {}) });
+      return;
+    }
+    if (scenario === 'gate_refused' || scenario === 'gate_opt_in') { reply(id, { protocolVersion: 1, agentCapabilities: {}, agentInfo: { name: 'codex-acp', version: '1' } }); return; }
     if (scenario === 'dsh_wire' || scenario === 'load_replay') { reply(id, { protocolVersion: 1, agentCapabilities: { loadSession: true }, authMethods: [] }); return; }
     reply(id, { protocolVersion: 1, agentCapabilities: scenario === 'composer' ? {promptCapabilities:{image:true,embeddedContext:true}} : (scenario.startsWith('mcp') && scenario !== 'mcp_unsupported' || scenario === 'app_use_boundary') ? {mcpCapabilities: {http: true, sse: true}} : {}, agentInfo: { name: 'lifecycle-fixture', version: '1' }, authMethods: [{ id: 'login', name: 'Fixture login' }, { type: 'terminal', id: 'terminal-login', name: 'Interactive fixture login' }] });
   } else if (method === 'session/new') {
+    if (scenario === 'dsh_worker_wrong_name' || scenario === 'dsh_worker_no_info' || scenario === 'gate_refused') update('session-new-reached');
     sessionAttempts += 1;
     sessionMcp = params.mcpServers;
     if (scenario === 'mcp_auth' && authenticated && sessionAttempts !== 2) { fail(id, -32602, 'Unexpected authentication retry count'); return; }
@@ -92,6 +105,15 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     authenticated = true;
     reply(id, {});
   } else if (method === 'session/set_config_option') {
+    if (scenario === 'dsh_worker_model_flips' && params.configId === 'provider-model') {
+      model = params.value; dshPermission = 'full-access'; reply(id, {configOptions: configs()}); return;
+    }
+    if (dshWorker && params.configId === 'permission' && ['read-only', 'full-access'].includes(params.value)) {
+      if (scenario === 'dsh_worker_rejected') { fail(id, -32602, 'Fixture rejected read-only'); return; }
+      if (scenario !== 'dsh_worker_wrong_ack') dshPermission = params.value;
+      reply(id, {configOptions: configs()});
+      return;
+    }
     if (scenario==='composer' && params.configId==='approval') { approval=params.value; reply(id,{configOptions:configs()}); return; }
     if(scenario==='settings' && params.configId!=='provider-model') {
       if(params.configId==='effort' && params.value==='high'){fail(id,-32602,'High effort rejected by fixture');return;}
@@ -112,6 +134,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
   } else if (method === 'session/prompt') {
     active = id;
     turn += 1;
+    if (dshWorker) { update(dshPermission); finish('end_turn'); return; }
     const text = params.prompt[0].text;
     if (scenario === 'runtime_live' && ['disconnect', 'recover'].includes(text)) {
       send({method: '_pero/mcp/runtime', params: {sessionId: 'fixture-session', revision: runtimeRevision,

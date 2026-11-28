@@ -69,7 +69,7 @@ export async function setupSelfHostedMachines(database, {
     const db = new URL(database);
     db.searchParams.set('search_path', namespace);
     if (!serverBinary) execFileSync('go', ['build', '-o', serverBin, './cmd/server'], { cwd: resolve(root, 'server'), stdio: 'pipe' });
-    await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'ACP fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs'), ...agentArgs] }]));
+    await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'ACP fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs'), ...agentArgs], supervision: 'gate' }]));
     await writeFile(config, JSON.stringify({ workspaces: { repo: temp }, agents_file: agents }));
     const server = start(serverBin, [], {
       ...env, PERO_DATABASE_URL: db.href, PERO_OPERATOR_TOKEN: operator,
