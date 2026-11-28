@@ -1,8 +1,8 @@
 # Research Agent 源码研究与 Pero 接入建议
 
-研究日期：2026-10-30。实施前的 Pero 对照提交为 `1350cf7f4f5e3a96643649ae3a2fa32e4b1bb945`，工作区有其他任务的并行修改。前五节保留当时的源码对照、诊断与方案，未运行上游系统或作九个项目的统一任务集横向评测。随后用户授权的本地实现见第六节，以及 [设计与范围](../docs/design-docs/paper-research-agent.md) 和 [验收记录](../docs/fitness/paper-research-agent.md)。
+研究日期：2026-10-30。实施前的 Pero 对照提交为 `1350cf7f4f5e3a96643649ae3a2fa32e4b1bb945`，工作区有其他任务的并行修改。前五节保留当时的源码对照、诊断与方案，未运行上游系统或作九个项目的统一任务集横向评测。随后用户授权的本地实现见第六节，以及 [设计与范围](../../docs/design-docs/paper-research-agent.md) 和 [验收记录](../../docs/fitness/paper-research-agent.md)。
 
-九个参考项目已实际克隆到 `/private/tmp/pero-research-sources-20261030` 并固定下表提交；完整 origin、克隆时间和许可观察保存在 [来源清单](../research_notes/Research%20Agent%20源码研究/manifest.json)。未将上游运行时或源码复制进 Pero 产品。
+九个参考项目已实际克隆到 `/private/tmp/pero-research-sources-20261030` 并固定下表提交；完整 origin、克隆时间和许可观察保存在 [来源清单](manifest.json)。未将上游运行时或源码复制进 Pero 产品。
 
 **建议先把现有 ACP Agent 接成持续研究模式：一个研究会话、可按需回读的原文工具、持久化的论断与证据缺口。**优先借鉴 Feynman 的任务契约、PaperQA 的工具循环、NVIDIA 的结构化研究交付物和 FS-Researcher 的原文工作区。DeerFlow 与 Deep Agents 的运行机制适合作为对照，当前无需替换 Pero 的 Host 或增加第二套调度器。
 
@@ -80,7 +80,7 @@
 
 ## 三 Pero 已有基础与真实缺口
 
-实施前的真实 Meta-Harness 测试中，第一题约 177 秒、追问约 193 秒；各经四次串行会话。第一题最终十二段证据遗漏正式方法所在第 4–5 页，却包含多个附录片段。回答正确说明检索不完整，已检查数字和引文匹配，但无法进一步打开缺失章节。当时重启后重新打开面板的测试失败，不能将该次基线记录为整套通过。[原始问题与证据](../docs/issues/2026-10-30-paper-research-evidence-coverage.md)。
+实施前的真实 Meta-Harness 测试中，第一题约 177 秒、追问约 193 秒；各经四次串行会话。第一题最终十二段证据遗漏正式方法所在第 4–5 页，却包含多个附录片段。回答正确说明检索不完整，已检查数字和引文匹配，但无法进一步打开缺失章节。当时重启后重新打开面板的测试失败，不能将该次基线记录为整套通过。[原始问题与证据](../../docs/issues/2026-10-30-paper-research-evidence-coverage.md)。
 
 现有两轮检索上限并不是错误的概念。其他系统也设搜索次数、深度或总时间上限。真正需要改进的是：预算用于补齐什么、缺口出现后能调用什么工具，以及达到上限时是否准确交付未完成项。让循环更自由也不保证更快，四次调用的实测耗时不能证明新方案一定降低延迟。
 
@@ -91,7 +91,7 @@
 | Desktop App Use 与 SDK | MCP 接入、来源 App 范围、读 UI 状态与有限操作 | 挂接可稳定读取领域数据的工具，不靠 DOM 操作执行完整研究 |
 | Go 控制面与 Worker | 分布式 Task/Run、执行绑定与租约 | 研究确需远程运行时引用现有 Task/Run，不另建研究队列 |
 
-以上拥有者依据 [共享 Chat ADR](../docs/adr/0012-shared-gpui-app-chat.md)、[App Use ADR](../docs/adr/0014-app-use.md) 和当前 [App 会话绑定](../crates/pero-runtime/src/apps/agent.rs)。当前 App Agent API 只有 Start/Events/Cancel，不能只改提示词便声称已经实现同一研究会话内持续取证。
+以上拥有者依据 [共享 Chat ADR](../../docs/adr/0012-shared-gpui-app-chat.md)、[App Use ADR](../../docs/adr/0014-app-use.md) 和当前 [App 会话绑定](../../crates/pero-runtime/src/apps/agent.rs)。当前 App Agent API 只有 Start/Events/Cancel，不能只改提示词便声称已经实现同一研究会话内持续取证。
 
 ## 四 建议的首版范围
 
@@ -147,11 +147,11 @@
 
 ## 六 本轮已交付的研究闭环
 
-2026-10-30 的后续实现保留现有 Host/ACP，全文问题只启动一个 Host 研究会话，由 Agent 通过既有 MCP `app_describe` / `app_write` 选择 `research-step` 操作。`ResearchStudy` 保存冻结 PDF 身份、实际观察的原文片段、发现、未决缺口与最终报告；没有引入上述参考项目的运行时依赖。领域持久化已提交为 `487a8a08`，App 所属研究会话的 Host 工具接入已提交为 `f451bcd8`。具体契约见 [实现设计](../docs/design-docs/paper-research-agent.md)。
+2026-10-30 的后续实现保留现有 Host/ACP，全文问题只启动一个 Host 研究会话，由 Agent 通过既有 MCP `app_describe` / `app_write` 选择 `research-step` 操作。`ResearchStudy` 保存冻结 PDF 身份、实际观察的原文片段、发现、未决缺口与最终报告；没有引入上述参考项目的运行时依赖。领域持久化已提交为 `487a8a08`，App 所属研究会话的 Host 工具接入已提交为 `f451bcd8`。具体契约见 [实现设计](../../docs/design-docs/paper-research-agent.md)。
 
 已实现 `read`、`search`、`note`、`finalize`，保留既有逐字引文和报告校验；长页有明确续读位置。新增取证与笔记受 24 步预算约束，末步留给提交。研究停止后，显式继续沿用原 study，并冻结新的 Host 请求；`recall` 回读已经观察的原文，不重放读取、不消耗新取证预算。未决缺口随冻结证据进入报告与导出，精确定位不升级为论断支持或科学接受。
 
-验证分别记录：26 项 Python 测试、7 项 App MCP 测试和真实 Electron 中的 7 组确定性旅程通过；后者包含读到第 4–5 页、引用高亮，以及未完成研究取消后重启、回读证据并继续提交。真实 Codex 的 Terra 三问与重启检查通过后，另行固定 `gpt-6.1-sol[high]` 的同模型实测也通过 6 组检查，包含三问与重启，正式方法第 4–5 页已实际读取并用于引用，未记录渲染错误。三问各启动一次 Host 会话，旧流程每题四次；但前两问耗时分别为 331.644 和 242.580 秒，旧基线约为 177 和 193 秒，本次没有速度改善。新流程读取更多证据、回答也更长，这个小样本只能确认取证与恢复链路，不能据此推断整体质量或成本收益。UI 与验收脚本分别提交为 `f6c2c222`、`11b6d0d0`；模型记录、原始答案和剩余边界统一见 [验收记录](../docs/fitness/paper-research-agent.md)。
+验证分别记录：26 项 Python 测试、7 项 App MCP 测试和真实 Electron 中的 7 组确定性旅程通过；后者包含读到第 4–5 页、引用高亮，以及未完成研究取消后重启、回读证据并继续提交。真实 Codex 的 Terra 三问与重启检查通过后，另行固定 `gpt-6.1-sol[high]` 的同模型实测也通过 6 组检查，包含三问与重启，正式方法第 4–5 页已实际读取并用于引用，未记录渲染错误。三问各启动一次 Host 会话，旧流程每题四次；但前两问耗时分别为 331.644 和 242.580 秒，旧基线约为 177 和 193 秒，本次没有速度改善。新流程读取更多证据、回答也更长，这个小样本只能确认取证与恢复链路，不能据此推断整体质量或成本收益。UI 与验收脚本分别提交为 `f6c2c222`、`11b6d0d0`；模型记录、原始答案和剩余边界统一见 [验收记录](../../docs/fitness/paper-research-agent.md)。
 
 当前范围是已保存、已选择的本地 PDF。外部网页与新论文发现、图像页输入、科学实验执行、远程 Research Worker 和跨项目记忆尚未由这个闭环交付；后续应按前文的研究任务与验收项分别扩展。
 

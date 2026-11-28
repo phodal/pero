@@ -17,6 +17,8 @@ mod apps;
 mod app_startup;
 mod app_canvas;
 mod research_assets;
+#[cfg(test)]
+mod capability_wire_host;
 mod project_resources;
 mod project_sources;
 mod project_tools;
@@ -348,7 +350,7 @@ fn main() -> io::Result<()> {
             .and_then(|action| action.as_str())
             .is_some_and(|action| action.starts_with("local_worker_"))
         {
-            workers.dispatch(value, settings_path.as_deref());
+            workers.dispatch(value, settings_path.as_deref(), agents.catalog());
             continue;
         }
         if value.get("action").is_some() {

@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "resourceref",
+    srcs = ["ref.go"],
+    importpath = "github.com/phodal/pero/server/internal/resourceref",
+    visibility = ["//server:__subpackages__"],
+)
+
+go_test(
+    name = "resourceref_test",
+    srcs = ["ref_test.go"],
+    embed = [":resourceref"],
+)

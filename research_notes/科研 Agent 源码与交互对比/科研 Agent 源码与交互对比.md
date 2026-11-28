@@ -144,4 +144,4 @@ flowchart LR
 
 【验收范围】UI 实现后需实际检查加载、空、运行、成功、错误、禁用状态，以及键盘、浅深主题、窄窗、长内容和导出。共享 Chat 与领域主面板分别承担沟通和证据/结果核对；采用 Pero 现有主题与任务布局。这里要求的是下一轮真实运行证据，本次静态源码阅读不代替它。([Pero UI 约定](/Users/phodal/workspaces/pero/AGENTS.md:1)、[DESIGN.md](/Users/phodal/workspaces/pero/DESIGN.md:1))
 
-本轮产出是可复核的官方源码集合与对比报告。完整调研笔记见 [证据与 Agent](</Users/phodal/workspaces/pero/research_notes/科研 Agent 源码与交互对比/evidence-agents.md>)、[交互与渲染](</Users/phodal/workspaces/pero/research_notes/科研 Agent 源码与交互对比/visual-rendering.md>)、[方法与执行](</Users/phodal/workspaces/pero/research_notes/科研 Agent 源码与交互对比/methods-execution.md>)。未核对不可访问原文的全部 42 个链接，也不宣称覆盖它的全部 13 组实现。
+本轮产出是可复核的官方源码集合与对比报告。完整调研笔记见 [证据与 Agent](evidence-agents.md)、[交互与渲染](visual-rendering.md)、[方法与执行](methods-execution.md)。未核对不可访问原文的全部 42 个链接，也不宣称覆盖它的全部 13 组实现。

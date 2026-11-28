@@ -12,6 +12,11 @@ go_library(
         "runtime_channel.go",
         "contributions.go",
         "github.go",
+        "device_transfer.go",
+        "persisted_paper.go",
+        "protocol_ready.go",
+        "resource_read.go",
+        "run_observe.go",
         "routes.go",
         "run_desktop.go",
         "run_operations.go",
@@ -30,11 +35,55 @@ go_library(
         "//server/internal/sandbox",
         "//server/internal/runtimebinding",
         "//server/internal/artifacts",
+        "//server/internal/devicetransfer",
+        "//server/internal/paperdomain",
+        "//server/internal/resourceref",
+        "//server/internal/runlifecycle",
         "//server/internal/runtimeauth",
         "//server/internal/runtimechannel",
         "//server/internal/environments/model",
         "//server/internal/runtimegateway",
         "@com_github_jackc_pgx_v5//pgconn",
+    ],
+)
+
+go_test(
+    name = "httpapi_run_test",
+    srcs = ["run_observe_test.go"],
+    embed = [":httpapi"],
+    deps = [
+        "//server/internal/runlifecycle",
+        "//server/internal/store",
+    ],
+)
+
+go_test(
+    name = "httpapi_device_test",
+    srcs = ["device_transfer_test.go"],
+    embed = [":httpapi"],
+    deps = [
+        "//server/internal/devicetransfer",
+        "//server/internal/store",
+    ],
+)
+
+go_test(
+    name = "httpapi_protocol_test",
+    srcs = ["protocol_ready_test.go"],
+    data = ["//:protocol_ready_harness"],
+    embed = [":httpapi"],
+    deps = [
+        "//server/internal/resourceref",
+    ],
+)
+
+go_test(
+    name = "httpapi_paper_test",
+    srcs = ["resource_read_test.go"],
+    embed = [":httpapi"],
+    deps = [
+        "//server/internal/resourceref",
+        "//server/internal/store",
     ],
 )
 
@@ -55,6 +104,8 @@ go_test(
         "desktop_connector_test.go",
         "github_test.go",
         "integration_test.go",
+        "production_paper_test.go",
+        "run_observe_store_test.go",
         "runtime_browser_test.go",
     ],
     env = {"PERO_REQUIRE_TEST_DATABASE": "1"},
@@ -72,6 +123,7 @@ go_test(
         "//server/internal/campaign",
         "//server/internal/campaignruntime",
         "//server/internal/github",
+        "//server/internal/paperdomain",
         "//server/internal/store",
         "//server/internal/sandbox",
         "//server/internal/runtimebinding",

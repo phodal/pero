@@ -19,6 +19,11 @@ func (s *server) oauthStart(w http.ResponseWriter, r *http.Request) {
 	}
 	state := random()
 	s.cookie(w, "pero_oauth_state", state, "/auth/github/callback", 600)
+	if next := r.URL.Query().Get("next"); validPrivateTaskReturn.MatchString(next) {
+		s.cookie(w, "pero_oauth_task_return", next, "/auth/github/callback", 600)
+	} else {
+		s.cookie(w, "pero_oauth_task_return", "", "/auth/github/callback", -1)
+	}
 	values := url.Values{"client_id": {s.config.ClientID}, "redirect_uri": {s.config.BaseURL + "/auth/github/callback"}, "state": {state}}
 	// Public GitHub identity only; no repository permissions or access-token persistence.
 	http.Redirect(w, r, s.oauthAuthorize+"?"+values.Encode(), http.StatusFound)
@@ -26,6 +31,8 @@ func (s *server) oauthStart(w http.ResponseWriter, r *http.Request) {
 func (s *server) oauthCallback(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("pero_oauth_state")
 	s.cookie(w, "pero_oauth_state", "", "/auth/github/callback", -1)
+	next, _ := r.Cookie("pero_oauth_task_return")
+	s.cookie(w, "pero_oauth_task_return", "", "/auth/github/callback", -1)
 	state, code := r.URL.Query().Get("state"), r.URL.Query().Get("code")
 	if s.config.ClientID == "" || err != nil || len(state) != 64 || subtle.ConstantTimeCompare([]byte(state), []byte(cookie.Value)) != 1 || code == "" || len(code) > 1024 {
 		s.render(w, r, 400, page{Title: "登录未完成", View: "error", Message: "GitHub 授权被取消或已过期，请从登录入口重新开始。"})
@@ -76,6 +83,10 @@ func (s *server) oauthCallback(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/connect/desktop?"+url.Values{"state": {values.Get("state")}, "code_challenge": {values.Get("code_challenge")}}.Encode(), 303)
 			return
 		}
+	}
+	if next != nil && validPrivateTaskReturn.MatchString(next.Value) {
+		http.Redirect(w, r, next.Value, http.StatusSeeOther)
+		return
 	}
 	http.Redirect(w, r, "/tasks", 303)
 }

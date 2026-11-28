@@ -7,6 +7,7 @@ pub mod app_chat;
 pub use app_chat::AppChatScope;
 pub mod composer_capabilities;
 pub mod capability_selection;
+pub mod capability_wire;
 pub mod computer_use;
 pub mod computer_runtime;
 pub mod engram;

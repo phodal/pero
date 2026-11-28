@@ -210,7 +210,7 @@ jobs:
           PERO_REQUIRE_TEST_DATABASE: '1'
           PERO_TEST_DATABASE_URL: postgresql://campaign_fixture:campaign-fixture-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/campaign_fixture?sslmode=disable
           TMPDIR: ${{ runner.temp }}
-        run: go -C server test -race -count=1 -v ./internal/httpapi -run '^Test(ResearchCampaignTemporal|ReviewedCampaignInventory)$'
+        run: go -C server test -race -count=1 -v ./internal/httpapi -run '^(TestResearchCampaignTemporal|TestReviewedCampaignInventory|TestProductionServerKeepsAPaperAndARunReceipt)$'
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
@@ -713,7 +713,7 @@ jobs:
       - name: Host connection contracts
         id: host_connection
         if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
-        run: node --test web/src/host-connection.test.ts web/src/mcp-settings-bridge.test.ts
+        run: node --test web/src/host-connection.test.ts web/src/mcp-settings-bridge.test.ts web/src/canvas-focus.test.ts
       - name: Desktop content and connector contracts
         id: desktop_content
         if: ${{ !cancelled() && steps.npm.outcome == 'success' }}

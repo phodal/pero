@@ -86,6 +86,8 @@ pub use conversation::{AgentChoice, Conversation};
 pub mod usage;
 
 pub mod session_state;
+#[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
+mod conversation_target;
 pub mod authentication;
 
 pub mod conversation_title;

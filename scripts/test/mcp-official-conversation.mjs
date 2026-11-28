@@ -5,7 +5,7 @@ import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {expect} from '@playwright/test';
 import {electron} from '../../tests/e2e/electron.mjs';
-import {clickAppShortcut, clickSessionRow} from '../../tests/e2e/sidebar-controls.mjs';
+import {clickNewChat, clickSessionRow} from '../../tests/e2e/sidebar-controls.mjs';
 import {officialConversationProvider,officialConversationPrompt,officialViewMessage,
   officialInitialAnswer,officialFollowupAnswer} from '../../tests/fixtures/mcp-app/conversation-provider.mjs';
 
@@ -53,7 +53,8 @@ try{
   await desktop.evaluate(({dialog},path)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[path]});},workspace);
   await page.evaluate(()=>window.pero.chooseWorkspace());
   await expect.poll(async()=>(await state()).workspace).toBe(workspace);
-  await clickAppShortcut(page,'sessions');
+  // Opening Sessions navigates to the list; a fresh profile has no chat to focus.
+  await clickNewChat(page);
   await expect.poll(async()=>{const snapshot=await state();return snapshot.chats[snapshot.activeChat]?.state;},{timeout:30000}).toBe('idle');
   const initial=await state(),thread=initial.chats[initial.activeChat].id;
   const conversation=async()=>(await state()).chats.find(chat=>chat.id===thread);
