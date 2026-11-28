@@ -24,7 +24,7 @@ const finish = reason => { if (active !== undefined) { reply(active, { stopReaso
 const configs = () => [{ id: 'provider-model', name: 'Model', category: 'model', type: 'select', currentValue: model, options: [{ value: 'model-a', name: 'Model A' }, { value: 'model-b', name: 'Model B' }] },
  ...(dshWorker && scenario !== 'dsh_worker_no_selector' ? [{
   id: 'permission', name: 'Permission', category: 'mode', type: 'select', currentValue: dshPermission,
-  options: [{value: 'auto-review', name: 'Auto-review'}, {value: 'read-only', name: 'View only'}],
+  options: [{value: 'auto-review', name: 'Auto-review'}, {value: 'read-only', name: 'View only'}, {value: 'full-access', name: 'Ask for tools'}],
  }] : []),
  ...(scenario==='composer' ? [{id:'approval',name:'Tool permissions',category:'_permission',type:'select',currentValue:approval,options:[{value:'ask',name:'Ask before tools',description:'Request approval before using tools'},{value:'read',name:'Allow reads',description:'Allow read tools only'}]}] : []),
  ...(scenario==='settings' || scenario==='load_replay' ? [
@@ -99,9 +99,9 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     authenticated = true;
     reply(id, {});
   } else if (method === 'session/set_config_option') {
-    if (dshWorker && params.configId === 'permission' && params.value === 'read-only') {
+    if (dshWorker && params.configId === 'permission' && ['read-only', 'full-access'].includes(params.value)) {
       if (scenario === 'dsh_worker_rejected') { fail(id, -32602, 'Fixture rejected read-only'); return; }
-      if (scenario !== 'dsh_worker_wrong_ack') dshPermission = 'read-only';
+      if (scenario !== 'dsh_worker_wrong_ack') dshPermission = params.value;
       reply(id, {configOptions: configs()});
       return;
     }

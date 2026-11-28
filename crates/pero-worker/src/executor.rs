@@ -304,7 +304,7 @@ pub fn child_execute() -> Result<(), String> {
     // A supervisor dying must not release the checkout while its child still writes.
     let _workspace_lease = WorkspaceLease::acquire(&execution.workspace)?;
     let permission = if execution.approval.is_some() {
-        SupervisedPermission::AgentConfigured
+        SupervisedPermission::AskDsh
     } else {
         SupervisedPermission::ReadOnlyDsh
     };

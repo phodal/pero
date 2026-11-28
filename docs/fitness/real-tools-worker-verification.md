@@ -44,6 +44,13 @@ workspace containment is not an OS sandbox: an approved shell may access outside
 the workspace or the network. Database authorization/concurrency and production
 deployment are not tested by the loopback Cloud fixture.
 
+Append `--pinned` to also exercise a pinned DSH Worker. The test copies the
+production Go executable to an operator-owned temporary directory under the
+current home, outside the fixture workspace. It verifies that the explicit
+native shell policy requires an ACP decision and rejects writes, edits, and
+shell calls that lack a valid native descriptor. The same file and shell
+marker checks verify that the rejected calls have no effects.
+
 All executable hashes are checked before and after the suite. A rebuilt runtime
 must be retested; an earlier passing binary is not evidence for a changed one.
 After a short natural-exit grace period, any owned runtime left alive is forcibly

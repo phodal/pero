@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 #[derive(Clone, Copy)]
 pub enum SupervisedPermission {
     ReadOnlyDsh,
-    AgentConfigured,
+    AskDsh,
 }
 
 #[derive(Clone, Default)]

@@ -161,7 +161,8 @@ fn supervised_dsh_requires_read_only_acknowledgement_before_prompt() {
         ("dsh_worker_no_selector", SupervisedPermission::ReadOnlyDsh, None, Some("not advertised")),
         ("dsh_worker_rejected", SupervisedPermission::ReadOnlyDsh, None, Some("Fixture rejected read-only")),
         ("dsh_worker_wrong_ack", SupervisedPermission::ReadOnlyDsh, None, Some("did not acknowledge")),
-        ("dsh_worker_wrong_ack", SupervisedPermission::AgentConfigured, Some("auto-review"), None),
+        ("dsh_worker_ready", SupervisedPermission::AskDsh, Some("full-access"), None),
+        ("dsh_worker_wrong_ack", SupervisedPermission::AskDsh, None, Some("did not acknowledge")),
     ] {
         let config = serde_json::from_value(serde_json::json!({
             "id": "dsh-alias", "name": "Worker Agent", "command": "node",

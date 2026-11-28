@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, copyFile, mkdtemp, mkdir, realpath, writeFile, readFile, rm, symlink } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { plans } from './go-tools-worker-plan.mjs';
@@ -16,13 +16,15 @@ const listen=async server=>{await new Promise(ok=>server.listen(0,'127.0.0.1',ok
 const body=async req=>{let raw='';for await(const b of req)raw+=b;return raw?JSON.parse(raw):{}};
 const send=(res,data,status=200)=>{res.writeHead(status,{'content-type':'application/json'});res.end(JSON.stringify(data))};
 const wait=ms=>new Promise(ok=>setTimeout(ok,ms));
-const ownAgentPids=sessions=>execFileSync('/bin/ps',['-eo','pid=,args='],{encoding:'utf8'}).split('\n').filter(line=>line.includes(agent)&&line.includes(sessions)).map(line=>Number(line.trim().split(/\s+/)[0]));
-async function cleanupAgents(sessions){for(let n=0;n<20&&ownAgentPids(sessions).length;n++)await wait(50);const forced=ownAgentPids(sessions).length>0;for(const pid of ownAgentPids(sessions)){try{process.kill(pid,'SIGTERM')}catch(e){if(e.code!=='ESRCH')throw e}};for(let n=0;n<20&&ownAgentPids(sessions).length;n++)await wait(50);for(const pid of ownAgentPids(sessions)){try{process.kill(pid,'SIGKILL')}catch(e){if(e.code!=='ESRCH')throw e}};for(let n=0;n<20&&ownAgentPids(sessions).length;n++)await wait(50);assert.equal(ownAgentPids(sessions).length,0,'owned runtime survived fixture cleanup');assert(!forced,'Worker left its owned runtime alive; fixture had to force cleanup')}
+const ownAgentPids=(sessions, executable)=>execFileSync('/bin/ps',['-eo','pid=,args='],{encoding:'utf8'}).split('\n').filter(line=>line.includes(executable)&&line.includes(sessions)).map(line=>Number(line.trim().split(/\s+/)[0]));
+async function cleanupAgents(sessions, executable){for(let n=0;n<20&&ownAgentPids(sessions, executable).length;n++)await wait(50);const forced=ownAgentPids(sessions, executable).length>0;for(const pid of ownAgentPids(sessions, executable)){try{process.kill(pid,'SIGTERM')}catch(e){if(e.code!=='ESRCH')throw e}};for(let n=0;n<20&&ownAgentPids(sessions, executable).length;n++)await wait(50);for(const pid of ownAgentPids(sessions, executable)){try{process.kill(pid,'SIGKILL')}catch(e){if(e.code!=='ESRCH')throw e}};for(let n=0;n<20&&ownAgentPids(sessions, executable).length;n++)await wait(50);assert.equal(ownAgentPids(sessions, executable).length,0,'owned runtime survived fixture cleanup');assert(!forced,'Worker left its owned runtime alive; fixture had to force cleanup')}
 const expiry=()=>new Date(Date.now()+3000).toISOString();
 const stream=(res,delta,finish)=>{res.writeHead(200,{'content-type':'text/event-stream'});res.end(`data: ${JSON.stringify({choices:[{index:0,delta,finish_reason:finish}]})}\n\ndata: [DONE]\n\n`)};
 
 async function check(plan){
- const root=await mkdtemp(join(tmpdir(),'pero-real-tools-worker-'));
+ const parent = plan.pinned ? await realpath(homedir()) : tmpdir();
+ const root=await mkdtemp(join(parent,'pero-real-tools-worker-'));
+ const executable = plan.pinned ? join(root, 'pinned-agent') : agent;
  const workspace=join(root,'workspace'),sessions=join(root,'sessions'),outside=join(root,'outside.txt');
  await mkdir(workspace,{mode:0o700});await mkdir(sessions,{mode:0o700});await mkdir(join(workspace,'nested'),{mode:0o700});
  await writeFile(join(workspace,'source.txt'),'READ_TOOL_OK\nneedle-search-marker\n',{mode:0o600});
@@ -61,9 +63,23 @@ async function check(plan){
   send(res,run);
  }catch(error){errors.push(String(error.stack||error));send(res,{error:'fixture assertion failed'},500)}});
  const cloudURL=await listen(cloud);const config=join(root,'config.json');
- await writeFile(join(root,'agents.json'),JSON.stringify([{id:'fixture',name:'Production real tools',command:agent,args:['--endpoint',providerURL+'/v1','--model','fixture','--session-dir',sessions,'--api-key-env','ACP_FIXTURE_API_KEY','--approval','ask','--workspace',workspace,...(plan.enableShell?['--enable-shell']:[]),...(plan.cliArgs||[])],env:{ACP_FIXTURE_API_KEY:'fixture-provider-secret'}}]),{mode:0o600});
- await writeFile(config,JSON.stringify({workspaces:{fixture:workspace},agents_file:join(root,'agents.json')}),{mode:0o600});
  try{
+  const localAgent = {
+   id: 'fixture', name: 'Production real tools', command: executable,
+   args: ['--endpoint',providerURL+'/v1','--model','fixture','--session-dir',sessions,'--api-key-env','ACP_FIXTURE_API_KEY','--approval','ask','--workspace',workspace,...(plan.enableShell?['--enable-shell']:[]),...(plan.cliArgs||[])],
+   env: {ACP_FIXTURE_API_KEY:'fixture-provider-secret'},
+  };
+  const workerConfig = {workspaces:{fixture:workspace},agents_file:join(root,'agents.json')};
+  if (plan.pinned) {
+   await copyFile(agent, executable);
+   await chmod(executable, 0o700);
+   workerConfig.native_approvals = {fixture:{
+    agent_id: localAgent.id, executable, sha256: binaryHashes.agent,
+    args: localAgent.args, env: localAgent.env, operations: ['shell'], sandbox_mode: 'workspace-write',
+   }};
+  }
+  await writeFile(workerConfig.agents_file, JSON.stringify([localAgent]), {mode:0o600});
+  await writeFile(config, JSON.stringify(workerConfig), {mode:0o600});
   const child=spawn(worker,['--once'],{env:{PATH:'/usr/local/bin:/usr/bin:/bin',HOME:root,TMPDIR:root,LANG:'C.UTF-8',PERO_CLOUD_URL:cloudURL,PERO_WORKER_TOKEN:'fixture-cloud-secret',PERO_WORKER_CONFIG:config,PERO_WORKER_STATE:join(root,'state.json')},stdio:['ignore','pipe','pipe']});children.add(child);let stderr='';child.stderr.on('data',b=>stderr+=b);child.stdout.resume();const deadline=setTimeout(()=>child.kill('SIGKILL'),20000);
   const code=await new Promise((ok,fail)=>{child.once('error',fail);child.once('close',ok)});clearTimeout(deadline);children.delete(child);
   assert.deepEqual(errors,[]);assert.equal(code,0,stderr);assert.equal(state.requests.length,2,'one tool step and one final model turn expected');assert.equal(state.completes.at(-1)?.outcome,plan.cancel?'cancelled':'succeeded');
@@ -72,13 +88,23 @@ async function check(plan){
   const ready = state.events.find(event => event.kind === 'session_ready');
   const firstTool = state.events.find(event => event.kind === 'session_update' && event.data?.sessionUpdate === 'tool_call');
   const permission = ready?.data?.peroSettings?.options?.find(option => option.id === 'permission');
-  assert.equal(permission?.current, 'read-only', 'Worker did not establish read-only before ACP readiness');
+  assert.equal(permission?.current, plan.pinned ? 'full-access' : 'read-only', 'Worker did not establish the permission mode before ACP readiness');
+  if (plan.pinned) {
+   assert.equal(state.events.filter(event => event.kind === 'permission_denied').length, 1);
+   assert(!state.events.some(event => event.kind === 'permission_approved'));
+  }
   assert(firstTool && ready.seq < firstTool.seq, 'Agent started its tools before the Worker acknowledged readiness');
   const all=JSON.stringify({events:state.events,requests:state.requests});for(const forbidden of ['fixture-provider-secret','fixture-cloud-secret','OUTSIDE_FILE_MUST_NOT_LEAK','OUTPUT_TAIL_MUST_NOT_LEAK'])assert(!all.includes(forbidden),`private/unsupported output leaked: ${forbidden}`);
   return {name:plan.name,passed:true,tool:call.name,toolStatus:state.events.findLast(e=>e.kind==='session_update'&&e.data?.sessionUpdate==='tool_call_update'&&e.data.toolCallId==='actual-tool-call')?.data.status,providerCalls:state.requests.length,initialPermission:permission.current,outcome:state.completes.at(-1).outcome};
- }finally{for(const child of children)child.kill('SIGKILL');for(const timer of timers)clearTimeout(timer);cloud.closeAllConnections();provider.closeAllConnections();await Promise.all([new Promise(ok=>cloud.close(ok)),new Promise(ok=>provider.close(ok))]);await cleanupAgents(sessions);await rm(root,{recursive:true,force:true})}
+ }finally{for(const child of children)child.kill('SIGKILL');for(const timer of timers)clearTimeout(timer);cloud.closeAllConnections();provider.closeAllConnections();await Promise.all([new Promise(ok=>cloud.close(ok)),new Promise(ok=>provider.close(ok))]);await cleanupAgents(sessions, executable);await rm(root,{recursive:true,force:true})}
 }
-const results=[];for(const plan of plans){try{const row=await check(plan);results.push(row);console.log(JSON.stringify(row))}catch(error){const row={name:plan.name,passed:false,error:String(error.stack||error)};results.push(row);console.error(JSON.stringify(row))}}
+const scenarios = [...plans];
+if (process.argv.includes('--pinned')) {
+ for (const plan of plans.filter(plan => ['write-denied','edit-denied','shell-denied'].includes(plan.name))) {
+  scenarios.push({...plan, name: 'pinned-' + plan.name, pinned: true});
+ }
+}
+const results=[];for(const plan of scenarios){try{const row=await check(plan);results.push(row);console.log(JSON.stringify(row))}catch(error){const row={name:plan.name,passed:false,error:String(error.stack||error)};results.push(row);console.error(JSON.stringify(row))}}
 assert.deepEqual({worker:await hash(worker),agent:await hash(agent)},binaryHashes,'binary changed; rerun required');
-console.log(JSON.stringify({binaryHashes,results,limits:['Only loopback fake model/control-plane endpoints.','All tools are registered by the production runtime; no test-only no-op tools.','The Go ACP session starts read-only, and attempted writes, edits and shell calls leave no effects.','Cancellation covers a real read followed by an in-flight model turn, not an already executing shell.']},null,2));
+console.log(JSON.stringify({binaryHashes,results,limits:['Only loopback fake model/control-plane endpoints.','All tools are registered by the production runtime; no test-only no-op tools.','Default Go ACP starts read-only. The optional pinned cases deny file writes, edits and shell without a native descriptor.','Cancellation covers a real read followed by an in-flight model turn, not an already executing shell.']},null,2));
 if(results.some(r=>!r.passed))process.exitCode=1;

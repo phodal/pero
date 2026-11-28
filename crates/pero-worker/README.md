@@ -62,8 +62,9 @@ death. Failure to confirm cleanup produces `reconcile` and stops task intake.
 Unattended permission requests are denied by default. For DSH Go, the Worker
 also requires an acknowledged `read-only` session setting before the first
 prompt. This blocks DSH's file writes, edits, and shell calls at the tool
-policy boundary. The opt-in native shell policy below retains its explicit
-admission path. All `PERO_*` environment variables are
+policy boundary. With the opt-in native shell policy below, the Worker selects
+and confirms DSH's approval-required mode before prompting, so DSH sends gated
+tools to the Worker for a decision. All `PERO_*` environment variables are
 removed from the executor and Agent configuration; provider credentials should
 use the provider's own variable names.
 

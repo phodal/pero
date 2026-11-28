@@ -456,9 +456,9 @@ async fn run(
                 (true, false) => ReceiptMode::Record,
             };
             let initialized: InitializeResponse = serde_json::from_value(initialized).map_err(agent_client_protocol::Error::into_internal_error)?;
-            let dsh = initialized.agent_info.as_ref().is_some_and(|info| info.name == "pero-agent-acp");
-            if dsh && matches!(supervised_permission, Some(SupervisedPermission::ReadOnlyDsh)) {
-                initial_settings.push(SettingSelection { id: "permission".into(), value: "read-only".into() });
+            if let Some(permission) = supervised_permission.filter(|_| initialized.agent_info.as_ref().is_some_and(|info| info.name == "pero-agent-acp")) {
+                let value = match permission { SupervisedPermission::ReadOnlyDsh => "read-only", SupervisedPermission::AskDsh => "full-access" };
+                initial_settings.push(SettingSelection { id: "permission".into(), value: value.into() });
             }
             // Never start a session under a protocol version this client does not implement.
             if initialized.protocol_version != ProtocolVersion::V1 {
