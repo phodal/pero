@@ -48,4 +48,4 @@
 - [0043: Portable device files and Paper import](0043-device-files.md) — P0.6 pick and transfer a PDF; 0042 is the separate P0.5 projection
 - [0044: Protocol harness for a browser client](0044-protocol-ready-harness.md) — P0.7 conformance corpus and browser slice; leave issue 256 open; reference it only with Refs
 - [0045: Production Paper owner and durable run receipts](0045-production-paper-owner.md) — the control-plane binary reads and imports Paper, and stores run receipts
-- [0046: Durable Coding Delivery and Worker Recovery](0046-durable-coding-delivery.md) — proposed for #277; implementation is staged through `CodingWorkflow v1`
+- [0046: Durable Coding Delivery and Worker Recovery](0046-durable-coding-delivery.md) — proposed for #277; narrowed to integration over the existing Campaign and Worker recovery paths

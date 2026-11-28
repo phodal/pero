@@ -63,6 +63,15 @@ Pero 已经具备以下基础能力。
 - Workflow 重启后不会重复阶段 prompt、审批、提交或独立验证。
 - 代码补丁、workspace 版本、运行证据与人工批准已经绑定成一个候选版本。
 
+## PR #265 与 #276 已经验证的能力
+
+这两个 PR 已经把原分析中最重的端到端风险跑通，但它们尚未合入
+`master`，所以当前应把它们视为待合并的验证证据和回归基线。
+
+- PR #265 在共享 Project 中验证了 Campaign review、编排器重启、审批回执去重、真实 Electron/Rust Host/Worker/PostgreSQL/Temporal 链路和 Temporal replay。
+- PR #276 在两台真实 Mac 上验证了 DSH Go → Codex ACP、只读权限协商、Worker 连接分区、对账后新 generation、旧租约迟到写入拒绝、人工审批以及干净工作区的 25 个 HTTP/SQLite 检查。
+- 因此，#277 不需要重新设计一套通用 Coding state machine，也不需要重新证明基础的 Worker recovery。它需要把这两条已验证路径接到同一个共享 Project Delivery 视图和证据链上。
+
 ## 参考项目提炼
 
 ### Phleet
@@ -198,34 +207,19 @@ Pero 应沿用同样的验证思想，但继续使用 Go Temporal runtime，不�
 
 下面的清单按“必须先有的恢复语义”排序，而不是按 UI 或 SDK 目录排序。
 
-### P0 领域与身份
+### P0 复用已有契约
 
-- [ ] 定义 `CodingWorkflow`、`CodingPlan`、`CodingStage`、`AgentAssignment`、`RunRef`、`SessionRef`、`WorkspaceRef`、`CheckpointRef`、`ArtifactRef`、`VerificationRef` 和 `ApprovalDecision`。
-- [ ] 为每个 Workflow 保存不可变的 Project、任务输入、计划摘要、版本 digest、参与 Agent、设备能力和执行预算。
-- [ ] 用稳定 Workflow ID、稳定 start intent 和幂等 request ID 处理启动回执丢失。
-- [ ] 为每个阶段定义稳定 operation ID。重复 Activity 只能恢复原 operation，不能创建第二个 Run。
-- [ ] 将 Workflow phase、Run outcome、verification outcome、approval outcome 和 publication outcome 分开建模。
-- [ ] 让 domain transition 只接受 state、input、observations 和 supplied time，Temporal、HTTP、ACP 和文件 I/O 留在 shell。
+以下能力沿用现有 Campaign、Task/Run、generation、lease、reconciliation、
+Worker journal、approval receipt 和 Temporal replay。PR #265 和 #276 合入后，
+这些项目转为回归门禁，不再作为 #277 的新建任务。
 
-### P0 执行与未知结果
+### P0 #277 增量
 
-- [ ] 复用现有 exact Run API、generation、lease、reconcile 和 Worker quarantine。
-- [ ] 为 Agent prompt、model turn、tool call、workspace mutation 和 completion receipt 定义 effect owner。
-- [ ] 在每个可能产生副作用的边界前写入 claim 或 operation receipt。
-- [ ] Activity 失联后返回 `unknown` 或 `reconcile`，禁止凭猜测重发 prompt、shell、git push 或发布操作。
-- [ ] 让 Rust Worker journal 记录 Coding stage、Agent session/thread、workspace revision 和最后一个 checkpoint。
-- [ ] 明确 DSH Go 和 Codex ACP 能恢复的边界。不能恢复的边界必须进入 review，而不是伪装成可继续。
-- [ ] 让 cancellation 等待原 Run 或原 Agent owner 的停止证据，避免用 HTTP 返回代替停止确认。
-
-### P0 首个端到端流程
-
-- [ ] 在一个固定 Git baseline 上创建 Coding Workflow。
-- [ ] Agent A 使用 DSH Go 做只读分析，并保存结构化 plan、发现和 workspace digest。
-- [ ] Agent B 使用 Codex ACP 在隔离 workspace 实现 plan，保存 patch、commit candidate 和 session/thread reference。
-- [ ] 独立 verifier 在同一个 frozen candidate 上运行测试、静态检查和差异检查。
-- [ ] 人工批准绑定 candidate digest、verification digest、plan digest 和 gate id。
-- [ ] 批准后才允许提交、发布或进入下一阶段。
-- [ ] 终止 Temporal Worker、重启 Go orchestrator、切断 Agent A 连接、保留原 Run，并证明 Agent B 可以领取独立任务。
+- [ ] 在共享 Project 中创建一个 Delivery 入口，关联已有 Campaign 或精确 Run。
+- [ ] 将 DSH 分析、Codex 候选、人工决定、验证报告和最终结果绑定到同一个 Delivery。
+- [ ] 将 PR #276 的双机 runner 与 PR #265 的 review/replay 检查提升为 #277 的必过验收。
+- [ ] 为客户端提供一个 Delivery 视图，展示阶段、当前 Run、generation、候选摘要、审批回执和验证证据。
+- [ ] 处理 Delivery 级重复启动和重复审批，复用已有 operation receipt，不新增一套副作用协议。
 
 ### P1 Workflow 编排
 
@@ -266,21 +260,22 @@ Pero 应沿用同样的验证思想，但继续使用 Go Temporal runtime，不�
 
 ## 建议的落地顺序
 
-### 第一阶段，单 Workflow、双 Agent、单候选
+### 第一阶段，接入已有真机链路
 
-范围固定为一个 Project、一个 Coding request、一个只读分析 Agent、一个实现 Agent、一个 verifier 和一个 approval gate。
+范围固定为一个共享 Project、一个 Coding request、一个已有 Campaign 或
+精确 Run、一个候选补丁和一个 approval gate。PR #265 与 #276 提供执行和
+恢复证据。
 
 交付顺序如下。
 
-1. 在 Go `server/internal/coding` 建立领域类型和 transition table。
-2. 复用 #251 的 exact Run 与 receipt，增加 Coding stage operation identity。
-3. 在 `server/internal/codingruntime` 建立 Workflow 与短 Activities。
-4. 让 Rust Worker 在现有 journal 中保存 stage、session/thread 和 checkpoint reference。
-5. 接通 DSH Go 只读分析与 Codex ACP 实现的真实双机验收。
-6. 加入 Temporal restart、Worker replacement、lost reply、lease expiry、cancel race 和 no-prompt-replay 测试。
-7. 保存 candidate patch、verification receipt 和 approval receipt。
+1. 合并并稳定 PR #265 的共享 Project review 和 replay 门禁。
+2. 合并并稳定 PR #276 的双机 recovery 与 coding handoff runner。
+3. 在现有 Campaign、Task/Run 和 receipt 之上增加 Delivery 关联与查询。
+4. 将 DSH 分析、Codex 候选、审批和 verifier 结果接入同一条证据链。
+5. 增加一个客户端 Delivery 视图和重复启动、重复审批的回归测试。
 
-第一阶段不应引入通用动态 workflow 编辑器，也不应把所有 Agent runtime 抽象成新的插件平台。
+第一阶段不引入新的 Coding state machine、通用动态 workflow editor 或
+新的 Agent runtime 插件平台。
 
 ### 第二阶段，恢复与并行
 
@@ -308,7 +303,8 @@ Pero 应沿用同样的验证思想，但继续使用 Go Temporal runtime，不�
 
 ## 下一步建议
 
-先实现并验收第一阶段的 `CodingWorkflow v1`。它应只覆盖一个固定 task path。
+先把 PR #265 和 #276 的真实验收合入并设为回归门禁，再实现一个薄的
+Delivery 关联和查询切片。它只覆盖一个固定 task path。
 
 ```text
 admit project request
