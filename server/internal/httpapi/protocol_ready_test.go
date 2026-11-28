@@ -5,12 +5,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/phodal/pero/server/internal/resourceref"
@@ -25,14 +29,52 @@ func TestProtocolReadyCorpus(t *testing.T) {
 	if hex.EncodeToString(sum[:]) != corpus.Revision {
 		t.Fatal("evidence digest")
 	}
+	root := protocolRepoRoot(t)
 	spec := ProtocolSlice{
 		Project: corpus.Project, Token: corpus.ClientToken, OwnerHost: corpus.OwnerHost,
 		LocalProject: corpus.LocalProject, AppInstance: corpus.AppInstance, AppVersion: corpus.AppVersion,
 		PaperID: corpus.PaperID, Revision: corpus.Revision, Evidence: []byte(corpus.Evidence),
-		RunID: corpus.RunID, RunOwner: corpus.RunOwner,
+		RunID: corpus.RunID, RunOwner: corpus.RunOwner, Root: root,
 	}
 	server := httptest.NewServer(ProtocolReadyHandler(spec))
 	t.Cleanup(server.Close)
+	page, err := http.Get(server.URL + "/web/protocol-harness/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pageBody, _ := io.ReadAll(page.Body)
+	page.Body.Close()
+	if page.StatusCode != 200 || !bytes.Contains(pageBody, []byte("session.mjs")) || page.Header.Get("Access-Control-Allow-Origin") != "" || !strings.Contains(page.Header.Get("Content-Type"), "text/html") {
+		t.Fatalf("page %d %s %s", page.StatusCode, page.Header.Get("Content-Type"), pageBody)
+	}
+	module, err := http.Get(server.URL + "/web/protocol-harness/session.mjs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	module.Body.Close()
+	if module.StatusCode != 200 || module.Header.Get("Content-Type") != "text/javascript; charset=utf-8" {
+		t.Fatalf("module %d %s", module.StatusCode, module.Header.Get("Content-Type"))
+	}
+	outside, err := http.Get(server.URL + "/server/internal/httpapi/protocol_ready.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	outside.Body.Close()
+	if outside.StatusCode != 404 {
+		t.Fatalf("outside %d", outside.StatusCode)
+	}
+	preflight, err := http.NewRequest(http.MethodOptions, server.URL+"/api/client/v1/me", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preflightResponse, err := http.DefaultClient.Do(preflight)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preflightResponse.Body.Close()
+	if preflightResponse.StatusCode != 404 || preflightResponse.Header.Get("Access-Control-Allow-Origin") != "" {
+		t.Fatalf("preflight %d", preflightResponse.StatusCode)
+	}
 	covered := map[string]bool{}
 	for _, item := range []struct {
 		id, method, path, token string
@@ -63,13 +105,35 @@ func TestProtocolReadyCorpus(t *testing.T) {
 	}
 }
 
+func TestProtocolReadyListen(t *testing.T) {
+	if os.Getenv("PROTOCOL_READY_LISTEN") == "" {
+		t.Skip()
+	}
+	corpus := readCorpus(t)
+	spec := ProtocolSlice{
+		Project: corpus.Project, Token: corpus.ClientToken, OwnerHost: corpus.OwnerHost,
+		LocalProject: corpus.LocalProject, AppInstance: corpus.AppInstance, AppVersion: corpus.AppVersion,
+		PaperID: corpus.PaperID, Revision: corpus.Revision, Evidence: []byte(corpus.Evidence),
+		RunID: corpus.RunID, RunOwner: corpus.RunOwner, Root: protocolRepoRoot(t),
+	}
+	listener, err := net.Listen("tcp", "0.0.0.0:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := &http.Server{Handler: ProtocolReadyHandler(spec)}
+	go server.Serve(listener)
+	t.Cleanup(func() { server.Close() })
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("protocol-ready http://<this-machine>:%s/web/protocol-harness/index.html token %s project %s\n", port, corpus.ClientToken, corpus.Project)
+	select {}
+}
+
 func runBrowserHarness(t *testing.T, origin string, corpus readyCorpus) []string {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("caller")
-	}
-	script := filepath.Join(filepath.Dir(file), "..", "..", "..", "web", "protocol-harness", "session.test.mjs")
+	script := filepath.Join(protocolRepoRoot(t), "web", "protocol-harness", "session.test.mjs")
 	command := exec.Command("node", "--test", script)
 	command.Env = append(os.Environ(), "PROTOCOL_READY_ORIGIN="+origin)
 	output, err := command.CombinedOutput()
@@ -97,13 +161,38 @@ type readyCorpus struct {
 	} `json:"remote"`
 }
 
+func protocolRepoRoot(t *testing.T) string {
+	t.Helper()
+	var starts []string
+	if wd, err := os.Getwd(); err == nil {
+		starts = append(starts, wd)
+	}
+	if src := os.Getenv("TEST_SRCDIR"); src != "" {
+		starts = append(starts, filepath.Join(src, "pero"), src)
+	}
+	if _, file, _, ok := runtime.Caller(0); ok {
+		starts = append(starts, filepath.Dir(file))
+	}
+	for _, start := range starts {
+		dir := start
+		for range 8 {
+			if _, err := os.Stat(filepath.Join(dir, "protocol/fixtures/protocol-ready/corpus.json")); err == nil {
+				return dir
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+	t.Fatal("protocol corpus not found")
+	return ""
+}
+
 func readCorpus(t *testing.T) readyCorpus {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("caller")
-	}
-	body, err := os.ReadFile(filepath.Join(filepath.Dir(file), "..", "..", "..", "protocol", "fixtures", "protocol-ready", "corpus.json"))
+	body, err := os.ReadFile(filepath.Join(protocolRepoRoot(t), "protocol/fixtures/protocol-ready/corpus.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

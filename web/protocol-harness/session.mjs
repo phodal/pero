@@ -60,12 +60,16 @@ export async function runProtocolSlice({ origin, corpus, pdfBytes, fetchImpl = g
   const opened = await readPaperResource(papers, { resource: paperResource(corpus, corpus.paperId, corpus.revision) });
   const pdf = pdfBytes ?? textEncoder.encode(corpus.pdf);
   const digest = await sha256(pdf);
+  const stamp = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
+  const handleId = `handle-${stamp}`;
+  const uploadId = `upload-${stamp}`;
+  const requestId = `req-${stamp}`;
   const pick = interpretDevicePick('browser', {
     outcome: 'selected',
-    handle: { id: 'handle-1', name: 'note.pdf', mediaType: 'application/pdf', size: pdf.byteLength },
+    handle: { id: handleId, name: 'note.pdf', mediaType: 'application/pdf', size: pdf.byteLength },
   });
   const plan = planDeviceTransfer(pick.handle, {
-    project: corpus.project, app: 'paper-agent', uploadId: 'upload-1', digest,
+    project: corpus.project, app: 'paper-agent', uploadId, digest,
   });
   if (plan.path || pick.handle.path) throw Object.assign(new Error('traversal'), { code: 'traversal' });
   const registered = await fetchImpl(`${origin}/api/client/v1/projects/${corpus.project}/device-handles`, {
@@ -92,13 +96,15 @@ export async function runProtocolSlice({ origin, corpus, pdfBytes, fetchImpl = g
   const second = await finalize();
   const imported = await readPaperResource(papers, { resource: paperResource(corpus, first.paperId, first.revision) });
   const reopened = await readPaperResource(papers, { resource: paperResource(corpus, first.paperId, first.revision) });
+  const observeStatus = new Map();
   const runs = {
-    async observe(request) {
+    async observe(call) {
       const response = await fetchImpl(`${origin}/api/client/v1/projects/${corpus.project}/runs/observe`, {
-        method: 'POST', headers: jsonHeaders, body: JSON.stringify(request),
+        method: 'POST', headers: jsonHeaders, body: JSON.stringify({ binding: call.binding, request: call.request }),
       });
       const payload = await response.json();
-      if (!response.ok) throw Object.assign(new Error(payload.outcome || 'unknown'), { code: payload.outcome || 'unknown' });
+      observeStatus.set(call.request.requestId, response.status);
+      if (!response.ok) throw Object.assign(new Error(payload.outcome || payload.error || 'unknown'), { code: payload.outcome || payload.error || 'unknown' });
       return payload;
     },
   };
@@ -107,14 +113,17 @@ export async function runProtocolSlice({ origin, corpus, pdfBytes, fetchImpl = g
     id: corpus.runId, generation: 1, scope: corpus.project,
   };
   const observed = await observeRun(runs, {
-    binding, request: { operation: 'status', requestId: 'req-1', inputHash: 'same', generation: 1 },
+    binding, request: { operation: 'status', requestId, inputHash: 'same', generation: 1 },
   });
   const disconnected = await observeRun(runs, {
     binding, knownStatus: observed.status,
-    request: { operation: 'status', requestId: 'req-disconnect', inputHash: 'same', generation: 1, consumerClosed: true },
+    request: { operation: 'status', requestId: `disconnect-${stamp}`, inputHash: 'same', generation: 1, consumerClosed: true },
   });
   const replay = await observeRun(runs, {
-    binding, request: { operation: 'status', requestId: 'req-1', inputHash: 'same', generation: 1 },
+    binding, request: { operation: 'status', requestId, inputHash: 'same', generation: 1 },
   });
-  return { me, opened, first, second, imported, reopened, observed, disconnected, replay, digest };
+  return {
+    me, opened, first, second, imported, reopened, observed, disconnected, replay, digest,
+    disconnectStatus: observeStatus.get(`disconnect-${stamp}`),
+  };
 }

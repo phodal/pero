@@ -20,9 +20,21 @@ test('browser harness reads evidence, imports one PDF, and reconciles the same r
   assert.equal(result.observed.outcome, 'observed');
   assert.equal(result.observed.effect, 'none');
   assert.equal(result.observed.status, 'running');
+  assert.equal(result.disconnectStatus, 200);
   assert.equal(result.disconnected.outcome, 'transport_abort');
   assert.equal(result.disconnected.status, 'running');
   assert.equal(result.disconnected.effect, 'none');
   assert.equal(result.replay.outcome, 'duplicate');
   assert.equal(result.replay.effect, 'none');
+  const again = await runProtocolSlice({
+    origin,
+    corpus,
+    pdfBytes: new TextEncoder().encode('%PDF-1.1\n2 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n'),
+  });
+  assert.equal(again.observed.outcome, 'observed');
+  assert.equal(again.disconnectStatus, 200);
+  assert.equal(again.disconnected.outcome, 'transport_abort');
+  assert.equal(again.disconnected.status, 'running');
+  assert.notEqual(again.first.paperId, result.first.paperId);
+  assert.equal(again.replay.outcome, 'duplicate');
 });

@@ -6,6 +6,8 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -28,6 +30,7 @@ type ProtocolSlice struct {
 	Evidence     []byte
 	RunID        string
 	RunOwner     string
+	Root         string
 }
 
 type sliceOwner struct {
@@ -124,6 +127,12 @@ func ProtocolReadyHandler(spec ProtocolSlice) http.Handler {
 	api.registerClients(mux)
 	token := spec.Token
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			if file, ok := harnessFile(spec.Root, r.URL.Path); ok {
+				serveHarnessFile(w, file)
+				return
+			}
+		}
 		if !protocolRoute(r.Method, r.URL.Path) {
 			respond(w, 404, map[string]string{"error": "absent"})
 			return
@@ -137,6 +146,46 @@ func ProtocolReadyHandler(spec ProtocolSlice) http.Handler {
 		r = r.WithContext(context.WithValue(r.Context(), clientContextKey{}, client))
 		mux.ServeHTTP(w, r)
 	})
+}
+
+func harnessFile(root, urlPath string) (string, bool) {
+	if root == "" || !strings.HasPrefix(urlPath, "/") || strings.Contains(urlPath, "..") {
+		return "", false
+	}
+	rel := strings.TrimPrefix(urlPath, "/")
+	switch rel {
+	case "web/protocol-harness/index.html",
+		"web/protocol-harness/session.mjs",
+		"packages/app-sdk/src/capability-client.mjs",
+		"packages/app-sdk/src/device-files.mjs",
+		"packages/app-sdk/src/resource-read.mjs",
+		"packages/app-sdk/src/run-lifecycle.mjs":
+	default:
+		return "", false
+	}
+	full := filepath.Join(root, filepath.FromSlash(rel))
+	prefix := filepath.Clean(root) + string(os.PathSeparator)
+	if !strings.HasPrefix(full, prefix) {
+		return "", false
+	}
+	return full, true
+}
+
+func serveHarnessFile(w http.ResponseWriter, file string) {
+	body, err := os.ReadFile(file)
+	if err != nil {
+		respond(w, 404, map[string]string{"error": "absent"})
+		return
+	}
+	if strings.HasSuffix(file, ".mjs") {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	} else {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(200)
+	_, _ = w.Write(body)
 }
 
 func protocolRoute(method, path string) bool {

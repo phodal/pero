@@ -10,7 +10,7 @@
     <h1>Protocol harness</h1>
     <p>Scoped client token only. This page does not ask for an operator credential.</p>
     <form id="session">
-      <label>Origin <input name="origin" required value="http://127.0.0.1:8080"></label>
+      <label>Origin <input name="origin" required></label>
       <label>Project <input name="project" required value="lab"></label>
       <label>Client token <input name="token" required autocomplete="off"></label>
       <label>PDF <input name="pdf" type="file" accept="application/pdf"></label>
@@ -21,6 +21,8 @@
   <script type="module">
     import { runProtocolSlice } from './session.mjs';
 
+    const origin = document.querySelector('[name=origin]');
+    origin.value = location.origin;
     const result = document.querySelector('#result');
     document.querySelector('#session').addEventListener('submit', async (event) => {
       event.preventDefault();

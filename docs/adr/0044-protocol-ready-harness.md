@@ -6,7 +6,7 @@ Status: accepted for P0.7 of #256. Leave issue 256 open; reference it only with 
 
 ## Decision
 
-The browser slice lives at `web/protocol-harness`. It imports the App SDK modules for capability negotiation, Paper read, run observation, and device pick. It does not import Electron, Capacitor, a Desktop preload, or a backend credential. The page keeps the client token in memory for one submission.
+The browser slice lives at `web/protocol-harness`. It imports the App SDK modules for capability negotiation, Paper read, run observation, and device pick. It does not import Electron, Capacitor, a Desktop preload, or a backend credential. The page keeps the client token in memory for one submission. The handler serves that page and those four modules on its own origin. The browser then calls the API without a cross-origin preflight. A separate static host is not part of this slice. Each submission mints its own handle, upload, and request id. A retry inside that submission reuses those ids.
 
 The server composition is `ProtocolReadyHandler`. It mounts the existing client route table and then admits only the selected routes: client identity, Paper read, run observation, device-handle registration, and the bounded PDF transfer. Any other path, including the operator route, is refused before a handler runs. The bearer token is the project client named by the conformance corpus. It is not an operator token.
 
