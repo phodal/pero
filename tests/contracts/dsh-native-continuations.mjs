@@ -34,22 +34,61 @@ const {server, url} = await listenJson(async (request, response, body) => {
       cold.leaf = JSON.parse(result.content).sessionId;
       return answer('creator finished original work');
     }
-    const offline = byCall('cold-identify-offline');
-    if (offline && !cold.offlineChecked) {
-      assert.match(String(offline.content),/creator is not live/);
-      cold.offlineChecked = true;
-      return answer('creator is offline');
+    const born = byCall('cold-seed-creator');
+    if (born && !cold.creator) {
+      cold.creator = JSON.parse(born.content).sessionId;
+      return call('cold-seed-other-creator','subagent',{name:'alternate',description:'Other creator',prompt:'seed alternate creator'});
+    }
+    const otherBorn = byCall('cold-seed-other-creator');
+    if (otherBorn && !cold.otherCreator) {
+      cold.otherCreator = JSON.parse(otherBorn.content).sessionId;
+      return answer('root stored both creator receipts');
+    }
+    const otherLeaf = byCall('cold-seed-other-leaf');
+    if (otherLeaf && !cold.otherLeaf) {
+      cold.otherLeaf = JSON.parse(otherLeaf.content).sessionId;
+      return answer('alternate creator finished');
+    }
+    const foreign = byCall('cold-foreign-send');
+    if (foreign && !cold.foreignChecked) {
+      assert.match(String(foreign.content),/not continuable/);
+      cold.foreignChecked = true;
+      return answer('foreign target was rejected');
+    }
+    const relay = byCall('cold-launch-relay');
+    if (relay && !cold.relay) {
+      cold.relay = JSON.parse(relay.content).sessionId;
+      await cold.relayDenied;
+      return call('cold-wake-creator','send_message',{agent:'branch',message:'rejoin creator fixture'});
     }
     const creatorWake = byCall('cold-wake-creator');
     if (creatorWake && !cold.creatorWake) {
       cold.creatorWake = JSON.parse(creatorWake.content).messageId;
-      await cold.creatorReady;
-      return call('cold-wake-leaf','send_message',{agent:'branch/checker',message:'cross-level cold relay'});
+      return answer('root received original creator wake receipt');
     }
     const leafWake = byCall('cold-wake-leaf');
     if (leafWake && !cold.leafWake) {
       cold.leafWake = JSON.parse(leafWake.content).messageId;
-      return answer('cross-level wake accepted');
+      await cold.leafReady;
+      return call('cold-relay-interrupt','interrupt_agent',{agent:'branch/checker'});
+    }
+    const rejected = byCall('cold-relay-interrupt');
+    if (rejected && !cold.relayRejected) {
+      assert.match(String(rejected.content),/another ancestor or parent/);
+      cold.relayRejected = true;
+      return call('cold-relay-buffer','send_message',{agent:'branch/checker',message:'buffered after cold resume'});
+    }
+    const buffered = byCall('cold-relay-buffer');
+    if (buffered && !cold.bufferMessage) {
+      cold.bufferMessage = JSON.parse(buffered.content).messageId;
+      cold.relayWasDenied();
+      return answer('relay left input for later');
+    }
+    const stopped = byCall('cold-creator-interrupt');
+    if (stopped && !cold.stopped) {
+      assert.deepEqual(JSON.parse(stopped.content),{accepted:true});
+      cold.stopped = true;
+      return answer('original creator retained interrupt authority');
     }
     if (content.includes('seed cross-level fixture'))
       return call('cold-seed-creator','subagent',{name:'branch',description:'Creator probe',prompt:'seed creator fixture'});
@@ -57,21 +96,27 @@ const {server, url} = await listenJson(async (request, response, body) => {
       return call('cold-seed-leaf','subagent',{name:'checker',description:'Leaf probe',prompt:'seed leaf fixture'});
     if (content.includes('seed leaf fixture'))
       return answer('leaf saved baseline');
-    if (content.includes('check offline creator fixture'))
-      return call('cold-identify-offline','send_message',{agent:'branch/checker',message:'must not start leaf'});
+    if (content.includes('seed alternate creator'))
+      return call('cold-seed-other-leaf','subagent',{name:'checker',description:'Duplicate leaf name',prompt:'seed alternate leaf'});
+    if (content.includes('seed alternate leaf'))
+      return answer('alternate leaf saved baseline');
+    if (content.includes('check foreign creator fixture'))
+      return call('cold-foreign-send','send_message',{agent:cold.leaf,message:'foreign must not start leaf'});
     if (content.includes('restore cross-level fixture'))
-      return call('cold-wake-creator','send_message',{agent:'branch',message:'rejoin creator fixture'});
+      return call('cold-launch-relay','subagent',{name:'relay',description:'Relay probe',prompt:'cold relay fixture'});
+    if (content.includes('cold relay fixture'))
+      return call('cold-wake-leaf','send_message',{agent:'branch/checker',message:'cross-level cold relay'});
     if (content.includes('rejoin creator fixture')) {
-      cold.creatorJoined();
-      await cold.leafReady;
-      return answer('creator observed materialized leaf');
+      assert.equal(cold.leafResumes,1,'the exact leaf must already run before its creator is rejoined');
+      assert.ok(body.messages.some(m=>String(m.content).includes('creator finished original work')));
+      return call('cold-creator-interrupt','interrupt_agent',{agent:'branch/checker'});
     }
     if (content.includes('cross-level cold relay')) {
-      const messages = body.messages.flatMap(m=>[String(m.content)]);
-      assert.ok(messages.includes('leaf saved baseline'),'resumed leaf kept its original model history');
+      assert.ok(body.messages.some(m=>m.content==='leaf saved baseline'),'resumed leaf kept its original model history');
       cold.leafResumes++;
+      response.once('close',()=>{cold.leafInterrupted = true;});
       cold.leafJoined();
-      return answer('leaf accepted cross-level input');
+      return;
     }
     return answer('cross-level fixture settled');
   }
@@ -268,29 +313,43 @@ try {
     assert.equal(control.resumed,1,'later send wakes the original child and drains the parked input once');
   });
   control = undefined;
-  const creator = Promise.withResolvers(), leaf = Promise.withResolvers();
-  cold = {creatorReady:creator.promise,creatorJoined:creator.resolve,leafReady:leaf.promise,leafJoined:leaf.resolve,leafResumes:0};
+  const rejected = Promise.withResolvers(), leaf = Promise.withResolvers();
+  cold = {relayDenied:rejected.promise,relayWasDenied:rejected.resolve,leafReady:leaf.promise,leafJoined:leaf.resolve,leafResumes:0};
   let originalRoot;
   await acp(async ({open,prompt}) => {
     originalRoot = await open();
     assert.equal((await prompt(originalRoot,'seed cross-level fixture')).stopReason,'end_turn');
-    assert.ok(cold.leaf);
+    assert.ok(cold.creator && cold.leaf && cold.otherCreator && cold.otherLeaf);
   });
-  await acp(async ({load,prompt}) => {
+  await acp(async ({load,open,prompt}) => {
     await load(originalRoot);
-    assert.equal((await prompt(originalRoot,'check offline creator fixture')).stopReason,'end_turn');
-    assert.equal(cold.offlineChecked,true);
+    assert.equal((await prompt(await open(),'check foreign creator fixture')).stopReason,'end_turn');
+    assert.equal(cold.foreignChecked,true);
     assert.equal(cold.leafResumes,0);
+    const originalCreator = await readFile(join(journal,cold.creator+'.jsonl'),'utf8');
+    const otherLeafPath = join(journal,cold.otherLeaf+'.jsonl');
+    const alternateBefore = await readFile(otherLeafPath,'utf8');
     assert.equal((await prompt(originalRoot,'restore cross-level fixture')).stopReason,'end_turn');
-    assert.ok(cold.creatorWake && cold.leafWake,JSON.stringify({errors,cold}));
+    assert.ok(cold.creatorWake && cold.leafWake && cold.relayRejected && cold.stopped && cold.leafInterrupted,JSON.stringify({errors,cold}));
     assert.equal(cold.leafResumes,1);
     const journalLines = (await readFile(join(journal,cold.leaf+'.jsonl'),'utf8')).trimEnd().split('\n').map(JSON.parse);
     const messages = journalLines.flatMap(line=>line.event?.data?.inserted ?? []).filter(m=>m.id===cold.leafWake);
     assert.equal(messages.length,1);
-    assert.equal(messages[0].source.senderSessionId,originalRoot);
+    assert.equal(messages[0].source.senderSessionId,cold.relay);
+    const pending = [];
+    for (const {event} of journalLines) {
+      if (event?.type!=='agent/inbox/spliced' || event.data.target!=='next-step') continue;
+      const {start,removedCount,inserted} = event.data;
+      pending.splice(start,removedCount ?? 0,...(inserted ?? []));
+    }
+    assert.deepEqual(pending.map(m=>m.id),[cold.bufferMessage],'the rejoined creator interrupted without consuming queued work');
+    const creatorAfter = await readFile(join(journal,cold.creator+'.jsonl'),'utf8');
+    assert.ok(creatorAfter.startsWith(originalCreator),'the original creator session was rejoined, not replaced');
+    assert.ok(creatorAfter.includes(cold.creatorWake));
+    assert.equal(await readFile(otherLeafPath,'utf8'),alternateBefore,'other checker never received work');
   });
   assert.deepEqual(errors,[]);
-  console.log('ACP default-off, asynchronous spawn/fork, per-root settlement, sibling send, ancestor interrupt, and cold cross-level delivery with live creator passed');
+  console.log('ACP default-off, asynchronous spawn/fork, per-root settlement, sibling send, ancestor interrupt, and cold cross-level delivery with offline creator passed');
 } finally {
   await closeLoopback(server);
   await rm(home,{recursive:true,force:true});

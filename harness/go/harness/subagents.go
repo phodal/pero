@@ -307,6 +307,12 @@ type SubagentManagedResumer interface {
 	PrepareManagedResume(context.Context, *Agent, SessionID) (SubagentContinuationProviderRun, SubagentSnapshot, error)
 }
 
+// SubagentDSHTreeResumer marks providers that can retain saved policy while
+// activating a child below its live root instead of its offline creator.
+type SubagentDSHTreeResumer interface {
+	SupportsDSHTreeResume() bool
+}
+
 var ErrSubagentResumeUnavailable = errors.New("harness: subagent cold resume unavailable")
 
 // SubagentContinuationResumer is implemented by session-backed providers.
@@ -398,6 +404,8 @@ type subagentProviderEntry struct {
 }
 
 type subagentRecord struct {
+	// Set only for a cold DSH child reattached under the root with its creator offline.
+	creationAncestors        []SessionID
 	admissionMu              sync.Mutex
 	snapshot                 SubagentSnapshot
 	run                      SubagentRun

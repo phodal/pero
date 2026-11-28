@@ -70,7 +70,7 @@ func mountSubagents(ctx context.Context, h *harness.Harness, persistence harness
 			{subagents.MountInProcess, "dsh-spawn", "subagent"},
 			{subagents.MountForkInProcess, "dsh-fork", "subagent_fork"},
 		} {
-			if _, err := mode.mount(ctx, h, subagents.InProcessOptions{EntryID: "pero/provider/" + mode.provider, Name: mode.provider, Managed: true, Persistence: persistence, Compaction: compaction}); err != nil {
+			if _, err := mode.mount(ctx, h, subagents.InProcessOptions{EntryID: "pero/provider/" + mode.provider, Name: mode.provider, Managed: true, DSHTreeResume: true, Persistence: persistence, Compaction: compaction}); err != nil {
 				return err
 			}
 			if _, err := subagents.MountTool(ctx, h, subagents.ToolOptions{EntryID: "pero/subagents/" + mode.provider, Provider: mode.provider, ToolName: mode.tool, MaxDepth: depth, Continuable: true}); err != nil {

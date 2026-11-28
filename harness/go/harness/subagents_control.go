@@ -100,10 +100,10 @@ func assertSubagentImageCapable(ctx context.Context, child *Agent, content []Con
 }
 
 func (f *SubagentFacade) InterruptActivation(caller *Agent, target SessionID, runID string) error {
-	return f.registry.interruptActivation(caller, "", target, runID, f)
+	return f.registry.interruptActivation(caller, "", target, runID, f, false)
 }
 func (f *SubagentFacade) InterruptActivationByParentID(parentID, target SessionID, runID string) error {
-	return f.registry.interruptActivation(nil, parentID, target, runID, f)
+	return f.registry.interruptActivation(nil, parentID, target, runID, f, false)
 }
 
 // DSHControlTools are the model-facing adapters. The registry, not model
@@ -111,7 +111,7 @@ func (f *SubagentFacade) InterruptActivationByParentID(parentID, target SessionI
 func (r *SubagentRegistry) DSHControlTools() []Tool {
 	return []Tool{
 		r.dshControlTool("send_message",
-			"Send text to another agent in your tree. A working agent receives it at its next step. An idle agent starts a turn when it can be resumed through its live creator. Returns a delivery ID.",
+			"Send text to another agent in your tree. A working agent receives it at its next step. An idle agent starts a turn when its saved route and tree allow it to resume. Returns a delivery ID.",
 			`{"type":"object","properties":{"agent":{"type":"string","description":"Agent name or path shown by list_agents"},"message":{"type":"string"}},"required":["agent","message"],"additionalProperties":false}`,
 			func(ctx context.Context, caller *Agent, target SessionID, message *string) (ToolResult, error) {
 				if message == nil {

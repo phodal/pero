@@ -175,7 +175,11 @@ func (m *AgentManager) resume(ctx context.Context, session *Session, options Age
 			return nil, errors.New("harness: delegated resume requires the exact live parent")
 		}
 		if header.ParentSession != options.Parent.ID() {
-			return nil, errors.New("harness: delegated resume parent does not match persisted session")
+			cold := dshColdResumeFor(ctx, options.Parent, header.ID)
+			if cold == nil || cold.registry.agents != m || cold.ancestors[0] != header.ParentSession ||
+				len(cold.ancestors) != header.DelegationDepth || !options.Delegated || options.DelegationDepth != header.DelegationDepth {
+				return nil, errors.New("harness: delegated resume parent does not match persisted session")
+			}
 		}
 		if header.Origin != "subagent" {
 			return nil, errors.New("harness: delegated resume requires a persisted subagent origin")

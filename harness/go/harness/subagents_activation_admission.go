@@ -27,7 +27,7 @@ type subagentMessageMode uint8
 const (
 	subagentMessageAdjacent subagentMessageMode = iota
 	subagentMessageDSH
-	// Native DSH control can find a cold target through its live creator.
+	// Native DSH control can find a cold target in the live root's saved tree.
 	subagentMessageNativeDSH
 )
 
@@ -82,7 +82,7 @@ func (r *SubagentRegistry) sendMessage(ctx context.Context, sender *Agent, targe
 	r.mu.RLock()
 	senderRecord := r.records[sender.ID()]
 	r.mu.RUnlock()
-	if sender.Session().Header().ParentSession == targetID {
+	if mode != subagentMessageNativeDSH && sender.Session().Header().ParentSession == targetID {
 		r.mu.RLock()
 		allowed := senderRecord != nil && r.records[sender.ID()] == senderRecord && senderRecord.child == sender && senderRecord.snapshot.Continuable && senderRecord.activation != nil && senderRecord.parent != nil && senderRecord.parent.ID() == targetID && r.parentAdmitsLocked(senderRecord.parent) && r.activationAcceptsInput(senderRecord)
 		if facade, _ := ctx.Value(subagentFacadeContextKey{}).(*SubagentFacade); facade != nil && subagentRecordFacade(senderRecord) != facade {
@@ -106,15 +106,16 @@ func (r *SubagentRegistry) sendMessage(ctx context.Context, sender *Agent, targe
 		}
 		return messageID, nil
 	}
-	creator := sender
+	parent := sender
+	var cold *dshColdResume
 	if mode == subagentMessageNativeDSH {
 		var err error
-		creator, err = r.resolveColdDSHCreator(ctx, sender, targetID)
+		parent, cold, err = r.resolveColdDSHParent(ctx, sender, targetID)
 		if err != nil {
 			return "", err
 		}
 	}
-	preparationCtx, releasePreparation, err := r.reserveSubagentPreparation(ctx, creator)
+	preparationCtx, releasePreparation, err := r.reserveSubagentPreparation(ctx, parent)
 	if err != nil {
 		return "", err
 	}
@@ -123,7 +124,10 @@ func (r *SubagentRegistry) sendMessage(ctx context.Context, sender *Agent, targe
 		preparation, _ := preparationCtx.Value(subagentPreparationContextKey{}).(*subagentPreparation)
 		preparationCtx = context.WithValue(preparationCtx, dshSubagentSendContextKey{}, &dshSubagentSendInvocation{registry: r, sender: sender, target: targetID, preparation: preparation})
 	}
-	record, created, err := r.continuableRecordMode(preparationCtx, creator, targetID, true)
+	if cold != nil {
+		preparationCtx = context.WithValue(preparationCtx, dshColdResumeKey{}, cold)
+	}
+	record, created, err := r.continuableRecordMode(preparationCtx, parent, targetID, true)
 	if err != nil {
 		return "", err
 	}
@@ -154,45 +158,87 @@ func (r *SubagentRegistry) sendMessage(ctx context.Context, sender *Agent, targe
 	return messageID, nil
 }
 
-// Only native DSH control opts into cross-level reconstruction. Catalog facts
-// identify the creation edge; they never give the sender the creator's authority.
-func (r *SubagentRegistry) resolveColdDSHCreator(ctx context.Context, sender *Agent, target SessionID) (*Agent, error) {
+// Only native DSH control can create this receipt. The live root owns the
+// activation and capacity; the persisted creator still owns the catalog edge.
+type dshColdResumeKey struct{}
+type dshColdResume struct {
+	registry  *SubagentRegistry
+	root      *Agent
+	target    SessionID
+	ancestors []SessionID // creator first, root last
+}
+
+func dshColdResumeFor(ctx context.Context, parent *Agent, target SessionID) *dshColdResume {
+	if ctx == nil {
+		return nil
+	}
+	cold, _ := ctx.Value(dshColdResumeKey{}).(*dshColdResume)
+	if cold != nil && cold.root == parent && cold.target == target {
+		return cold
+	}
+	return nil
+}
+
+// DSHColdResumeCreator exposes the original creator only to a provider
+// preparing the exact target under the receipt's live root.
+func DSHColdResumeCreator(ctx context.Context, parent *Agent, target SessionID) (SessionID, bool) {
+	if cold := dshColdResumeFor(ctx, parent, target); cold != nil {
+		return cold.ancestors[0], true
+	}
+	return "", false
+}
+
+func (r *SubagentRegistry) resolveColdDSHParent(ctx context.Context, sender *Agent, target SessionID) (*Agent, *dshColdResume, error) {
 	root, err := r.LiveTreeRoot(sender)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	r.mu.RLock()
 	source := r.records[sender.ID()]
 	managed := sender == root || source != nil && source.snapshot.Continuable && source.activation != nil && source.activation.bindingReady.Load()
 	r.mu.RUnlock()
 	if !managed {
-		return sender, nil // Keep the direct-parent path's original capability checks.
+		return nil, nil, &subagentActivationError{"cold send requires a continuable member of the live tree", "UNAUTHORIZED"}
 	}
 	read, query, release, err := r.beginCatalogRead(ctx, sender)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer release()
 	rows, err := listSubagentDescendants(read, query, root.ID())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	byID := make(map[SessionID]SubagentDescendantEntry, len(rows))
 	for _, row := range rows {
-		if row.ID != target || row.Kind != "child" || row.Mode != "continuable" {
-			continue
-		}
-		if row.ParentID == sender.ID() {
-			return sender, nil
-		}
-		if creator, found := r.agents.Get(row.ParentID); found {
-			creatorRoot, err := r.LiveTreeRoot(creator)
-			if err == nil && creatorRoot == root {
-				return creator, nil
-			}
-		}
-		return nil, &subagentActivationError{"cold target's creator is not live in this agent tree", "NOT_RESUMABLE"}
+		byID[row.ID] = row
 	}
-	return sender, nil // Preserve direct-parent behavior and provider diagnostics.
+	row := byID[target]
+	if row.Kind != "child" || row.Mode != "continuable" {
+		return sender, nil, nil // Preserve exact direct-parent provider diagnostics.
+	}
+	if row.ParentID == sender.ID() {
+		return sender, nil, nil
+	}
+	if creator, found := r.agents.Get(row.ParentID); found {
+		creatorRoot, err := r.LiveTreeRoot(creator)
+		if err == nil && creatorRoot == root {
+			return creator, nil, nil
+		}
+		return nil, nil, &subagentActivationError{"cold target's creator is not in this agent tree", "UNAUTHORIZED"}
+	}
+	ancestors := make([]SessionID, 0, row.Depth)
+	for current, depth := row, row.Depth; depth > 0; depth-- {
+		if current.Depth != depth || current.ParentID == "" {
+			return nil, nil, &subagentActivationError{"invalid saved creation ancestry", "NOT_RESUMABLE"}
+		}
+		ancestors = append(ancestors, current.ParentID)
+		current = byID[current.ParentID]
+	}
+	if ancestors[len(ancestors)-1] != root.ID() {
+		return nil, nil, &subagentActivationError{"saved target belongs to another tree", "UNAUTHORIZED"}
+	}
+	return root, &dshColdResume{registry: r, root: root, target: target, ancestors: ancestors}, nil
 }
 
 // Admission reserves the exact destination without holding a lock across

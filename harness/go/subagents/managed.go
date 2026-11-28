@@ -13,6 +13,8 @@ type managedInProcessProvider struct{ *inProcessProvider }
 
 type claudeBackgroundActivationKey struct{}
 
+func (p *managedInProcessProvider) SupportsDSHTreeResume() bool { return p.dshTreeResume }
+
 func (p *managedInProcessProvider) PrepareContinuable(ctx context.Context, request harness.SubagentRequest) (harness.SubagentContinuationProviderRun, error) {
 	return harness.SubagentContinuationProviderRun{}, harness.ErrSubagentActivationModeUnsupported
 }
@@ -58,7 +60,14 @@ func (p *managedInProcessProvider) PrepareManagedResume(ctx context.Context, par
 		}
 	}
 	header := session.Header()
-	if parent == nil || header.Origin != "subagent" || header.ParentSession != parent.ID() {
+	if parent == nil || header.Origin != "subagent" {
+		return unavailable()
+	}
+	creator, detached := harness.DSHColdResumeCreator(ctx, parent, id)
+	if !detached {
+		creator = parent.ID()
+	}
+	if header.ParentSession != creator {
 		return unavailable()
 	}
 	descriptor, found, err := harness.FoldSubagentDescriptor(session)
@@ -69,7 +78,7 @@ func (p *managedInProcessProvider) PrepareManagedResume(ctx context.Context, par
 		return unavailable()
 	}
 	if p.definitions == nil {
-		// Native direct-parent continuation uses the original route and tool
+		// Native continuation uses the original route and tool
 		// restrictions. Child options refuse an incompatible current parent
 		// rather than silently switching providers or widening approvals.
 		request := harness.SubagentRequest{Parent: parent, ChildID: id, Depth: header.DelegationDepth, CWD: session.WorkingDirectory(), Provider: descriptor.AgentProvider, Model: descriptor.AgentModel, ReasoningEffort: descriptor.AgentReasoningEffort, Persona: descriptor.Persona, ToolFilter: descriptor.ToolFilter}
@@ -77,6 +86,9 @@ func (p *managedInProcessProvider) PrepareManagedResume(ctx context.Context, par
 		options, err := p.childAgentOptions(request, &capture)
 		if err != nil {
 			return harness.SubagentContinuationProviderRun{}, harness.SubagentSnapshot{}, err
+		}
+		if detached && (options.Provider != descriptor.AgentProvider || options.Model != descriptor.AgentModel || options.ReasoningEffort != descriptor.AgentReasoningEffort) {
+			return unavailable()
 		}
 		if err := p.resolveChildRoute(ctx, request, options); err != nil {
 			return harness.SubagentContinuationProviderRun{}, harness.SubagentSnapshot{}, err

@@ -24,6 +24,8 @@ type InProcessOptions struct {
 	Name        string
 	Persistence harness.SessionPersistence
 	Managed     bool
+	// DSHTreeResume opts native providers into a verified root-owned activation.
+	DSHTreeResume bool
 	// InheritApproval is a trusted profile opt-in. Legacy delegation remains
 	// ApprovalNever; the model cannot change this policy through tool input.
 	InheritApproval bool
@@ -41,6 +43,7 @@ type inProcessProvider struct {
 	fork            bool
 	persistence     harness.SessionPersistence
 	managed         bool
+	dshTreeResume   bool
 	definitions     map[string]AgentDefinition
 	prepareSeed     func(context.Context, harness.SubagentRequest) (*harness.Session, error)
 	next            atomic.Uint64
@@ -78,6 +81,9 @@ func mountInProcess(ctx context.Context, h *harness.Harness, options InProcessOp
 			options.Name = "spawn"
 		}
 	}
+	if options.DSHTreeResume && (!options.Managed || definitions != nil || options.InheritApproval || len(options.ModelRoutes) != 0) {
+		return nil, errors.New("subagents: DSH tree resume requires native managed providers with the default inherited route and approval ceiling")
+	}
 	if options.Managed && options.Persistence == nil {
 		return nil, errors.New("subagents: managed native providers require session persistence")
 	}
@@ -87,7 +93,7 @@ func mountInProcess(ctx context.Context, h *harness.Harness, options InProcessOp
 		compaction = &copied
 	}
 	provider := &inProcessProvider{compaction: compaction,
-		h: h, name: options.Name, fork: fork, managed: options.Managed || definitions != nil, definitions: definitions, persistence: options.Persistence,
+		h: h, name: options.Name, fork: fork, managed: options.Managed || definitions != nil, dshTreeResume: options.DSHTreeResume, definitions: definitions, persistence: options.Persistence,
 		detachSessions:  make(map[*harness.Session]func() error),
 		inheritApproval: options.InheritApproval, modelRoutes: append([]ModelRoute(nil), options.ModelRoutes...),
 	}
