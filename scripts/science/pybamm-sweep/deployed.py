@@ -139,7 +139,7 @@ def main(args):
     worker_id = credential['worker']['id']
     save(output / 'worker.private.json', credential)
     save(output / 'agents.json', [{'id': 'pybamm-sweep-v1', 'name': 'Frozen PyBaMM method',
-         'command': str(python), 'args': [str(ROOT / 'acp.py'), '--workspace', str(workspace)], 'env': {}}])
+         'command': str(python), 'supervision': 'gate', 'args': [str(ROOT / 'acp.py'), '--workspace', str(workspace)], 'env': {}}])
     save(output / 'config.json', {'workspaces': {'battery': str(workspace)},
                                 'agents_file': str(output / 'agents.json')})
     journal = output / 'journal.json'

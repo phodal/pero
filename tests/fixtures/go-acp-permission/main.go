@@ -41,7 +41,7 @@ func run() error {
 		return err
 	}
 	defer h.Dispose(ctx)
-	_, err = h.RegisterTool(ctx, "fixture.guarded-noop", harness.Tool{Schema: harness.ToolSchema{Name: "fixture_guarded_noop", Description: "Test-only no-op requiring approval", InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)}, RequiresApproval: true, Execute: func(context.Context, json.RawMessage) (harness.ToolResult, error) {
+	_, err = h.RegisterTool(ctx, "fixture.guarded-noop", harness.Tool{Schema: harness.ToolSchema{Name: "fixture_guarded_noop", Description: "Test-only no-op requiring approval", InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)}, AlwaysAskApproval: true, Execute: func(context.Context, json.RawMessage) (harness.ToolResult, error) {
 		// Observation only: any call is a test failure. No shell/network/tool effects.
 		if err := os.WriteFile(filepath.Join(*sessions, "tool-executed"), []byte("unexpected fixture execution"), 0600); err != nil {
 			return harness.ToolResult{}, err

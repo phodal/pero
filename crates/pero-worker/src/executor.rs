@@ -4,7 +4,7 @@ use crate::{
     run_desktop::{HandoffMonitor, HandoffStatus},
 };
 use pero_contracts::{HostEvent, local_worker::BUILTIN_AGENT_KEY_ENV};
-use pero_runtime::acp::{self, AgentConfig, SessionCommand};
+use pero_runtime::acp::{self, AgentConfig, SessionCommand, SupervisedPermission};
 use pero_runtime::workspace_lease::WorkspaceLease;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -148,7 +148,8 @@ impl Config {
                 "--session-id".into(), remote.session_id.clone(),
                 "--working-directory".into(), remote.working_directory.clone(),
             ],
-            env, model: None, mcp_servers: vec![],
+            env, model: None, supervision: Some(acp::AgentSupervision::Gate),
+            mcp_servers: vec![],
         };
         Ok(Execution {
             workspace, agent, prompt: prompt(run), run_id: run.id.clone(),
@@ -303,6 +304,11 @@ pub fn child_execute() -> Result<(), String> {
     // The actual executor holds the lease until it exits, including orphan cleanup.
     // A supervisor dying must not release the checkout while its child still writes.
     let _workspace_lease = WorkspaceLease::acquire(&execution.workspace)?;
+    let permission = if execution.approval.is_some() {
+        SupervisedPermission::AskDsh
+    } else {
+        SupervisedPermission::ReadOnlyDsh
+    };
     let mut gate = Gate::new(execution.approval.clone(), execution.workspace.clone());
     let run_desktop = execution.run_desktop;
     let handoff_http = run_desktop.as_ref().map(|_| {
@@ -316,7 +322,7 @@ pub fn child_execute() -> Result<(), String> {
         execution.agent.required_mcp_servers.insert("pero-run-desktop".into());
     }
     let (tx, rx) = mpsc::channel();
-    let handle = acp::start_supervised(execution.agent, execution.workspace, execution.run_id, tx);
+    let handle = acp::start_supervised(execution.agent, execution.workspace, execution.run_id, tx, permission);
     let cancel = Arc::new(AtomicBool::new(false));
     let stdin_cancel = cancel.clone();
     std::thread::spawn(move || {

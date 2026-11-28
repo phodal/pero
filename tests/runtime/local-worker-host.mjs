@@ -39,7 +39,7 @@ await writeFile(agents,JSON.stringify([
   {id:'fixture',name:'Installed fixture',command:'/usr/bin/true'},
   {id:'pero',name:'Built-in provider fixture',command:process.execPath,
     args:[providerAgent,'--endpoint','https://example.invalid/initial-route','--model','initial-model',
-      '--api-key-env','DEEPSEEK_API_KEY']},
+      '--api-key-env','DEEPSEEK_API_KEY'], supervision:'gate'},
 ]));
 const token='private-worker-fixture-token';
 let claims=0;

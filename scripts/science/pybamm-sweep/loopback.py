@@ -95,7 +95,7 @@ def main(args):
                 config = output / f'worker-{index}.json'
                 agents = output / f'agents-{index}.json'
                 save(agents, [{'id': 'pybamm-sweep-v1', 'name': 'Frozen PyBaMM method', 'command': str(args.python),
-                               'args': [str(ROOT / 'acp.py'), '--workspace', str(workspace)], 'env': {}}])
+                               'supervision': 'gate', 'args': [str(ROOT / 'acp.py'), '--workspace', str(workspace)], 'env': {}}])
                 save(config, {'workspaces': {'battery': str(workspace)}, 'agents_file': str(agents)})
                 env = {**os.environ, 'PERO_CLOUD_URL': origin, 'PERO_WORKER_TOKEN': credential['token'],
                        'PERO_WORKER_CONFIG': str(config), 'PERO_WORKER_STATE': str(output / f'journal-{index}.json')}

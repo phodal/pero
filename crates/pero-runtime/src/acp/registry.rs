@@ -28,6 +28,10 @@ pub struct AgentConfig {
     pub env: BTreeMap<String, String>,
     #[serde(default)]
     pub model: Option<String>,
+    /// Explicit Worker opt-in. `gate` admits a non-DSH peer without the DSH
+    /// permission selector. Absent refuses that peer. Never inferred from id or command.
+    #[serde(default)]
+    pub supervision: Option<AgentSupervision>,
     /// Trusted operator configuration only; never inferred from prompts or discovered.
     #[serde(default, deserialize_with = "deserialize_mcp_servers")]
     pub mcp_servers: Vec<McpServer>,
@@ -35,6 +39,19 @@ pub struct AgentConfig {
 /// Chat translates this key. The built-in agent exits before any session exists
 /// when the named provider credential is missing.
 pub const CREDENTIAL_REQUIRED: &str = "chat.credential_required";
+
+/// Agents-file opt-in for Worker supervision. The only accepted value is `gate`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AgentSupervision {
+    Gate,
+}
+
+impl AgentConfig {
+    pub fn gate_only(&self) -> bool {
+        self.supervision == Some(AgentSupervision::Gate)
+    }
+}
 
 impl AgentConfig {
     /// `--api-key-env` names the variable the built-in agent reads. An agent
@@ -143,6 +160,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             ],
             env: BTreeMap::new(),
             model: None,
+            supervision: None,
             mcp_servers: vec![],
         },
         AgentConfig {
@@ -159,6 +177,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
                 .into_owned()],
             env: BTreeMap::from([("ELECTRON_RUN_AS_NODE".into(), "1".into())]),
             model: None,
+            supervision: Some(AgentSupervision::Gate),
             mcp_servers: vec![],
         },
         AgentConfig {
@@ -175,6 +194,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
                 .into_owned()],
             env: BTreeMap::from([("ELECTRON_RUN_AS_NODE".into(), "1".into())]),
             model: None,
+            supervision: Some(AgentSupervision::Gate),
             mcp_servers: vec![],
         },
         AgentConfig {
@@ -188,6 +208,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             args: vec!["--acp".into(), "--stdio".into()],
             env: BTreeMap::new(),
             model: None,
+            supervision: Some(AgentSupervision::Gate),
             mcp_servers: vec![],
         },
         AgentConfig {
@@ -201,6 +222,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             args: vec!["--no-auto-update".into(), "agent".into(), "stdio".into()],
             env: BTreeMap::new(),
             model: None,
+            supervision: Some(AgentSupervision::Gate),
             mcp_servers: vec![],
         },
         AgentConfig {
@@ -214,6 +236,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             args: vec!["--acp".into()],
             env: BTreeMap::new(),
             model: None,
+            supervision: Some(AgentSupervision::Gate),
             mcp_servers: vec![],
         },
         AgentConfig {
@@ -227,6 +250,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             args: vec!["acp".into()],
             env: BTreeMap::new(),
             model: None,
+            supervision: Some(AgentSupervision::Gate),
             mcp_servers: vec![],
         },
     ];
@@ -427,6 +451,7 @@ mod tests {
                 .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
                 .collect(),
             model: None,
+            supervision: None,
             mcp_servers: vec![],
         }
     }

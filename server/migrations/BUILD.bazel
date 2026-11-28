@@ -24,6 +24,7 @@ go_library(
         "023_run_reconciliation.sql",
         "024_research_campaigns.sql",
         "025_campaign_review.sql",
+        "026_campaign_inventory.sql",
         "027_paper_revisions.sql",
         "028_project_deliveries.sql",
     ],

@@ -92,7 +92,7 @@ def main(args):
                 credential = api.request('/api/v1/workers', {'name': ['macos-physical', 'lima-linux-vm'][index], 'projects': ['pybamm59']})
                 credentials.append(credential)
                 agents = machine.write('agents.json', [{'id': 'pybamm-sweep-v1', 'name': 'Frozen PyBaMM method', 'command': machine.python,
-                    'args': [str(ROOT / 'acp.py'), '--workspace', machine.directory + '/workspace'],
+                    'supervision': 'gate', 'args': [str(ROOT / 'acp.py'), '--workspace', machine.directory + '/workspace'],
                     'env': {'LD_LIBRARY_PATH': args.guest_library_path} if index and args.guest_library_path else {}}])
                 machine.run('import pathlib,sys; pathlib.Path(sys.argv[1]).mkdir(parents=True,exist_ok=True)', machine.directory + '/workspace')
                 config = machine.write('config.json', {'workspaces': {'battery': machine.directory + '/workspace'}, 'agents_file': agents})

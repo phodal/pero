@@ -22,14 +22,15 @@ type CampaignRecord struct {
 	Decision        *campaign.Decision `json:"decision,omitempty"`
 	trials          []TrialInput
 	checkerDigest   string
+	runnerID        string
 }
 
-const campaignColumns = `id,project_id,plan_digest,plan,COALESCE(workflow_run_id,''),cancel_requested,result,mode,checker_digest,decision`
+const campaignColumns = `id,project_id,plan_digest,plan,COALESCE(workflow_run_id,''),cancel_requested,result,mode,checker_digest,decision,runner_id`
 
 func scanCampaign(row pgx.Row) (CampaignRecord, error) {
 	var c CampaignRecord
 	var plan, result, decision []byte
-	if err := row.Scan(&c.Plan.ID, &c.Plan.Project, &c.Plan.Digest, &plan, &c.WorkflowRunID, &c.CancelRequested, &result, &c.Plan.Mode, &c.checkerDigest, &decision); err != nil {
+	if err := row.Scan(&c.Plan.ID, &c.Plan.Project, &c.Plan.Digest, &plan, &c.WorkflowRunID, &c.CancelRequested, &result, &c.Plan.Mode, &c.checkerDigest, &decision, &c.runnerID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return c, ErrNotFound
 		}
@@ -48,6 +49,45 @@ func scanCampaign(row pgx.Row) (CampaignRecord, error) {
 		return c, json.Unmarshal(result, &c.Result)
 	}
 	return c, nil
+}
+
+func (c CampaignRecord) TrialTitles() []string {
+	titles := make([]string, len(c.trials))
+	for i, trial := range c.trials {
+		titles[i] = trial.Task.Title
+	}
+	return titles
+}
+
+func (c CampaignRecord) CanReview(client *Client) bool {
+	return c.Plan.Mode == campaign.ReviewedPyBaMM && c.runnerID != client.ID
+}
+
+type CampaignSummary struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// ListReviewedCampaigns reads durable inventory without querying Temporal.
+func (s *Store) ListReviewedCampaigns(ctx context.Context, client *Client, project string) ([]CampaignSummary, error) {
+	if !slices.Contains(client.Projects, project) {
+		return nil, ErrNotFound
+	}
+	rows, err := s.pool.Query(ctx, `SELECT id,plan->0->'task'->>'title' FROM research_campaigns
+		WHERE project_id=$1 AND mode=$2 ORDER BY created_at DESC,id DESC LIMIT 50`, project, campaign.ReviewedPyBaMM)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CampaignSummary{}
+	for rows.Next() {
+		var item CampaignSummary
+		if err := rows.Scan(&item.ID, &item.Title); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
 }
 
 // AdmitCampaign freezes the plan before the caller attempts the Temporal RPC.
