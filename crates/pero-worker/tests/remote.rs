@@ -17,13 +17,15 @@ const AGENT: &str = r#"
 import readline from 'node:readline';
 import fs from 'node:fs';
 import {spawn} from 'node:child_process';
-let active;
+let active, permission='auto-review';
 const send = value => process.stdout.write(JSON.stringify({jsonrpc:'2.0',...value})+'\n');
 const result = (id,result) => send({id,result});
+const permissionConfig = () => ({id:'permission',name:'Permission',category:'mode',type:'select',currentValue:permission,options:[{value:'read-only',name:'View only'},{value:'full-access',name:'Full access'},{value:'auto-review',name:'Auto-review'}]});
 readline.createInterface({input:process.stdin}).on('line',line=>{
  const m=JSON.parse(line);
- if(m.method==='initialize')result(m.id,{protocolVersion:1,agentCapabilities:{}});
- if(m.method==='session/new')result(m.id,{sessionId:'fixture'});
+ if(m.method==='initialize')result(m.id,{protocolVersion:1,agentCapabilities:{},agentInfo:{name:'pero-agent-acp',version:'1'}});
+ if(m.method==='session/new')result(m.id,{sessionId:'fixture',configOptions:[permissionConfig()]});
+ if(m.method==='session/set_config_option'&&m.params.configId==='permission'){permission=m.params.value;result(m.id,{configOptions:[permissionConfig()]});}
  if(m.method==='session/prompt'){
   fs.appendFileSync(process.env.WORKER_FIXTURE_MARKER,'prompt\n'); active=m.id;
   if(m.params.prompt[0].text==='wait'){
@@ -483,8 +485,9 @@ int main(void) {
  while(fgets(line,sizeof(line),stdin)) {
   char *id=strstr(line,"\"id\":"); char n[128]="0";
   if(id) { id+=5; size_t count=strcspn(id,",}"); if(count>=sizeof(n)) return 3; memcpy(n,id,count); n[count]=0; }
-  if(strstr(line,"\"initialize\"")) printf("{\"jsonrpc\":\"2.0\",\"id\":%s,\"result\":{\"protocolVersion\":1,\"agentCapabilities\":{}}}\n",n);
-  else if(strstr(line,"session/new")) printf("{\"jsonrpc\":\"2.0\",\"id\":%s,\"result\":{\"sessionId\":\"fixture\"}}\n",n);
+  if(strstr(line,"\"initialize\"")) printf("{\"jsonrpc\":\"2.0\",\"id\":%s,\"result\":{\"protocolVersion\":1,\"agentCapabilities\":{},\"agentInfo\":{\"name\":\"pero-agent-acp\",\"version\":\"1\"}}}\n",n);
+  else if(strstr(line,"set_config_option")) printf("{\"jsonrpc\":\"2.0\",\"id\":%s,\"result\":{\"configOptions\":[{\"id\":\"permission\",\"name\":\"Permission\",\"category\":\"mode\",\"type\":\"select\",\"currentValue\":\"full-access\",\"options\":[{\"value\":\"read-only\",\"name\":\"View only\"},{\"value\":\"full-access\",\"name\":\"Full access\"},{\"value\":\"auto-review\",\"name\":\"Auto-review\"}]}]}}\n",n);
+  else if(strstr(line,"session/new")) printf("{\"jsonrpc\":\"2.0\",\"id\":%s,\"result\":{\"sessionId\":\"fixture\",\"configOptions\":[{\"id\":\"permission\",\"name\":\"Permission\",\"category\":\"mode\",\"type\":\"select\",\"currentValue\":\"auto-review\",\"options\":[{\"value\":\"read-only\",\"name\":\"View only\"},{\"value\":\"full-access\",\"name\":\"Full access\"},{\"value\":\"auto-review\",\"name\":\"Auto-review\"}]}]}}\n",n);
   else if(strstr(line,"session/prompt")) { strcpy(prompt,n); puts(getenv("FIXTURE_PERMISSION")); }
   else if(strcmp(n,"900")==0) {
    if(!strstr(line,"selected")) return 2;

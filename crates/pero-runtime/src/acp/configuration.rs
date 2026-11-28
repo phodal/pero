@@ -12,6 +12,28 @@ pub enum SupervisedPermission {
     AskDsh,
 }
 
+impl SupervisedPermission {
+    /// `read-only` without an approval binding; `full-access` when one is pinned.
+    pub fn mode(self) -> &'static str {
+        match self {
+            Self::ReadOnlyDsh => "read-only",
+            Self::AskDsh => "full-access",
+        }
+    }
+
+    /// A supervised session may continue only when initialize named the DSH
+    /// harness that advertises the permission selector. Another name, or no
+    /// `agentInfo`, is refused: skipping the selector would leave that
+    /// harness on auto-review, where edits and commands are not asked.
+    pub fn admit(self, agent_name: Option<&str>) -> Result<&'static str, &'static str> {
+        if agent_name == Some("pero-agent-acp") {
+            Ok(self.mode())
+        } else {
+            Err("Supervised session refused: peer is not a DSH that supports the permission selector")
+        }
+    }
+}
+
 #[derive(Clone, Default)]
 pub(super) struct Configuration {
     pub settings: SessionSettings,
@@ -191,6 +213,17 @@ impl Configuration {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn supervised_permission_admits_only_the_named_dsh() {
+        for permission in [SupervisedPermission::ReadOnlyDsh, SupervisedPermission::AskDsh] {
+            assert!(permission.admit(None).is_err());
+            assert!(permission.admit(Some("other-agent")).is_err());
+            assert_eq!(permission.admit(Some("pero-agent-acp")).unwrap(), permission.mode());
+        }
+        assert_eq!(SupervisedPermission::ReadOnlyDsh.mode(), "read-only");
+        assert_eq!(SupervisedPermission::AskDsh.mode(), "full-access");
+    }
 
     #[test]
     fn selectors_use_advertised_semantics_including_custom_permissions() {

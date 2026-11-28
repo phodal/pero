@@ -59,12 +59,19 @@ monotonic watchdog stops execution when its lease expires. The Worker first
 requests ACP cancellation, then enforces bounded cleanup of its executor and
 the Agent's separate SDK process group. The executor also detects supervisor
 death. Failure to confirm cleanup produces `reconcile` and stops task intake.
-Unattended permission requests are denied by default. For DSH Go, the Worker
-also requires an acknowledged `read-only` session setting before the first
-prompt. This blocks DSH's file writes, edits, and shell calls at the tool
-policy boundary. With the opt-in native shell policy below, the Worker selects
-and confirms DSH's approval-required mode before prompting, so DSH sends gated
-tools to the Worker for a decision. All `PERO_*` environment variables are
+Unattended permission requests are denied by default. Every supervised Worker
+session requires the peer to initialize as `pero-agent-acp`, the DSH harness
+that advertises the `permission` selector. A different `agentInfo.name`, or a
+missing `agentInfo`, fails the session before `session/new` and before the
+first prompt. An identified peer must then acknowledge `read-only` when the
+run has no native approval binding, or `full-access` when it has one. A
+missing selector, a rejected selection, or an acknowledgement that leaves a
+different mode also fails the session before the prompt. That acknowledgement
+replaces DSH's `auto-review` default, where file edits and commands proceed
+without a prompt and commands have no OS sandbox. Desktop sessions started
+outside the Worker keep their previous admission. A Worker peer that cannot
+be identified as this DSH, including Codex ACP, is refused before its prompt.
+All `PERO_*` environment variables are
 removed from the executor and Agent configuration; provider credentials should
 use the provider's own variable names.
 

@@ -51,7 +51,10 @@ the poller, and cuts only A's test Worker connection. It waits for the exact
 DSH process to stop and the original Journal to be retained before recording
 operator evidence and intentionally dispatching the next generation to B.
 B temporarily runs DSH for that retry because the Task freezes its Agent type.
-The separate coding task uses Codex on B. The source fixture, model proposal,
+The separate coding task uses Codex on B. A supervised Worker session refuses
+that Codex ACP peer before the first prompt, because initialize must name
+`pero-agent-acp` and the session must acknowledge the required permission mode.
+The DSH retry on B still meets that check. The source fixture, model proposal,
 candidate patch and receipt remain available for inspection.
 
 ```sh

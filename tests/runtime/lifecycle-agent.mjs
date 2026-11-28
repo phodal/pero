@@ -22,7 +22,7 @@ const fail = (id, code, message) => send({ id, error: { code, message } });
 const update = text => send({ method: 'session/update', params: { sessionId: 'fixture-session', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } } } });
 const finish = reason => { if (active !== undefined) { reply(active, { stopReason: reason }); active = undefined; } };
 const configs = () => [{ id: 'provider-model', name: 'Model', category: 'model', type: 'select', currentValue: model, options: [{ value: 'model-a', name: 'Model A' }, { value: 'model-b', name: 'Model B' }] },
- ...(dshWorker && scenario !== 'dsh_worker_no_selector' ? [{
+ ...((dshWorker && scenario !== 'dsh_worker_no_selector') || scenario === 'app_use_boundary' ? [{
   id: 'permission', name: 'Permission', category: 'mode', type: 'select', currentValue: dshPermission,
   options: [{value: 'auto-review', name: 'Auto-review'}, {value: 'read-only', name: 'View only'}, {value: 'full-access', name: 'Ask for tools'}],
  }] : []),
@@ -43,9 +43,13 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     if (scenario === 'science') { reply(id, {protocolVersion:1,agentCapabilities:{_meta:{'pero.scienceSession':1}}}); return; }
     if (scenario === 'initialization_hangs') return;
     if (scenario === 'unsupported_protocol') { reply(id, { protocolVersion: 999, agentCapabilities: {}, authMethods: [] }); return; }
-    if (dshWorker) { reply(id, {protocolVersion: 1, agentInfo: {name: 'pero-agent-acp', version: '1'}}); return; }
+    if (dshWorker) {
+      const agentInfo = scenario === 'dsh_worker_no_info' ? undefined : { name: scenario === 'dsh_worker_wrong_name' ? 'other-agent' : 'pero-agent-acp', version: '1' };
+      reply(id, { protocolVersion: 1, ...(agentInfo ? { agentInfo } : {}) });
+      return;
+    }
     if (scenario === 'dsh_wire' || scenario === 'load_replay') { reply(id, { protocolVersion: 1, agentCapabilities: { loadSession: true }, authMethods: [] }); return; }
-    reply(id, { protocolVersion: 1, agentCapabilities: scenario === 'composer' ? {promptCapabilities:{image:true,embeddedContext:true}} : (scenario.startsWith('mcp') && scenario !== 'mcp_unsupported' || scenario === 'app_use_boundary') ? {mcpCapabilities: {http: true, sse: true}} : {}, agentInfo: { name: 'lifecycle-fixture', version: '1' }, authMethods: [{ id: 'login', name: 'Fixture login' }, { type: 'terminal', id: 'terminal-login', name: 'Interactive fixture login' }] });
+    reply(id, { protocolVersion: 1, agentCapabilities: scenario === 'composer' ? {promptCapabilities:{image:true,embeddedContext:true}} : (scenario.startsWith('mcp') && scenario !== 'mcp_unsupported' || scenario === 'app_use_boundary') ? {mcpCapabilities: {http: true, sse: true}} : {}, agentInfo: { name: scenario === 'app_use_boundary' ? 'pero-agent-acp' : 'lifecycle-fixture', version: '1' }, authMethods: [{ id: 'login', name: 'Fixture login' }, { type: 'terminal', id: 'terminal-login', name: 'Interactive fixture login' }] });
   } else if (method === 'session/new') {
     sessionAttempts += 1;
     sessionMcp = params.mcpServers;
@@ -99,7 +103,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     authenticated = true;
     reply(id, {});
   } else if (method === 'session/set_config_option') {
-    if (dshWorker && params.configId === 'permission' && ['read-only', 'full-access'].includes(params.value)) {
+    if ((dshWorker || scenario === 'app_use_boundary') && params.configId === 'permission' && ['read-only', 'full-access'].includes(params.value)) {
       if (scenario === 'dsh_worker_rejected') { fail(id, -32602, 'Fixture rejected read-only'); return; }
       if (scenario !== 'dsh_worker_wrong_ack') dshPermission = params.value;
       reply(id, {configOptions: configs()});

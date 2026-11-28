@@ -53,7 +53,7 @@ fn node_adapters_connect_and_reconnect() {
         serde_json::to_vec(&serde_json::json!([{
             "id":"codex", "name":"Custom Codex", "command":node,
             "args":["--no-warnings", fixture],
-            "env":{"PERO_FIXTURE_SCENARIO":"dsh_wire", "ELECTRON_RUN_AS_NODE":"1"}
+            "env":{"PERO_FIXTURE_SCENARIO":"dsh_worker_ready", "ELECTRON_RUN_AS_NODE":"1"}
         }]))
         .unwrap(),
     )
@@ -72,7 +72,7 @@ fn node_adapters_connect_and_reconnect() {
             .env("PERO_AGENT_ROOT", &root)
             .env("PERO_AGENTS_FILE", root.join("absent.json"))
             .env("PERO_APP_NODE", &node)
-            .env("PERO_FIXTURE_SCENARIO", "dsh_wire")
+            .env("PERO_FIXTURE_SCENARIO", "dsh_worker_ready")
             .env_remove("PERO_ADAPTER_NODE");
         match mode {
             "path-node" => {
@@ -161,8 +161,12 @@ fn supervised_dsh_requires_read_only_acknowledgement_before_prompt() {
         ("dsh_worker_no_selector", SupervisedPermission::ReadOnlyDsh, None, Some("not advertised")),
         ("dsh_worker_rejected", SupervisedPermission::ReadOnlyDsh, None, Some("Fixture rejected read-only")),
         ("dsh_worker_wrong_ack", SupervisedPermission::ReadOnlyDsh, None, Some("did not acknowledge")),
+        ("dsh_worker_wrong_name", SupervisedPermission::ReadOnlyDsh, None, Some("not a DSH")),
+        ("dsh_worker_no_info", SupervisedPermission::ReadOnlyDsh, None, Some("not a DSH")),
         ("dsh_worker_ready", SupervisedPermission::AskDsh, Some("full-access"), None),
         ("dsh_worker_wrong_ack", SupervisedPermission::AskDsh, None, Some("did not acknowledge")),
+        ("dsh_worker_wrong_name", SupervisedPermission::AskDsh, None, Some("not a DSH")),
+        ("dsh_worker_no_info", SupervisedPermission::AskDsh, None, Some("not a DSH")),
     ] {
         let config = serde_json::from_value(serde_json::json!({
             "id": "dsh-alias", "name": "Worker Agent", "command": "node",

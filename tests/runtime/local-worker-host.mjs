@@ -25,9 +25,11 @@ await writeFile(providerAgent,`
     || arg('--model') !== ${JSON.stringify(providerModel)}
     || process.env.DEEPSEEK_API_KEY !== ${JSON.stringify(providerKey)}
     || process.env.PERO_LOCAL_WORKER_DEEPSEEK_API_KEY) process.exit(1);
+  const permission = current => ({ id: 'permission', name: 'Permission', category: 'mode', type: 'select', currentValue: current, options: [{ value: 'read-only', name: 'View only' }, { value: 'full-access', name: 'Full access' }, { value: 'auto-review', name: 'Auto-review' }] });
   const results = {
-    initialize: { protocolVersion: 1, agentCapabilities: {} },
-    'session/new': { sessionId: 'provider-fixture' },
+    initialize: { protocolVersion: 1, agentCapabilities: {}, agentInfo: { name: 'pero-agent-acp', version: '1' } },
+    'session/new': { sessionId: 'provider-fixture', configOptions: [permission('auto-review')] },
+    'session/set_config_option': { configOptions: [permission('read-only')] },
     'session/prompt': { stopReason: 'end_turn' },
   };
   createInterface({ input: process.stdin }).on('line', line => {
