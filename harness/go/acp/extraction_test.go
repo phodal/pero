@@ -11,7 +11,9 @@ import (
 	"io"
 	"net"
 	"os"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -139,6 +141,107 @@ func TestExtractedACPWireLifecyclePermissionAndResume(t *testing.T) {
 		t.Fatal("resume replayed work")
 	}
 	rpc("session/close", map[string]any{"sessionId": id})
+}
+
+func TestQuietLoadParksDurableInboxUntilExplicitPrompt(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	var generations atomic.Int32
+	var lastUserByGeneration []string
+	h, err := harness.Boot(ctx, harness.Options{
+		AdapterProviders: []string{"fixture"},
+		Adapter: harness.AdapterFunc(func(_ context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+			last := ""
+			for _, message := range req.Messages {
+				if message.Role == harness.RoleUser && len(message.Content) != 0 {
+					last = message.Content[0].Text
+				}
+			}
+			lastUserByGeneration = append(lastUserByGeneration, last)
+			generations.Add(1)
+			return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{
+				Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}},
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { h.Dispose(context.Background()); h.Drain(context.Background()) }()
+	disk, err := harness.NewJSONLSessionPersistence(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "fixture", Model: "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.writer = &wireWriter{encoder: json.NewEncoder(io.Discard)}
+	defer s.closeAll(ctx)
+	cwd := t.TempDir()
+	id := harness.SessionID("quiet-load-fixture")
+	durable := harness.NewSession(id, cwd)
+	inbox, err := harness.NewDurableInbox(durable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inserted, err := inbox.Append(harness.InboxNextTurn, harness.Message{
+		ID: "queued-note", Role: harness.RoleUser,
+		Source:  json.RawMessage(`{"kind":"workflow-settled"}`),
+		Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "saved queued note"}},
+	}); !inserted || err != nil {
+		t.Fatalf("stage queued note: inserted=%v err=%v", inserted, err)
+	}
+	detach, err := disk.Attach(ctx, durable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := detach(); err != nil {
+		t.Fatal(err)
+	}
+
+	v := 1
+	params := ResumeSessionParams{SessionID: string(id), CWD: cwd, Meta: MCPRuntimeMeta{QuietLoad: &v}}
+	load := func(method string) *rpcError {
+		raw, err := json.Marshal(params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, failure := s.handle(ctx, request{Method: method, Params: raw})
+		return failure
+	}
+	if failure := load("session/resume"); failure == nil || failure.Code != -32602 {
+		t.Fatalf("resume accepted a load-only option: %+v", failure)
+	}
+	v = 2
+	if failure := load("session/load"); failure == nil || failure.Code != -32602 {
+		t.Fatalf("unknown revision accepted: %+v", failure)
+	}
+	v = 1
+	if failure := load("session/load"); failure != nil {
+		t.Fatalf("quiet load: %+v", failure)
+	}
+	record, err := s.currentRecord(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := record.agent.WhenIdle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if pending := record.agent.PendingDurableInbox(harness.InboxNextTurn); generations.Load() != 0 || len(pending) != 1 || pending[0].ID != "queued-note" {
+		t.Fatalf("quiet load did not retain pending work without model invocation: generations=%d pending=%v", generations.Load(), pending)
+	}
+	stop, err := s.prompt(ctx, PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: "explicit next turn"}}})
+	if err != nil || stop != "end_turn" {
+		t.Fatalf("explicit prompt: %s %v", stop, err)
+	}
+	if err := record.agent.WhenIdle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if generations.Load() != 2 || !slices.Equal(lastUserByGeneration, []string{"saved queued note", "explicit next turn"}) ||
+		len(record.agent.PendingDurableInbox(harness.InboxNextTurn)) != 0 {
+		t.Fatalf("explicit turn did not drain the saved note and new prompt once each: generations=%d last inputs=%q", generations.Load(), lastUserByGeneration)
+	}
 }
 
 func TestResumeRunsOnlyIntentionallyQueuedInput(t *testing.T) {

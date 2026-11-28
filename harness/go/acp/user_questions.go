@@ -47,6 +47,7 @@ func (s *Server) extensionCapabilities() map[string]int {
 		MCPToolPolicyCapability:    1,
 		MCPSessionCapability:       1,
 		turnReceiptCapability:      1,
+		quietLoadCapability:        1,
 		model.AppUseContextMetaKey: 1,
 	}
 	if s.questionTools {

@@ -406,6 +406,9 @@ func (s *Server) handle(ctx context.Context, message request) (any, *rpcError) {
 		if err := decodeParams(message.Params, &params); err != nil {
 			return nil, invalid(err.Error())
 		}
+		if params.Meta.QuietLoad != nil {
+			return nil, invalid("quiet load requires session/load")
+		}
 		if err := s.resumeSession(ctx, params); err != nil {
 			return nil, classify(err)
 		}
@@ -688,6 +691,9 @@ func waitForACPCommands(ctx context.Context, idle <-chan struct{}) error {
 }
 
 func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) error {
+	if params.Meta.QuietLoad != nil && *params.Meta.QuietLoad != 1 {
+		return invalidError("unsupported quiet load revision")
+	}
 	done, err := s.beginSessionOperation(ctx)
 	if err != nil {
 		return err
@@ -757,7 +763,7 @@ func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) 
 		s.retireAgent(agent)
 		return err
 	}
-	if err := s.activate(ctx, agent); err != nil {
+	if err := s.activateWithPolicy(ctx, agent, nil, params.Meta.QuietLoad == nil); err != nil {
 		s.retireAgent(agent)
 		return err
 	}
