@@ -11,7 +11,7 @@ go_sdk.download(version = "1.26.4")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_mod = "//server:go.mod")
-use_repo(go_deps, "com_github_jackc_pgx_v5", "com_github_yuin_goldmark")
+use_repo(go_deps, "com_github_jackc_pgx_v5", "com_github_yuin_goldmark", "io_temporal_go_api", "io_temporal_go_sdk", "org_golang_google_protobuf")
 
 node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
 node.toolchain(node_version = "24.14.0")
