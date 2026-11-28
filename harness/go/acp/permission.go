@@ -28,7 +28,7 @@ func permissionConfig(session *harness.Session) (map[string]any, error) {
 		"id": "permission", "name": "Permission", "category": "mode", "type": "select",
 		"currentValue": string(mode),
 		"options": []any{
-			map[string]any{"value": "read-only", "name": "View only", "description": "Read the workspace. Native file changes and commands are rejected. An MCP tool is not rejected unless it has a mutating annotation or an operator policy asks or denies it."},
+			map[string]any{"value": "read-only", "name": "View only", "description": "Read the workspace. Native file changes and commands are rejected. An annotated MCP tool enters this gate unless readOnlyHint is true. A tool with no annotations does not. An operator policy can deny it, ask (which this mode rejects), or leave that gate."},
 			map[string]any{"value": "workspace-write", "name": "Edit in workspace", "description": "File changes ask for approval. Commands are rejected."},
 			map[string]any{"value": "full-access", "name": "Full access", "description": "File changes and commands ask for approval. Commands are not OS-sandboxed."},
 			map[string]any{"value": "auto-review", "name": "Auto-review", "description": "File changes and commands proceed without a prompt. Commands are not OS-sandboxed."},

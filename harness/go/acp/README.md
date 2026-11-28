@@ -91,9 +91,9 @@ Repeat `--selectable-model` for at most 32 additional model IDs. The default
 single-model launch still returns no model selector. Every session also
 advertises a `permission` selector, defaulting to `auto-review`. `read-only`
 rejects native file changes and commands that require approval. An MCP tool
-enters that gate only when its annotations set `readOnlyHint` to false. A tool
-with `readOnlyHint: true`, or with no annotations, does not enter the gate, and
-`read-only` does not reject it. The server hint is not verified. Negotiated
+enters that gate when it has annotations and `readOnlyHint` is not true, matching
+`Annotations != nil && !ReadOnlyHint`. A tool with no annotations does not enter
+the gate. `readOnlyHint: true` does not either. The server hint is not verified. Negotiated
 `pero.mcpToolPolicy` can deny a tool, require an ask (which `read-only` then
 rejects), or leave the annotation gate in place. `full-access` asks before native
 file changes and commands and does not
