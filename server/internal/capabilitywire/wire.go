@@ -51,10 +51,16 @@ func (id *researchID) UnmarshalJSON(data []byte) error {
 
 func researchIDPattern(value string) bool { return researchPattern.MatchString(value) }
 
-type nullableUint32 struct{ value *uint32 }
+// present distinguishes a missing field from JSON null. A pointer field would
+// become nil for null without calling UnmarshalJSON.
+type nullableUint32 struct {
+	present bool
+	value   *uint32
+}
 
 func (n *nullableUint32) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
+	n.present = true
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 		return nil
 	}
 	var value uint32
@@ -145,7 +151,12 @@ func Parse(schema string, data []byte) error {
 		if err := decode(data, &value); err != nil {
 			return err
 		}
-		if !nestedHas(data, "scope", "workspaceId") || !nestedHas(data, "attempt") {
+		for _, key := range []string{"id", "sessionId", "status", "attempt", "requestId", "updatedAt"} {
+			if !nestedHas(data, key) || isNull(data, key) {
+				return errors.New("status fields")
+			}
+		}
+		if !nestedHas(data, "scope", "workspaceId") || isNull(data, "scope", "workspaceId") || isNull(data, "error") || isNull(data, "stopReason") {
 			return errors.New("status fields")
 		}
 		switch value.Status {
@@ -162,7 +173,7 @@ func Parse(schema string, data []byte) error {
 		if err := decode(data, &value); err != nil {
 			return err
 		}
-		if value.Operation != "queries" {
+		if value.Operation != "queries" || isNull(data, "queryId") {
 			return errors.New("operation")
 		}
 		return nil
@@ -175,7 +186,7 @@ func Parse(schema string, data []byte) error {
 				Status         string            `json:"status"`
 				Reason         string            `json:"reason"`
 				Rows           []json.RawMessage `json:"rows"`
-				RowCount       *nullableUint32   `json:"rowCount"`
+				RowCount       nullableUint32    `json:"rowCount"`
 				Truncated      bool              `json:"truncated"`
 				ElapsedSeconds *float64          `json:"elapsedSeconds,omitempty"`
 				ResultID       *researchID       `json:"resultId,omitempty"`
@@ -187,8 +198,13 @@ func Parse(schema string, data []byte) error {
 		if err := decode(data, &value); err != nil {
 			return err
 		}
-		if value.Acceptance != "needs_review" || value.Receipt.RowCount == nil || !object(value.Intent) || !object(value.Snapshot) {
+		if value.Acceptance != "needs_review" || !value.Receipt.RowCount.present || !object(value.Intent) || !object(value.Snapshot) || isNull(data, "receipt", "resultId") {
 			return errors.New("research response")
+		}
+		for _, key := range []string{"queryId", "status", "reason", "rows", "rowCount", "truncated"} {
+			if !nestedHas(data, "receipt", key) {
+				return errors.New("receipt fields")
+			}
 		}
 		switch value.Receipt.Status {
 		case "completed", "failed", "cancelled", "running", "interrupted":
@@ -268,6 +284,24 @@ func Parse(schema string, data []byte) error {
 	default:
 		return fmt.Errorf("unknown schema %s", schema)
 	}
+}
+
+func isNull(data []byte, path ...string) bool {
+	var current any
+	if json.Unmarshal(data, &current) != nil {
+		return false
+	}
+	for _, key := range path {
+		object, ok := current.(map[string]any)
+		if !ok {
+			return false
+		}
+		current, ok = object[key]
+		if !ok {
+			return false
+		}
+	}
+	return current == nil
 }
 
 func nestedHas(data []byte, path ...string) bool {
