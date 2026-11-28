@@ -224,6 +224,10 @@ func establishSubagentCatalogChild(record *subagentRecord) error {
 		}
 		fact.ChildCreatedAt = record.child.Session().Header().CreatedAt.UnixMilli()
 	}
+	if record.activation.catalogName != "" {
+		fact.Version = 3
+		fact.Name = record.activation.catalogName
+	}
 	if err := fact.validate(); err != nil {
 		return err
 	}

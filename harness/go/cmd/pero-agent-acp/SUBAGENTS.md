@@ -28,5 +28,8 @@ publishing Sessions. A reachable one-shot session can lead to a continuable
 grandchild; unreadable branches stop locally and ordinary forks have separate
 catalogs. The query understands the v3 catalog format and resolves root-relative
 paths such as `verify/checker` without crossing into unrelated branches. Logs
-with an unnamed ancestor keep Session IDs. Native child creation does not yet
-reserve and write those names, and model-facing `list_agents` is not yet exposed.
+with an unnamed ancestor keep Session IDs. Managed activations reserve sibling
+names before startup, write them on successful catalog commit, and retain them
+after settlement and restart. This changes neither existing single-use
+`spawn_agent` / `fork_agent` nor Team owner selectors. The model-facing
+`list_agents` is not yet exposed.

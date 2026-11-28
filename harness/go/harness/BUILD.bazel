@@ -95,6 +95,7 @@ go_library(
         "subagents_drain.go",
         "subagents_facade.go",
         "subagents_lifecycle.go",
+        "subagents_naming.go",
         "subagents_parent_receipt.go",
         "subagents_projection.go",
         "subagents_resume_activation.go",

@@ -110,7 +110,10 @@ type SubagentRequest struct {
 	SuppressParentSettlement bool
 	Parent                   *Agent
 	Label                    string
-	Prompt                   string
+	// AgentName is an optional DSH sibling name for StartActivation. It is
+	// independent of Label and never grants permission to control the child.
+	AgentName *string
+	Prompt    string
 	// PromptContent preserves the full DSH content-block request. Prompt remains
 	// the compatibility text form for string-only providers; in-process
 	// providers consume PromptContent when present.
@@ -488,6 +491,8 @@ type SubagentRegistry struct {
 	presetValidator atomic.Pointer[subagentPresetValidator]
 	runtime         *point.Runtime
 	resumeMu        sync.Mutex
+	nameMu          sync.Mutex
+	pendingNames    map[*Agent]map[string]bool
 
 	mu                  sync.RWMutex
 	nextID              uint64
